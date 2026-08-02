@@ -1,0 +1,135 @@
+"""
+Redis caching layer.
+
+Provides a thin async wrapper around ``redis.asyncio`` for caching
+frequently-accessed data such as product lookups, intent predictions,
+and session state.  When Redis is unavailable the cache degrades
+gracefully to a no-op, so the application continues to function.
+"""
+
+import json
+from typing import Any, Optional
+
+import redis.asyncio as redis
+
+from app.core.config import settings
+from app.utils.logger import logger
+
+
+class RedisCache:
+    """
+    Async Redis cache with JSON serialization.
+
+    Usage::
+
+        await cache.set("product:123", product_data, ttl=300)
+        data = await cache.get("product:123")
+    """
+
+    def __init__(self, url: Optional[str] = None, default_ttl: int = 300):
+        self._url = url or settings.REDIS_URL
+        self._default_ttl = default_ttl
+        self._client: Optional[redis.Redis] = None
+        self._connected = False
+
+    async def connect(self) -> None:
+        """Connect to Redis."""
+        try:
+            self._client = redis.from_url(self._url, decode_responses=True)
+            # Verify connection
+            await self._client.ping()
+            self._connected = True
+            logger.info("Redis connected successfully.")
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}. Running without cache.")
+            self._client = None
+            self._connected = False
+
+    async def disconnect(self) -> None:
+        """Close the Redis connection."""
+        if self._client:
+            await self._client.close()
+            self._client = None
+            self._connected = False
+            logger.info("Redis connection closed.")
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Retrieve a value from the cache. Returns None if missing or Redis is down."""
+        if not self._connected or self._client is None:
+            return None
+        try:
+            raw = await self._client.get(key)
+            if raw is None:
+                return None
+            return json.loads(raw)
+        except Exception as e:
+            logger.debug(f"Redis GET failed for key '{key}': {e}")
+            return None
+
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+        """Store a value in the cache. Returns True on success."""
+        if not self._connected or self._client is None:
+            return False
+        try:
+            raw = json.dumps(value, default=str)
+            await self._client.setex(key, ttl or self._default_ttl, raw)
+            return True
+        except Exception as e:
+            logger.debug(f"Redis SET failed for key '{key}': {e}")
+            return False
+
+    async def delete(self, key: str) -> bool:
+        """Delete a key from the cache. Returns True if a key was removed."""
+        if not self._connected or self._client is None:
+            return False
+        try:
+            result = await self._client.delete(key)
+            return result > 0
+        except Exception as e:
+            logger.debug(f"Redis DELETE failed for key '{key}': {e}")
+            return False
+
+    async def exists(self, key: str) -> bool:
+        """Check if a key exists in the cache."""
+        if not self._connected or self._client is None:
+            return False
+        try:
+            return await self._client.exists(key) > 0
+        except Exception as e:
+            logger.debug(f"Redis EXISTS failed for key '{key}': {e}")
+            return False
+
+    async def increment(self, key: str, amount: int = 1, ttl: Optional[int] = None) -> Optional[int]:
+        """Atomically increment a counter. Returns the new value or None on failure."""
+        if not self._connected or self._client is None:
+            return None
+        try:
+            result = await self._client.incrby(key, amount)
+            if ttl is not None and result == amount:
+                await self._client.expire(key, ttl)
+            return result
+        except Exception as e:
+            logger.debug(f"Redis INCR failed for key '{key}': {e}")
+            return None
+
+    async def get_many(self, keys: list[str]) -> dict[str, Any]:
+        """Retrieve multiple values at once."""
+        if not self._connected or self._client is None:
+            return {}
+        try:
+            raw = await self._client.mget(keys)
+            return {
+                key: json.loads(val) if val is not None else None
+                for key, val in zip(keys, raw)
+            }
+        except Exception as e:
+            logger.debug(f"Redis MGET failed: {e}")
+            return {}
+
+
+# Module-level singleton
+redis_cache = RedisCache()

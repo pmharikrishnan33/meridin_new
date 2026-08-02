@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+python-dotenv
+pymongo
+motor
+joblib
+scikit-learn==1.6.1
+numpy==2.2.3
+pandas
+rapidfuzz
+httpx
+redis

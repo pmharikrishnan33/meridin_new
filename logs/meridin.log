@@ -1,0 +1,319 @@
+2026-07-28 19:42:08,166 | INFO | meridin | Meridin started
+2026-07-28 19:42:08,167 | WARNING | meridin | Testing warning
+2026-07-28 19:42:08,167 | ERROR | meridin | Testing error
+2026-07-28 19:43:10,594 | INFO | meridin | MongoDB connected successfully.
+2026-07-28 19:43:10,659 | INFO | meridin | MongoDB connection closed.
+2026-07-29 19:42:25,759 | INFO | meridin | Meridin starting...
+2026-07-29 19:42:29,910 | INFO | meridin | MongoDB connected successfully.
+2026-07-29 19:42:29,910 | INFO | meridin | Meridin started successfully.
+2026-07-29 20:27:51,320 | INFO | meridin | Meridin shutting down...
+2026-07-29 20:27:54,630 | INFO | meridin | MongoDB connection closed.
+2026-07-29 21:22:41,647 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-29 21:22:41,667 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-29 21:22:41,668 | INFO | meridin | Text preprocessor initialized.
+2026-07-29 21:22:41,668 | INFO | meridin | Loading ML models...
+2026-07-29 21:22:41,669 | WARNING | meridin | Model file not found: models/intent_model.pkl
+2026-07-29 21:22:41,669 | WARNING | meridin | Model file not found: models/intent_vectorizer.pkl
+2026-07-29 21:22:41,669 | WARNING | meridin | Model file not found: models/entity_model.pkl
+2026-07-29 21:22:41,669 | WARNING | meridin | Model file not found: models/entity_vectorizer.pkl
+2026-07-29 21:22:41,669 | INFO | meridin | All ML models loaded successfully.
+2026-07-29 21:22:41,670 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 20:57:51,208 | INFO | meridin | Loading ML models...
+2026-07-30 20:57:53,973 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 20:57:53,974 | WARNING | meridin | Model file not found: models/intent_vectorizer.pkl
+2026-07-30 20:57:53,977 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 20:57:53,978 | WARNING | meridin | Model file not found: models/entity_vectorizer.pkl
+2026-07-30 20:57:53,978 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 20:57:53,979 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 21:00:08,904 | INFO | meridin | Loading ML models...
+2026-07-30 21:00:11,256 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:00:11,257 | WARNING | meridin | Model file not found: models/intent_vectorizer.pkl
+2026-07-30 21:00:11,258 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:00:11,259 | WARNING | meridin | Model file not found: models/entity_vectorizer.pkl
+2026-07-30 21:00:11,259 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:00:11,259 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 21:00:11,260 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 21:00:11,260 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 21:00:11,260 | WARNING | meridin | Intent model not loaded, using keyword fallback
+2026-07-30 21:09:27,553 | INFO | meridin | Loading ML models...
+2026-07-30 21:09:28,955 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:09:28,964 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:09:28,966 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:09:28,968 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:09:28,968 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:13:30,241 | INFO | meridin | Loading ML models...
+2026-07-30 21:14:18,101 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:14:18,112 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:14:18,114 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:14:18,116 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:14:18,116 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:14:19,698 | INFO | meridin | Loading ML models...
+2026-07-30 21:14:21,087 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:14:21,096 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:14:21,098 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:14:21,099 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:14:21,099 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:14:31,302 | INFO | meridin | Loading ML models...
+2026-07-30 21:14:31,827 | INFO | meridin | Loading ML models...
+2026-07-30 21:14:32,880 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:14:32,889 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:14:32,890 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:14:32,892 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:14:32,892 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:14:33,332 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:14:33,339 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:14:33,340 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:14:33,342 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:14:33,342 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:15:21,170 | INFO | meridin | Loading ML models...
+2026-07-30 21:15:29,182 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:15:29,190 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:15:29,191 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:15:29,192 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:15:29,193 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:16:06,730 | INFO | meridin | Loading ML models...
+2026-07-30 21:16:40,567 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:16:40,588 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:16:40,590 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:16:40,592 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:16:40,592 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:26:38,925 | INFO | meridin | Loading ML models...
+2026-07-30 21:27:54,710 | INFO | meridin | Loading ML models...
+2026-07-30 21:28:11,149 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:28:11,531 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:28:11,570 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:28:11,582 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:28:11,582 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:28:14,802 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:28:14,814 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:28:14,816 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:28:14,819 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:28:14,819 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:28:18,383 | INFO | meridin | Loading ML models...
+2026-07-30 21:28:20,652 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:28:20,663 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:28:20,664 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:28:20,666 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:28:20,667 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:31:03,076 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:31:03,076 | INFO | meridin | Loading ML models...
+2026-07-30 21:31:04,604 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:31:04,615 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:31:04,617 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:31:04,620 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:31:04,620 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:31:04,631 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-30 21:31:04,633 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-30 21:31:04,665 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:31:04,671 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-30 21:31:04,671 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-30 21:31:04,678 | INFO | meridin | Loading ML models...
+2026-07-30 21:31:04,679 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:31:04,689 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:31:04,691 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:31:04,694 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:31:04,695 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:31:05,597 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:31:05,598 | INFO | meridin | Loading ML models...
+2026-07-30 21:31:07,123 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:31:07,135 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:31:07,137 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:31:07,139 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:31:07,140 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:31:07,151 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-30 21:31:07,152 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-30 21:31:07,153 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:31:07,159 | INFO | meridin | Routing intent: cancel_order (confidence: 0.98)
+2026-07-30 21:31:07,159 | INFO | meridin | Missing required entities for cancel_order: [<EntityType.ORDER_ID: 'order_id'>]
+2026-07-30 21:31:07,159 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:31:07,164 | INFO | meridin | Routing intent: product_search (confidence: 0.89)
+2026-07-30 21:31:07,166 | ERROR | meridin | Handler ProductSearchHandler failed: MongoDB has not been initialized. Call connect() first.
+Traceback (most recent call last):
+  File "/home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML/app/routing/intent_router.py", line 102, in route
+    response = await handler.handle(
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML/app/handlers/product_search.py", line 53, in handle
+    products = await product_service.search_products(tenant_id, filters)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML/app/services/product_service.py", line 97, in search_products
+    collections.products
+  File "/home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML/app/database/collections.py", line 18, in products
+    return mongodb.get_database()["products"]
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML/app/database/mongodb.py", line 62, in get_database
+    raise RuntimeError(
+RuntimeError: MongoDB has not been initialized. Call connect() first.
+2026-07-30 21:32:01,849 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:32:01,849 | INFO | meridin | Loading ML models...
+2026-07-30 21:32:06,944 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:32:06,955 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:32:06,956 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:32:06,959 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:32:06,959 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:32:06,973 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-30 21:32:09,289 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-30 21:32:09,300 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-30 21:32:09,306 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-30 21:32:09,310 | INFO | meridin | Loading ML models...
+2026-07-30 21:32:09,311 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:32:09,317 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:32:09,319 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:32:09,321 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:32:09,322 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:32:11,172 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:32:11,172 | INFO | meridin | Loading ML models...
+2026-07-30 21:32:12,825 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:32:12,837 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:32:12,838 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:32:12,841 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:32:12,841 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:32:12,852 | INFO | meridin | Routing intent: product_search (confidence: 0.89)
+2026-07-30 21:32:12,855 | WARNING | meridin | Product search skipped because MongoDB is unavailable.
+2026-07-30 21:32:12,855 | INFO | meridin | Handler ProductSearchHandler completed successfully
+2026-07-30 21:32:51,580 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-30 21:32:51,581 | INFO | meridin | Loading ML models...
+2026-07-30 21:32:53,160 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:32:53,172 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:32:53,174 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:32:53,176 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:32:53,177 | INFO | meridin | All ML models loaded successfully.
+2026-07-30 21:32:53,193 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-30 21:32:53,194 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-30 21:32:53,206 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-30 21:32:53,207 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-30 21:32:53,211 | INFO | meridin | Loading ML models...
+2026-07-30 21:32:53,213 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-30 21:32:53,219 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-30 21:32:53,220 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-30 21:32:53,223 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-30 21:32:53,224 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:20:46,550 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 11:20:46,550 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 11:20:46,550 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 11:20:46,551 | INFO | meridin | Loading ML models...
+2026-07-31 11:21:00,759 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:21:00,848 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:21:00,851 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:21:00,855 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:21:00,855 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:21:01,076 | INFO | meridin | Created new conversation: e8559eb5-cd20-4ea4-9618-517d77269b38
+2026-07-31 11:21:01,077 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-31 11:21:01,113 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-31 11:21:01,160 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-31 11:21:01,162 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 11:21:01,168 | INFO | meridin | Loading ML models...
+2026-07-31 11:21:01,170 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:21:01,181 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:21:01,182 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:21:01,184 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:21:01,185 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:21:14,465 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 11:21:14,465 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 11:21:14,466 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 11:21:14,466 | INFO | meridin | Loading ML models...
+2026-07-31 11:21:23,853 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:21:23,869 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:21:23,871 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:21:23,873 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:21:23,873 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:21:23,884 | INFO | meridin | Created new conversation: 45083e90-0fb6-4c56-a139-86f5f2ab70b7
+2026-07-31 11:21:23,885 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-31 11:21:23,886 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-31 11:21:23,894 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-31 11:21:23,895 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 11:21:23,897 | INFO | meridin | Loading ML models...
+2026-07-31 11:21:23,897 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:21:23,901 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:21:23,901 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:21:23,903 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:21:23,903 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:24:18,668 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 11:24:18,669 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 11:24:18,669 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 11:24:18,669 | INFO | meridin | Loading ML models...
+2026-07-31 11:24:21,411 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:24:21,418 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:24:21,419 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:24:21,421 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:24:21,421 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 11:24:21,430 | INFO | meridin | Created new conversation: 5b58c319-60d1-4646-80c3-303c2bd1e452
+2026-07-31 11:24:21,430 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-31 11:24:21,431 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-31 11:24:21,440 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-31 11:24:21,440 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 11:24:21,442 | INFO | meridin | Loading ML models...
+2026-07-31 11:24:21,443 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 11:24:21,446 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 11:24:21,447 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 11:24:21,448 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 11:24:21,449 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:36:18,827 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 12:36:18,829 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 12:36:18,829 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 12:36:18,830 | INFO | meridin | Loading ML models...
+2026-07-31 12:36:39,961 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:36:40,706 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:36:40,709 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:36:40,713 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:36:40,713 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:36:41,423 | INFO | meridin | Created new conversation: c0fa21c4-1d92-4f64-80ea-1590ee218ec8
+2026-07-31 12:36:41,426 | INFO | meridin | Routing intent: greeting (confidence: 1.00)
+2026-07-31 12:36:41,460 | INFO | meridin | Handler GreetingHandler completed successfully
+2026-07-31 12:36:41,496 | INFO | meridin | Routing intent: thanks (confidence: 1.00)
+2026-07-31 12:36:41,498 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 12:36:41,505 | INFO | meridin | Loading ML models...
+2026-07-31 12:36:41,507 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:36:41,515 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:36:41,517 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:36:41,520 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:36:41,521 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:37:50,891 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 12:37:50,892 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 12:37:50,892 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 12:37:50,892 | INFO | meridin | Loading ML models...
+2026-07-31 12:37:52,944 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:37:52,975 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:37:53,108 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:37:53,150 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:37:53,151 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:37:53,184 | INFO | meridin | Created new conversation: 0ccfb85e-1fd1-4d5c-be3a-325feebb82cb
+2026-07-31 12:37:53,185 | INFO | meridin | Routing intent: greeting (confidence: 0.23)
+2026-07-31 12:37:53,186 | WARNING | meridin | Intent greeting confidence 0.23 below threshold 0.4, using fallback
+2026-07-31 12:37:55,160 | INFO | meridin | AI fallback response generated successfully.
+2026-07-31 12:37:55,160 | INFO | meridin | Handler FallbackHandler completed successfully
+2026-07-31 12:37:55,257 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-07-31 12:37:55,302 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 12:37:55,310 | INFO | meridin | Loading ML models...
+2026-07-31 12:37:55,345 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:37:55,357 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:37:55,360 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:37:55,389 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:37:55,389 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:45:39,504 | INFO | meridin | Loading ML models...
+2026-07-31 12:45:44,495 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:45:44,808 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:45:44,811 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:45:44,841 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:45:44,841 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:46:43,977 | INFO | meridin | Loaded 12 normalization rules.
+2026-07-31 12:46:43,977 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-07-31 12:46:43,978 | INFO | meridin | Text preprocessor initialized.
+2026-07-31 12:46:43,978 | INFO | meridin | Loading ML models...
+2026-07-31 12:48:00,648 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:48:03,099 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:48:03,389 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:48:03,447 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:48:03,448 | INFO | meridin | All ML models loaded successfully.
+2026-07-31 12:48:05,609 | INFO | meridin | Created new conversation: 2fde6900-9638-43e8-bcbc-f60c32cd7769
+2026-07-31 12:48:05,673 | INFO | meridin | Routing intent: greeting (confidence: 0.23)
+2026-07-31 12:48:05,673 | WARNING | meridin | Intent greeting confidence 0.23 below threshold 0.4, using fallback
+2026-07-31 12:48:11,628 | INFO | meridin | AI fallback response generated successfully.
+2026-07-31 12:48:11,629 | INFO | meridin | Handler FallbackHandler completed successfully
+2026-07-31 12:48:12,109 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-07-31 12:48:12,139 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-07-31 12:48:12,143 | INFO | meridin | Loading ML models...
+2026-07-31 12:48:12,337 | INFO | meridin | Loaded model: intent_model.pkl
+2026-07-31 12:48:12,344 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-07-31 12:48:12,346 | INFO | meridin | Loaded model: entity_model.pkl
+2026-07-31 12:48:12,358 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-07-31 12:48:12,358 | INFO | meridin | All ML models loaded successfully.

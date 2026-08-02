@@ -1,0 +1,47 @@
+"""
+Greeting handler - responds to greeting messages.
+"""
+
+from typing import Dict, Any, Optional
+
+from app.handlers.base_handler import BaseHandler
+from app.models.schemas import (
+    MessageUnderstanding,
+    ConversationContext,
+    BotResponse,
+)
+
+
+class GreetingHandler(BaseHandler):
+    """
+    Handles greeting intents (hi, hello, hey, etc.).
+    Returns a warm welcome message with quick-reply options.
+    """
+
+    async def handle(
+        self,
+        understanding: MessageUnderstanding,
+        tenant_id: str,
+        tenant_settings: Dict[str, Any],
+        conversation_context: Optional[ConversationContext],
+    ) -> BotResponse:
+
+        welcome_msg = tenant_settings.get(
+            "welcome_message",
+            "Welcome! How can I help you today?",
+        )
+
+        quick_replies = [
+            {"label": "Browse Products", "value": "browse_products"},
+            {"label": "Track Order", "value": "track_order"},
+            {"label": "Returns & Refunds", "value": "returns_info"},
+        ]
+
+        return BotResponse(
+            response_type="text",
+            text=welcome_msg,
+            quick_replies=quick_replies,
+            metadata={
+                "greeting_handled": True,
+            },
+        )

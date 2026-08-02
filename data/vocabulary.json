@@ -1,0 +1,35 @@
+{
+    "products": [
+        "shirt",
+        "t-shirt",
+        "hoodie",
+        "jeans",
+        "cargo pants",
+        "jacket",
+        "kurta"
+    ],
+
+    "colors": [
+        "black",
+        "white",
+        "blue",
+        "green",
+        "red"
+    ],
+
+    "sizes": [
+        "xs",
+        "s",
+        "m",
+        "l",
+        "xl",
+        "xxl",
+        "3xl"
+    ],
+
+    "materials": [
+        "cotton",
+        "linen",
+        "denim"
+    ]
+}
