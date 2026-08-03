@@ -172,6 +172,12 @@ class MessageService:
         )
 
         # Persist outbound message to MongoDB when available
+        outbound_metadata = {
+            "response_type": response.response_type,
+            "product_ids": [p.product_id for p in response.products],
+            "source_message_id": inbound_msg.id,
+        }
+
         outbound_msg = Message(
             id=str(uuid4()),
             tenant_id=tenant_id,
@@ -182,10 +188,8 @@ class MessageService:
             text=response.text or "",
             is_from_bot=True,
             bot_response_type=response.response_type,
-            metadata={
-                "product_ids": [p.product_id for p in response.products],
-                "response_type": response.response_type,
-            } if response.products else None,
+            response_to_message_id=inbound_msg.id,
+            metadata=outbound_metadata,
         )
         await conversation_manager.save_message(outbound_msg)
 
@@ -195,10 +199,7 @@ class MessageService:
             text=response.text or "",
             is_from_bot=True,
             bot_response_type=response.response_type,
-            metadata={
-                "product_ids": [p.product_id for p in response.products],
-                "response_type": response.response_type,
-            } if response.products else None,
+            metadata=outbound_metadata,
         )
 
         # Persist session state

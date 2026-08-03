@@ -218,6 +218,12 @@ class ConversationSession:
             if bot_type in {"product_list", "product_card"} and product_ids:
                 selected_product = product_ids[0]
                 self.context.current_product = selected_product
+                self.context.last_search_results = product_ids
+                return selected_product
+
+            selected_product = metadata.get("selected_product_id")
+            if selected_product:
+                self.context.current_product = selected_product
                 return selected_product
 
         return None

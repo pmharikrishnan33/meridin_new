@@ -483,3 +483,59 @@ RuntimeError: MongoDB has not been initialized. Call connect() first.
 2026-08-03 13:57:42,689 | INFO | meridin | MongoDB connected successfully (async).
 2026-08-03 13:57:42,728 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
 2026-08-03 13:57:42,729 | INFO | meridin | Meridin started successfully.
+2026-08-03 13:59:45,821 | INFO | meridin | Loaded 12 normalization rules.
+2026-08-03 13:59:45,821 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-08-03 13:59:45,822 | INFO | meridin | Text preprocessor initialized.
+2026-08-03 13:59:45,822 | INFO | meridin | Loading ML models...
+2026-08-03 13:59:48,137 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 13:59:48,149 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 13:59:48,151 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 13:59:48,162 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 13:59:48,162 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 13:59:48,304 | INFO | meridin | Created new conversation: 599f00ea-e0c3-4cc1-b26a-95fa8e210af8
+2026-08-03 13:59:48,306 | INFO | meridin | Routing intent: greeting (confidence: 0.23)
+2026-08-03 13:59:48,306 | WARNING | meridin | Intent greeting confidence 0.23 below threshold 0.4, using fallback
+2026-08-03 14:00:00,275 | INFO | meridin | AI fallback response generated successfully.
+2026-08-03 14:00:00,276 | INFO | meridin | Handler FallbackHandler completed successfully
+2026-08-03 14:00:00,294 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-08-03 14:00:00,295 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-08-03 14:00:00,309 | INFO | meridin | Loading ML models...
+2026-08-03 14:00:00,313 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 14:00:00,321 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 14:00:00,323 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 14:00:00,344 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 14:00:00,345 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 14:00:48,858 | INFO | meridin | Meridin shutting down...
+2026-08-03 14:00:48,973 | INFO | meridin | MongoDB connection closed.
+2026-08-03 14:00:51,604 | INFO | meridin | Meridin starting...
+2026-08-03 14:01:11,937 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-03 14:01:11,968 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
+2026-08-03 14:01:11,968 | INFO | meridin | Meridin started successfully.
+2026-08-03 14:01:25,432 | INFO | meridin | Loaded 12 normalization rules.
+2026-08-03 14:01:25,453 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-08-03 14:01:25,453 | INFO | meridin | Text preprocessor initialized.
+2026-08-03 14:01:25,453 | INFO | meridin | Loading ML models...
+2026-08-03 14:01:40,557 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 14:01:40,800 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 14:01:40,801 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 14:01:40,820 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 14:01:40,821 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 14:01:40,956 | INFO | meridin | Created new conversation: 8c2cbefb-4491-4659-a683-3959cd234651
+2026-08-03 14:01:41,012 | INFO | meridin | Routing intent: greeting (confidence: 0.23)
+2026-08-03 14:01:41,012 | WARNING | meridin | Intent greeting confidence 0.23 below threshold 0.4, using fallback
+2026-08-03 14:01:46,071 | INFO | meridin | AI fallback response generated successfully.
+2026-08-03 14:01:46,071 | INFO | meridin | Handler FallbackHandler completed successfully
+2026-08-03 14:01:46,126 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-08-03 14:01:46,153 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-08-03 14:01:46,166 | INFO | meridin | Loading ML models...
+2026-08-03 14:01:46,170 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 14:01:46,179 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 14:01:46,180 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 14:01:46,200 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 14:01:46,200 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 14:07:14,917 | INFO | meridin | Meridin shutting down...
+2026-08-03 14:07:14,983 | INFO | meridin | MongoDB connection closed.
+2026-08-03 14:07:16,649 | INFO | meridin | Meridin starting...
+2026-08-03 14:07:18,616 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-03 14:07:18,648 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
+2026-08-03 14:07:18,648 | INFO | meridin | Meridin started successfully.
