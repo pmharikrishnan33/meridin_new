@@ -310,6 +310,7 @@ class ConversationContext(BaseModel):
     active_search_total: int = 0
     active_search_query: Optional[str] = None
     active_search_filters: Dict[str, Any] = Field(default_factory=dict)
+    active_search_results: List[str] = Field(default_factory=list)
     active_search_page: int = 1
     active_search_page_size: int = 10
 

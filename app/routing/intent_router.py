@@ -202,6 +202,7 @@ class IntentRouter:
         "ComplaintHandler": "app.handlers.complaint",
         "ThanksHandler": "app.handlers.thanks",
         "FallbackHandler": "app.handlers.fallback",
+        "PaginationHandler": "app.handlers.pagination_handler",
     }
 
     async def _get_handler(self, handler_class: str):

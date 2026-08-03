@@ -11,6 +11,8 @@ from app.ml.intent_classifier import intent_classifier
 from app.ml.preprocessor import preprocessor
 from app.models.schemas import (
     BotResponse,
+    EntityType,
+    ExtractedEntity,
     Message,
     MessageDirection,
     MessageType,
@@ -112,6 +114,19 @@ class MessageService:
         understanding = self.understand(text)
         session = await self._get_or_create_session(tenant_id, user_id)
 
+        # Resolve a lightweight reply context when the user refers back to the
+        # most recent bot-selected product search list.
+        reply_product = session.resolve_reply_context(text)
+        if reply_product:
+            understanding.entities.append(
+                ExtractedEntity(
+                    entity_type=EntityType.PRODUCT,
+                    value=reply_product,
+                    confidence=1.0,
+                    normalized_value=reply_product,
+                )
+            )
+
         # Persist inbound message to MongoDB when available
         inbound_msg = Message(
             id=str(uuid4()),
@@ -137,6 +152,7 @@ class MessageService:
             intent=understanding.intent,
             intent_confidence=understanding.intent_confidence,
             entities=understanding.entities,
+            metadata={"reply_context_product": reply_product} if reply_product else None,
         )
         session.update_context_from_understanding(understanding)
 
@@ -166,6 +182,10 @@ class MessageService:
             text=response.text or "",
             is_from_bot=True,
             bot_response_type=response.response_type,
+            metadata={
+                "product_ids": [p.product_id for p in response.products],
+                "response_type": response.response_type,
+            } if response.products else None,
         )
         await conversation_manager.save_message(outbound_msg)
 
@@ -175,6 +195,10 @@ class MessageService:
             text=response.text or "",
             is_from_bot=True,
             bot_response_type=response.response_type,
+            metadata={
+                "product_ids": [p.product_id for p in response.products],
+                "response_type": response.response_type,
+            } if response.products else None,
         )
 
         # Persist session state

@@ -40,7 +40,8 @@ class ConversationSession:
         intent_confidence: Optional[float] = None,
         entities: Optional[List[ExtractedEntity]] = None,
         is_from_bot: bool = False,
-        bot_response_type: Optional[str] = None
+        bot_response_type: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Add message to history and update context.
@@ -56,6 +57,7 @@ class ConversationSession:
             "entities": [e.model_dump() if hasattr(e, 'model_dump') else e for e in entities] if entities else [],
             "is_from_bot": is_from_bot,
             "bot_response_type": bot_response_type,
+            "metadata": metadata or {},
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -152,6 +154,7 @@ class ConversationSession:
         self.context.active_search_total = total
         self.context.active_search_query = query
         self.context.active_search_filters = filters or {}
+        self.context.active_search_results = result_ids
         self.context.active_search_page = page
         self.context.active_search_page_size = page_size
         return page_state
@@ -190,6 +193,35 @@ class ConversationSession:
         self.context.active_search_page_size = page_size
         return active
 
+    def resolve_reply_context(self, incoming_text: str) -> Optional[str]:
+        """
+        Resolve a lightweight follow-up product-selection context from the
+        most recent outbound product-list response.
+
+        This is the minimal notebook-style reply-linking step: when the user
+        follows up with a selection phrase such as "this", "that", or "one",
+        the session reuses the most recent product list response as the
+        selected context.
+        """
+
+        text_lower = (incoming_text or "").lower()
+        selection_markers = {"this", "that", "one", "it", "product"}
+        if not any(marker in text_lower for marker in selection_markers):
+            return None
+
+        for message in reversed(self.message_history):
+            if message.get("direction") != "outbound":
+                continue
+            bot_type = message.get("bot_response_type")
+            metadata = message.get("metadata") or {}
+            product_ids = metadata.get("product_ids") or []
+            if bot_type in {"product_list", "product_card"} and product_ids:
+                selected_product = product_ids[0]
+                self.context.current_product = selected_product
+                return selected_product
+
+        return None
+
     def get_context_for_response(self) -> Dict[str, Any]:
         """
         Get context summary for response generation.
@@ -211,6 +243,7 @@ class ConversationSession:
             "active_search_query": self.context.active_search_query,
             "active_search_offset": self.context.active_search_offset,
             "active_search_total": self.context.active_search_total,
+            "active_search_results": self.context.active_search_results,
             "active_search_page": self.context.active_search_page,
             "active_search_page_size": self.context.active_search_page_size,
         }
@@ -256,6 +289,7 @@ class ConversationSession:
             "customer_id": self.customer_id,
             "context": self.context.model_dump() if hasattr(self.context, 'model_dump') else self.context.__dict__,
             "message_history": self.message_history,
+            "search_cache": self.search_cache,
             "is_active": self.is_active,
             "last_updated": self.last_updated.isoformat()
         }
@@ -275,6 +309,7 @@ class ConversationSession:
             customer_id=data["customer_id"],
             context=context,
             message_history=data.get("message_history", []),
+            search_cache=data.get("search_cache", {}),
             is_active=data.get("is_active", True),
             last_updated=datetime.fromisoformat(data["last_updated"]) if isinstance(data.get("last_updated"), str) else data.get("last_updated", datetime.utcnow())
         )

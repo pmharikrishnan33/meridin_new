@@ -140,6 +140,7 @@ class ConversationManager:
                 customer_id=conversation.customer_id,
                 context=conversation.context,
                 message_history=[],
+                search_cache={},
                 is_active=conversation.status == ConversationStatus.ACTIVE
             )
             self._sessions[conversation_id] = session

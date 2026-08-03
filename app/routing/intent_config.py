@@ -119,6 +119,11 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
 }
 
 
+# A lightweight pagination intent is treated as a follow-up search action
+# that uses the active cached search state in the session context.
+PAGINATION_INTENT = "pagination"
+
+
 def get_intent_config(intent: IntentType) -> IntentConfig:
     """
     Get configuration for an intent.
