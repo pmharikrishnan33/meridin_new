@@ -159,6 +159,7 @@ class TenantSettings(BaseModel):
     phone_number_id: str
     access_token: str
     webhook_verify_token: str
+    webhook_secret: str = ""
     feature_flags: TenantFeatureFlags = Field(default_factory=TenantFeatureFlags)
     timezone: str = "UTC"
     currency: str = "INR"
@@ -178,6 +179,7 @@ class Tenant(BaseModel):
     phone_number_id: str
     access_token: str
     webhook_verify_token: str
+    webhook_secret: str = ""
     is_active: bool = True
     settings: TenantSettings
     created_at: datetime = Field(default_factory=datetime.utcnow)

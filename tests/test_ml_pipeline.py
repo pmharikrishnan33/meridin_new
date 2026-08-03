@@ -1,4 +1,8 @@
+import hashlib
+import hmac
+import json
 import unittest
+from unittest.mock import patch
 
 import httpx
 import numpy as np
@@ -8,6 +12,7 @@ from app.ml.intent_classifier import intent_classifier
 from app.ml.loader import model_loader
 from app.models.schemas import EntityType, IntentType
 from app.main import app
+from app.core.config import settings
 
 
 class _TokenVectorizer:
@@ -67,7 +72,7 @@ class ModelPipelineTests(unittest.TestCase):
 
 
 class ApiFlowTests(unittest.IsolatedAsyncioTestCase):
-    async def test_messages_endpoint_processes_a_greeting_without_mongodb(self):
+    async def test_messages_endpoint_is_not_publicly_exposed(self):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
@@ -75,24 +80,46 @@ class ApiFlowTests(unittest.IsolatedAsyncioTestCase):
                 json={"tenant_id": "tenant-1", "user_id": "user-1", "text": "hello"},
             )
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["intent"], "greeting")
-        self.assertIn("conversation_id", payload)
-        self.assertTrue(payload["response"]["text"])
+        self.assertEqual(response.status_code, 404)
 
     async def test_whatsapp_webhook_processes_text_messages(self):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/api/webhook",
-                json={
-                    "entry": [{"changes": [{"value": {
+        webhook_secret = settings.WHATSAPP_WEBHOOK_SECRET or settings.APP_SECRET
+        body = json.dumps({
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "entry-1",
+                "changes": [{
+                    "field": "messages",
+                    "value": {
                         "metadata": {"phone_number_id": "tenant-1"},
-                        "messages": [{"from": "user-1", "text": {"body": "thank you"}}],
-                    }}]}]
-                },
-            )
+                        "messages": [{
+                            "from": "user-1",
+                            "id": "message-1",
+                            "timestamp": "1710000000",
+                            "type": "text",
+                            "text": {"body": "thank you"},
+                        }],
+                    },
+                }],
+            }],
+        }).encode("utf-8")
+        signature = hmac.new(
+            key=webhook_secret.encode(),
+            msg=body,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+
+        with patch("app.api.security.rate_limiter._enabled", False):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/api/webhook",
+                    content=body,
+                    headers={
+                        "content-type": "application/json",
+                        "x_hub_signature_256": f"sha256={signature}",
+                    },
+                )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()

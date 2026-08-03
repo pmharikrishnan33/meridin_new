@@ -14,7 +14,8 @@
       "Bash(xargs -0 ls -la)",
       "Bash(sort -k9)",
       "Bash(python *)",
-      "Bash(.venv/bin/python *)"
+      "Bash(.venv/bin/python *)",
+      "Bash(pip list *)"
     ]
   }
 }

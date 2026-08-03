@@ -4,6 +4,15 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+WEBHOOK_MAX_BODY_BYTES = 256 * 1024  # 256 KB — Meta payloads rarely exceed 100 KB
+RATE_LIMIT_DEFAULT_WINDOW = 60
+RATE_LIMIT_DEFAULT_MAX_REQUESTS = 30
+
+
 class Settings(BaseSettings):
     """
     Global application configuration.
@@ -37,6 +46,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
+    # Shared application secret used as the global fallback for internal
+    # signing / HMAC verification when a tenant-specific or explicit
+    # webhook secret is not supplied.
     APP_SECRET: str
 
     # ==========================================================
@@ -100,6 +112,29 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = ""
 
     WHATSAPP_ACCESS_TOKEN: str = ""
+
+    # Optional shared secret used to verify the X-Hub-Signature-256 header on
+    # POST requests to the webhook. When per-tenant secrets are stored in
+    # MongoDB they take precedence over this setting, and ``APP_SECRET`` is
+    # used as the final fallback for a single-secret deployment.
+    WHATSAPP_WEBHOOK_SECRET: str = ""
+
+    # ==========================================================
+    # RATE LIMITING
+    # ==========================================================
+
+    RATE_LIMIT_ENABLED: bool = True
+
+    @field_validator("RATE_LIMIT_ENABLED", mode="before")
+    @classmethod
+    def _parse_rate_limit_enabled(cls, value: str | bool) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    RATE_LIMIT_WINDOW_SECONDS: int = RATE_LIMIT_DEFAULT_WINDOW
+
+    RATE_LIMIT_MAX_REQUESTS: int = RATE_LIMIT_DEFAULT_MAX_REQUESTS
 
     # ==========================================================
     # PYDANTIC SETTINGS

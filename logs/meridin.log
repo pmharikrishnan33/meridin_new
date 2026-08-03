@@ -539,3 +539,47 @@ RuntimeError: MongoDB has not been initialized. Call connect() first.
 2026-08-03 14:07:18,616 | INFO | meridin | MongoDB connected successfully (async).
 2026-08-03 14:07:18,648 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
 2026-08-03 14:07:18,648 | INFO | meridin | Meridin started successfully.
+2026-08-03 22:53:20,946 | INFO | meridin | Rejected malformed webhook payload: 3 validation errors for IncomingWhatsAppWebhook
+object
+  Field required [type=missing, input_value={'entry': [{'changes': [{...y': 'thank you'}}]}}]}]}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+entry.0.id
+  Field required [type=missing, input_value={'changes': [{'value': {'...ody': 'thank you'}}]}}]}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+entry.0.changes.0.field
+  Field required [type=missing, input_value={'value': {'metadata': {'...'body': 'thank you'}}]}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+2026-08-03 22:53:52,831 | INFO | meridin | Rejected malformed webhook payload: 3 validation errors for IncomingWhatsAppWebhook
+object
+  Field required [type=missing, input_value={'entry': [{'changes': [{...y': 'thank you'}}]}}]}]}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+entry.0.id
+  Field required [type=missing, input_value={'changes': [{'value': {'...ody': 'thank you'}}]}}]}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+entry.0.changes.0.field
+  Field required [type=missing, input_value={'value': {'metadata': {'...'body': 'thank you'}}]}}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+2026-08-03 22:54:27,049 | INFO | meridin | Loaded 12 normalization rules.
+2026-08-03 22:54:27,103 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-08-03 22:54:27,104 | INFO | meridin | Text preprocessor initialized.
+2026-08-03 22:54:27,104 | INFO | meridin | Loading ML models...
+2026-08-03 22:55:07,592 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 22:55:07,820 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 22:55:07,967 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 22:55:08,012 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 22:55:08,012 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 22:55:08,029 | INFO | meridin | Created new conversation: a9537e6b-9cc2-41ae-8029-4e3fafca898d
+2026-08-03 22:55:08,030 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-08-03 22:55:08,031 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-08-03 23:01:40,591 | INFO | meridin | Loaded 12 normalization rules.
+2026-08-03 23:01:40,592 | INFO | meridin | Loaded 22 vocabulary words across 4 categories.
+2026-08-03 23:01:40,592 | INFO | meridin | Text preprocessor initialized.
+2026-08-03 23:01:40,592 | INFO | meridin | Loading ML models...
+2026-08-03 23:01:45,217 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-03 23:01:45,226 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-03 23:01:45,227 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-03 23:01:45,238 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-03 23:01:45,238 | INFO | meridin | All ML models loaded successfully.
+2026-08-03 23:01:45,253 | INFO | meridin | Created new conversation: cfb85220-6863-41a8-a859-ddc5c2571d8c
+2026-08-03 23:01:45,253 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
+2026-08-03 23:01:45,254 | INFO | meridin | Handler ThanksHandler completed successfully

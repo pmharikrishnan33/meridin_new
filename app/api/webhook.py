@@ -1,27 +1,26 @@
 """HTTP endpoints for local chat integration and WhatsApp webhook ingestion."""
 
+import json
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ValidationError
 
+from app.api.security import (
+    check_body_size,
+    rate_limiter,
+    resolve_tenant_credentials,
+    verify_tenant_signature,
+)
 from app.core.config import settings
+from app.models.schemas import IncomingWhatsAppWebhook
 from app.services.message_service import message_service
 from app.services.whatsapp_service import whatsapp_sender
 from app.utils.logger import logger
 
 
 router = APIRouter(tags=["messages"])
-
-
-class ChatRequest(BaseModel):
-    """A provider-neutral inbound text message."""
-
-    tenant_id: str = Field(min_length=1)
-    user_id: str = Field(min_length=1)
-    text: str = Field(min_length=1, max_length=4_000)
-    tenant_settings: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatResponse(BaseModel):
@@ -45,60 +44,147 @@ def _to_chat_response(result) -> ChatResponse:
     )
 
 
-@router.post("/messages", response_model=ChatResponse)
-async def process_message(payload: ChatRequest) -> ChatResponse:
-    """Process a text message and return the bot response to the caller."""
-    try:
-        result = await message_service.process(
-            tenant_id=payload.tenant_id,
-            user_id=payload.user_id,
-            text=payload.text,
-            tenant_settings=payload.tenant_settings,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    return _to_chat_response(result)
-
-
 @router.get("/webhook")
 async def verify_webhook(
     mode: Optional[str] = Query(default=None, alias="hub.mode"),
     verify_token: Optional[str] = Query(default=None, alias="hub.verify_token"),
     challenge: Optional[str] = Query(default=None, alias="hub.challenge"),
 ):
-    """Perform Meta's WhatsApp webhook verification handshake."""
-    if (
-        settings.WHATSAPP_VERIFY_TOKEN
-        and mode == "subscribe"
-        and verify_token == settings.WHATSAPP_VERIFY_TOKEN
-        and challenge is not None
-    ):
+    """Perform Meta's WhatsApp webhook verification handshake.
+
+    Accepts a verify token from the shared environment config **or** from a
+    tenant record stored in MongoDB, enabling per-tenant webhook configuration.
+    """
+    if not (mode == "subscribe" and verify_token is not None and challenge is not None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Webhook verification failed",
+        )
+
+    # 1. Check shared environment config
+    if settings.WHATSAPP_VERIFY_TOKEN and verify_token == settings.WHATSAPP_VERIFY_TOKEN:
         return PlainTextResponse(challenge)
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Webhook verification failed")
+
+    # 2. Check per-tenant config in MongoDB
+    from app.repositories.tenant_repository import tenant_repository
+
+    tenant = await tenant_repository.verify_verify_token(verify_token)
+    if tenant is not None:
+        return PlainTextResponse(challenge)
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Webhook verification failed: verify token mismatch",
+    )
 
 
 @router.post("/webhook", status_code=status.HTTP_200_OK)
 async def receive_whatsapp_webhook(
     request: Request,
-    x_tenant_id: Optional[str] = Header(default=None),
-    x_whatsapp_phone_number_id: Optional[str] = Header(default=None),
-    x_whatsapp_access_token: Optional[str] = Header(default=None),
+    x_tenant_id: Optional[str] = Header(default=None, alias="x_tenant_id"),
+    x_whatsapp_phone_number_id: Optional[str] = Header(
+        default=None, alias="x_whatsapp_phone_number_id"
+    ),
+    x_whatsapp_access_token: Optional[str] = Header(
+        default=None, alias="x_whatsapp_access_token"
+    ),
+    x_hub_signature_256: Optional[str] = Header(
+        default=None, alias="x_hub_signature_256"
+    ),
 ) -> Dict[str, Any]:
     """Accept WhatsApp text notifications and process each message.
 
+    Pipeline order (fail-fast, cheapest checks first):
+
+    1. **Rate limit** – reject callers that exceed the request threshold.
+    2. **Read raw body** – drain the body once so the signature covers the
+       exact bytes Meta sent.
+    3. **Size guard** – reject oversized payloads *before* any verification
+       so attackers can't exhaust CPU with huge bodies.
+    4. **Tenant resolution** – resolve per-tenant credentials from MongoDB
+       so the correct per-tenant secret is used for signing.
+    5. **Signature verification** – verify ``X-Hub-Signature-256`` with the
+       shared or per-tenant secret.
+    6. **Structural validation** – parse JSON and validate against the
+       :class:`~app.models.schemas.IncomingWhatsAppWebhook` model so that
+       malformed payloads are rejected with a 422.
+
     When ``x_whatsapp_phone_number_id`` and ``x_whatsapp_access_token``
-    headers are provided (or the tenant has credentials in the app config),
+    headers are provided (or the tenant has credentials in the database),
     the generated response is sent back to Meta via the WhatsApp Cloud API.
     Otherwise the response is returned in the HTTP body for the caller to
     handle.
     """
-    payload = await request.json()
-    processed = []
+    # ------------------------------------------------------------------
+    # 1. Rate limiting
+    # ------------------------------------------------------------------
+    await rate_limiter.check(request)
+
+    # ------------------------------------------------------------------
+    # 2. Read raw body (must happen before request.json())
+    # ------------------------------------------------------------------
+    raw_body = await request.body()
+
+    # ------------------------------------------------------------------
+    # 3. Body-size guard (before signature — cheapest rejection first)
+    # ------------------------------------------------------------------
+    check_body_size(raw_body)
+
+    # ------------------------------------------------------------------
+    # 4. Tenant resolution (for per-tenant signature secret + credentials)
+    # ------------------------------------------------------------------
+    # Try to resolve a tenant early using header values so the correct
+    # per-tenant secret can be used for signature verification.
+    metadata_phone_number_id = _extract_metadata_phone_number_id(raw_body)
+    tenant, resolved_phone_number_id, resolved_access_token = await resolve_tenant_credentials(
+        x_whatsapp_phone_number_id, metadata_phone_number_id
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Signature verification (per-tenant when resolvable)
+    # ------------------------------------------------------------------
+    verify_tenant_signature(raw_body, x_hub_signature_256, tenant)
+
+    # ------------------------------------------------------------------
+    # 5. Parse + structural validation
+    # ------------------------------------------------------------------
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Request body is not valid JSON.",
+        )
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook payload must be a JSON object.",
+        )
+
+    try:
+        validated = IncomingWhatsAppWebhook(**payload)
+    except ValidationError as exc:
+        logger.info(f"Rejected malformed webhook payload: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Malformed webhook payload.",
+        )
+
+    # ------------------------------------------------------------------
+    # 6. Process messages
+    # ------------------------------------------------------------------
+    processed: list[Dict[str, Any]] = []
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
             metadata = value.get("metadata", {})
-            tenant_id = x_tenant_id or metadata.get("phone_number_id")
+            # Prefer header value, then tenant metadata, then DB resolution
+            tenant_id = (
+                x_tenant_id
+                or metadata.get("phone_number_id")
+                or resolved_phone_number_id
+            )
             for message in value.get("messages", []):
                 text = (message.get("text") or {}).get("body")
                 sender = message.get("from")
@@ -115,8 +201,10 @@ async def receive_whatsapp_webhook(
                 processed.append(chat_response.model_dump())
 
                 # Attempt to send the reply back to WhatsApp
-                phone_number_id = x_whatsapp_phone_number_id or settings.WHATSAPP_PHONE_NUMBER_ID
-                access_token = x_whatsapp_access_token or settings.WHATSAPP_ACCESS_TOKEN
+                phone_number_id = (
+                    x_whatsapp_phone_number_id or resolved_phone_number_id
+                )
+                access_token = x_whatsapp_access_token or resolved_access_token
 
                 if phone_number_id and access_token:
                     try:
@@ -131,3 +219,29 @@ async def receive_whatsapp_webhook(
                         processed[-1]["send_error"] = str(exc)
 
     return {"status": "accepted", "processed": processed}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_metadata_phone_number_id(raw_body: bytes) -> Optional[str]:
+    """Best-effort extraction of ``metadata.phone_number_id`` from raw body.
+
+    Used to resolve the tenant *before* the JSON is validated, so the correct
+    per-tenant signature secret can be used for verification.
+    """
+    try:
+        payload = json.loads(raw_body)
+        if isinstance(payload, dict):
+            return (
+                payload.get("entry", [{}])[0]
+                .get("changes", [{}])[0]
+                .get("value", {})
+                .get("metadata", {})
+                .get("phone_number_id")
+            )
+    except (ValueError, IndexError, TypeError):
+        pass
+    return None
