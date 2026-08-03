@@ -375,3 +375,9 @@ RuntimeError: MongoDB has not been initialized. Call connect() first.
 2026-08-03 12:05:58,319 | INFO | meridin | MongoDB connected successfully (async).
 2026-08-03 12:05:58,324 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
 2026-08-03 12:05:58,324 | INFO | meridin | Meridin started successfully.
+2026-08-03 12:18:47,526 | INFO | meridin | Meridin shutting down...
+2026-08-03 12:18:47,742 | INFO | meridin | MongoDB connection closed.
+2026-08-03 12:18:49,001 | INFO | meridin | Meridin starting...
+2026-08-03 12:18:55,076 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-03 12:18:55,080 | WARNING | meridin | Redis connection failed: Error 111 connecting to localhost:6379. Connect call failed ('127.0.0.1', 6379).. Running without cache.
+2026-08-03 12:18:55,080 | INFO | meridin | Meridin started successfully.
