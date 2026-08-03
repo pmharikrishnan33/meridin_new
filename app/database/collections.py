@@ -1,3 +1,5 @@
+from typing import Optional
+
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.database.mongodb import mongodb
@@ -36,6 +38,23 @@ class Collections:
     @property
     def analytics(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["analytics"]
+
+    # --- Inventory (new multi-collection schema) ------------------------------
+
+    @property
+    def clothing_attributes(self) -> AsyncIOMotorCollection:
+        """Shared attribute/variant lookup collection (all brands)."""
+        return mongodb.get_database()["inventory.clothing_attributes"]
+
+    def clothing(self, brand: Optional[str] = None) -> AsyncIOMotorCollection:
+        """
+        Return the per-brand clothing collection.
+
+        Collection name follows the pattern ``inventory.clothing_{brand}``.
+        When ``brand`` is None, falls back to a brand-agnostic collection.
+        """
+        brand_suffix = brand.lower().replace(" ", "_") if brand else "default"
+        return mongodb.get_database()[f"inventory.clothing_{brand_suffix}"]
 
 
 collections = Collections()

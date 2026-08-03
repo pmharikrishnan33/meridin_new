@@ -302,6 +302,17 @@ class ConversationContext(BaseModel):
     language: str = "en"
     message_count: int = 0
 
+    # -- Inventory search state -------------------------------------------
+    # Tracks the most recent AI-ranked search so that "Next" / navigation
+    # can paginate the cached ranked list without re-querying the database.
+    active_search_key: Optional[str] = None
+    active_search_offset: int = 0
+    active_search_total: int = 0
+    active_search_query: Optional[str] = None
+    active_search_filters: Dict[str, Any] = Field(default_factory=dict)
+    active_search_page: int = 1
+    active_search_page_size: int = 10
+
 
 class Conversation(BaseModel):
     """

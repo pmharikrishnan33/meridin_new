@@ -60,6 +60,12 @@ class EntityExtractor:
         "kurta", "top", "dress", "skirt", "leggings", "joggers", "cargo"
     ]
 
+    # Brand keywords used in search queries and catalog lookups.
+    BRANDS = [
+        "nike", "puma", "adidas", "levis", "zara", "roadster", "hrx",
+        "max", "allen solly", "jockey", "van heusen", "muji", "sparx",
+    ]
+
     def __init__(self):
         pass
 
@@ -245,6 +251,16 @@ class EntityExtractor:
                     normalized_value=self._normalize_value(EntityType.PRODUCT, product)
                 ))
 
+        # Check for brands
+        for brand in self.BRANDS:
+            if brand in text_lower:
+                entities.append(ExtractedEntity(
+                    entity_type=EntityType.BRAND,
+                    value=brand,
+                    confidence=0.85,
+                    normalized_value=self._normalize_value(EntityType.BRAND, brand)
+                ))
+
         return entities
 
     def _normalize_value(self, entity_type: EntityType, value: str) -> str:
@@ -278,6 +294,9 @@ class EntityExtractor:
             return value.capitalize()
 
         if entity_type == EntityType.PRODUCT:
+            return value.capitalize()
+
+        if entity_type == EntityType.BRAND:
             return value.capitalize()
 
         return value

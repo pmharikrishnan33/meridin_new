@@ -12,6 +12,7 @@ from app.models.schemas import (
     ProductSearchFilters,
 )
 from app.services.product_service import product_service
+from app.services.inventory_search_service import inventory_search_service
 from app.conversation.context import ConversationContextManager
 from app.utils.logger import logger
 
@@ -64,6 +65,14 @@ class ProductSearchHandler(BaseHandler):
                 metadata={"search_performed": True, "results_count": 0},
             )
 
+        page = inventory_search_service.build_search_page(
+            tenant_id=tenant_id,
+            filters=filters,
+            result_ids=[p.id for p in products],
+            page=1,
+            page_size=min(filters.limit, len(products) or filters.limit),
+        )
+
         # Convert to response products
         response_products = [
             product_service.product_to_response(p) for p in products
@@ -73,6 +82,13 @@ class ProductSearchHandler(BaseHandler):
         if conversation_context:
             conversation_context.last_search_filters = filters.model_dump()
             conversation_context.last_search_results = [p.id for p in products]
+            conversation_context.active_search_key = page["search_key"]
+            conversation_context.active_search_offset = page["offset"]
+            conversation_context.active_search_total = page["total"]
+            conversation_context.active_search_query = filters.query
+            conversation_context.active_search_filters = filters.model_dump(exclude_none=True)
+            conversation_context.active_search_page = page["page"]
+            conversation_context.active_search_page_size = page["page_size"]
 
         # Build response text
         if len(products) == 1:

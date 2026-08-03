@@ -28,6 +28,7 @@ class ConversationSession:
     message_history: List[Dict[str, Any]] = field(default_factory=list)
     is_active: bool = True
     last_updated: datetime = field(default_factory=datetime.utcnow)
+    search_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def add_message(
         self,
@@ -118,6 +119,77 @@ class ConversationSession:
 
         return filters
 
+    def store_active_search(
+        self,
+        search_key: str,
+        query: Optional[str],
+        filters: Optional[Dict[str, Any]],
+        result_ids: List[str],
+        offset: int = 0,
+        total: Optional[int] = None,
+        page_size: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Persist the most recent active search state in the session cache.
+        """
+
+        total = total if total is not None else len(result_ids)
+        page = max(1, (offset // page_size) + 1) if page_size > 0 else 1
+        page_state = {
+            "search_key": search_key,
+            "query": query,
+            "filters": filters or {},
+            "result_ids": result_ids,
+            "offset": offset,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+        self.search_cache[search_key] = page_state
+        self.context.active_search_key = search_key
+        self.context.active_search_offset = offset
+        self.context.active_search_total = total
+        self.context.active_search_query = query
+        self.context.active_search_filters = filters or {}
+        self.context.active_search_page = page
+        self.context.active_search_page_size = page_size
+        return page_state
+
+    def get_active_search(self) -> Optional[Dict[str, Any]]:
+        """
+        Return the currently tracked active search state.
+        """
+
+        search_key = self.context.active_search_key
+        if not search_key:
+            return None
+        return self.search_cache.get(search_key)
+
+    def advance_active_search(self, page_size: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """
+        Advance the stored active search by one page using the cached result list.
+        """
+
+        active = self.get_active_search()
+        if not active:
+            return None
+
+        page_size = page_size or self.context.active_search_page_size or active.get("page_size", 10)
+        page = active.get("page", 1)
+        next_offset = min(active.get("offset", 0) + page_size, active.get("total", 0))
+        if next_offset < 0:
+            next_offset = 0
+
+        active["offset"] = next_offset
+        active["page"] = max(1, (next_offset // page_size) + 1) if page_size > 0 else 1
+        active["page_size"] = page_size
+
+        self.context.active_search_offset = active["offset"]
+        self.context.active_search_page = active["page"]
+        self.context.active_search_page_size = page_size
+        return active
+
     def get_context_for_response(self) -> Dict[str, Any]:
         """
         Get context summary for response generation.
@@ -134,7 +206,13 @@ class ConversationSession:
             "awaiting_confirmation": self.context.awaiting_confirmation,
             "confirmation_context": self.context.confirmation_context,
             "language": self.context.language,
-            "message_count": self.context.message_count
+            "message_count": self.context.message_count,
+            "active_search_key": self.context.active_search_key,
+            "active_search_query": self.context.active_search_query,
+            "active_search_offset": self.context.active_search_offset,
+            "active_search_total": self.context.active_search_total,
+            "active_search_page": self.context.active_search_page,
+            "active_search_page_size": self.context.active_search_page_size,
         }
 
     def set_awaiting_entity(self, entity_type: EntityType) -> None:
