@@ -117,7 +117,7 @@ class ApiFlowTests(unittest.IsolatedAsyncioTestCase):
                     content=body,
                     headers={
                         "content-type": "application/json",
-                        "x_hub_signature_256": f"sha256={signature}",
+                        "x-hub-signature-256": f"sha256={signature}",
                     },
                 )
 

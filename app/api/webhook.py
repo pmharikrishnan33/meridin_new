@@ -81,15 +81,15 @@ async def verify_webhook(
 @router.post("/webhook", status_code=status.HTTP_200_OK)
 async def receive_whatsapp_webhook(
     request: Request,
-    x_tenant_id: Optional[str] = Header(default=None, alias="x_tenant_id"),
+    x_tenant_id: Optional[str] = Header(default=None, alias="x-tenant-id"),
     x_whatsapp_phone_number_id: Optional[str] = Header(
-        default=None, alias="x_whatsapp_phone_number_id"
+        default=None, alias="x-whatsapp-phone-number-id"
     ),
     x_whatsapp_access_token: Optional[str] = Header(
-        default=None, alias="x_whatsapp_access_token"
+        default=None, alias="x-whatsapp-access-token"
     ),
     x_hub_signature_256: Optional[str] = Header(
-        default=None, alias="x_hub_signature_256"
+        default=None, alias="x-hub-signature-256"
     ),
 ) -> Dict[str, Any]:
     """Accept WhatsApp text notifications and process each message.

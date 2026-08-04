@@ -120,6 +120,7 @@ class SignatureVerificationTests(unittest.IsolatedAsyncioTestCase):
         body = _dumps(TEST_PAYLOAD)
         with patch("app.api.security.settings") as mock_settings:
             mock_settings.WHATSAPP_WEBHOOK_SECRET = ""
+            mock_settings.APP_SECRET = ""
             with self.assertRaises(SignatureVerificationError) as ctx:
                 verify_signature(body, "sha256=abc")
             self.assertEqual(ctx.exception.status_code, 500)
@@ -413,7 +414,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 content=body,
                 headers={
                     "content-type": "application/json",
-                    "x_hub_signature_256": _sign(body, secret),
+                    "x-hub-signature-256": _sign(body, secret),
                 },
             )
 
@@ -449,7 +450,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": "sha256=" + "0" * 64,
+                    "x-hub-signature-256": "sha256=" + "0" * 64,
                     "content-type": "application/json",
                 },
             )
@@ -469,7 +470,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": _sign(body, secret),
+                    "x-hub-signature-256": _sign(body, secret),
                     "content-type": "application/json",
                 },
             )
@@ -489,7 +490,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": _sign(body, secret),
+                    "x-hub-signature-256": _sign(body, secret),
                     "content-type": "application/json",
                 },
             )
@@ -509,7 +510,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": _sign(body, secret),
+                    "x-hub-signature-256": _sign(body, secret),
                     "content-type": "application/json",
                 },
             )
@@ -537,7 +538,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": signature,
+                    "x-hub-signature-256": signature,
                     "content-type": "application/json",
                 },
             )
@@ -545,7 +546,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": signature,
+                    "x-hub-signature-256": signature,
                     "content-type": "application/json",
                 },
             )
@@ -555,7 +556,7 @@ class WebhookEndpointTests(unittest.IsolatedAsyncioTestCase):
                 "/api/webhook",
                 content=body,
                 headers={
-                    "x_hub_signature_256": signature,
+                    "x-hub-signature-256": signature,
                     "content-type": "application/json",
                 },
             )
