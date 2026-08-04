@@ -181,7 +181,7 @@ class Tenant(BaseModel):
     webhook_verify_token: str
     webhook_secret: str = ""
     is_active: bool = True
-    settings: TenantSettings
+    settings: TenantSettings = Field(default_factory=TenantSettings)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
