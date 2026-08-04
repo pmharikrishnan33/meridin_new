@@ -583,3 +583,9 @@ entry.0.changes.0.field
 2026-08-03 23:01:45,253 | INFO | meridin | Created new conversation: cfb85220-6863-41a8-a859-ddc5c2571d8c
 2026-08-03 23:01:45,253 | INFO | meridin | Routing intent: thanks (confidence: 0.43)
 2026-08-03 23:01:45,254 | INFO | meridin | Handler ThanksHandler completed successfully
+2026-08-04 20:26:18,270 | INFO | meridin | Loading ML models...
+2026-08-04 20:26:19,814 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-04 20:26:19,822 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-04 20:26:19,823 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-04 20:26:19,835 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-04 20:26:19,835 | INFO | meridin | All ML models loaded successfully.
