@@ -12,6 +12,7 @@ from typing import Optional
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Tenant
+from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
 
@@ -38,7 +39,8 @@ class TenantRepository:
             }
         )
         if doc:
-            return Tenant(**doc)
+            normalized_doc = normalize_mongo_doc(doc.copy())
+            return Tenant(**normalized_doc)
         return None
 
     async def find_by_id(self, tenant_id: str) -> Optional[Tenant]:
@@ -53,7 +55,8 @@ class TenantRepository:
             }
         )
         if doc:
-            return Tenant(**doc)
+            normalized_doc = normalize_mongo_doc(doc.copy())
+            return Tenant(**normalized_doc)
         return None
 
     async def verify_verify_token(self, verify_token: str) -> Optional[Tenant]:
@@ -71,7 +74,8 @@ class TenantRepository:
             }
         )
         if doc:
-            return Tenant(**doc)
+            normalized_doc = normalize_mongo_doc(doc.copy())
+            return Tenant(**normalized_doc)
         return None
 
 

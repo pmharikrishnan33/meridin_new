@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Conversation, ConversationStatus, Message
+from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
 
@@ -35,7 +36,7 @@ class ConversationRepository:
             },
             sort=[("updated_at", -1)],
         )
-        return Conversation(**doc) if doc else None
+        return Conversation(**normalize_mongo_doc(doc)) if doc else None
 
     async def find_by_id(self, conversation_id: str) -> Optional[Conversation]:
         """Retrieve a conversation by ID."""
@@ -43,7 +44,7 @@ class ConversationRepository:
             return None
 
         doc = await collections.conversations.find_one({"_id": conversation_id})
-        return Conversation(**doc) if doc else None
+        return Conversation(**normalize_mongo_doc(doc)) if doc else None
 
     async def insert(self, conversation: Conversation) -> None:
         """Insert a new conversation document."""
@@ -92,7 +93,7 @@ class ConversationRepository:
 
         messages: List[Message] = []
         async for doc in cursor:
-            messages.append(Message(**doc))
+            messages.append(Message(**normalize_mongo_doc(doc)))
 
         return list(reversed(messages))
 

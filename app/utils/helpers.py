@@ -121,6 +121,20 @@ def extract_digits(text: str) -> str:
     return re.sub(r"[^\d]", "", text)
 
 
+def normalize_mongo_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert MongoDB ObjectId ``_id`` to string for Pydantic compatibility.
+
+    MongoDB returns ``_id`` as a ``bson.ObjectId``, but Pydantic models in
+    this project declare ``id: str = Field(alias="_id")``.  Without this
+    conversion, constructing a model from a raw Mongo document raises a
+    ``ValidationError`` ("Input should be a valid string").
+    """
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
 def normalize_whitespace(text: str) -> str:
     """Collapse multiple whitespace characters into a single space."""
     return re.sub(r"\s+", " ", text).strip()

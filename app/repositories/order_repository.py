@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Order, OrderStatus
+from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
 
@@ -29,7 +30,7 @@ class OrderRepository:
             "_id": order_id,
             "tenant_id": tenant_id,
         })
-        return Order(**doc) if doc else None
+        return Order(**normalize_mongo_doc(doc)) if doc else None
 
     async def find_by_number(self, tenant_id: str, order_number: str) -> Optional[Order]:
         """Retrieve an order by its human-readable order number."""
@@ -40,7 +41,7 @@ class OrderRepository:
             "tenant_id": tenant_id,
             "order_number": order_number,
         })
-        return Order(**doc) if doc else None
+        return Order(**normalize_mongo_doc(doc)) if doc else None
 
     async def find_by_customer(
         self,
@@ -61,7 +62,7 @@ class OrderRepository:
 
         orders: List[Order] = []
         async for doc in cursor:
-            orders.append(Order(**doc))
+            orders.append(Order(**normalize_mongo_doc(doc)))
 
         return orders
 

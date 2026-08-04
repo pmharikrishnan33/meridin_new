@@ -13,6 +13,7 @@ from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.database.redis_cache import redis_cache
 from app.models.schemas import Product, ProductSearchFilters
+from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
 
@@ -39,7 +40,7 @@ class ProductRepository:
             "tenant_id": tenant_id,
         })
         if doc:
-            product = Product(**doc)
+            product = Product(**normalize_mongo_doc(doc))
             await redis_cache.set(cache_key, product.model_dump(by_alias=True), ttl=600)
             return product
 
@@ -54,7 +55,7 @@ class ProductRepository:
             "tenant_id": tenant_id,
             "name": {"$regex": f"^{name}$", "$options": "i"},
         })
-        return Product(**doc) if doc else None
+        return Product(**normalize_mongo_doc(doc)) if doc else None
 
     async def search(
         self,
@@ -89,7 +90,7 @@ class ProductRepository:
 
         products: List[Product] = []
         async for doc in cursor:
-            products.append(Product(**doc))
+            products.append(Product(**normalize_mongo_doc(doc)))
 
         return products
 
@@ -107,7 +108,7 @@ class ProductRepository:
 
         products: List[Product] = []
         async for doc in cursor:
-            products.append(Product(**doc))
+            products.append(Product(**normalize_mongo_doc(doc)))
 
         return products
 
