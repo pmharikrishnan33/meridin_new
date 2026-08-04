@@ -152,21 +152,11 @@ class TenantFeatureFlags(BaseModel):
 
 class TenantSettings(BaseModel):
     """
-    Tenant-specific settings stored in MongoDB.
+    Nested tenant settings that are safe to keep under the ``settings``
+    object. Only the webhook secret is modeled here to avoid duplicating
+    the primary tenant credential fields at two different levels.
     """
-    tenant_name: str
-    business_name: str
-    phone_number_id: str
-    access_token: str
-    webhook_verify_token: str
-    webhook_secret: str = ""
-    feature_flags: TenantFeatureFlags = Field(default_factory=TenantFeatureFlags)
-    timezone: str = "UTC"
-    currency: str = "INR"
-    default_language: str = "en"
-    welcome_message: str = "Welcome! How can I help you today?"
-    fallback_message: str = "I didn't understand that. Could you please rephrase?"
-    human_handoff_message: str = "Let me connect you with a human agent."
+    webhook_secret: Optional[str] = None
 
 
 class Tenant(BaseModel):
