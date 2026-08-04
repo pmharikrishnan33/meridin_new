@@ -13,7 +13,8 @@ class Collections:
 
     @property
     def tenants(self) -> AsyncIOMotorCollection:
-        return mongodb.get_database()["tenants"]
+        """Tenant/client documents are stored in the 'clients' collection."""
+        return mongodb.get_database()["clients"]
 
     @property
     def products(self) -> AsyncIOMotorCollection:

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     NOTE:
     This file should only contain application-level settings.
-    Tenant/client-specific settings belong in MongoDB (tenants collection).
+    Tenant/client-specific settings belong in MongoDB (clients collection).
     """
 
     # ==========================================================
