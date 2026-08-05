@@ -179,20 +179,23 @@ async def receive_whatsapp_webhook(
         for change in entry.get("changes", []):
             value = change.get("value", {})
             metadata = value.get("metadata", {})
-            # Prefer header value, then tenant metadata, then DB resolution
-            tenant_id = (
+            # Resolve the real tenant ID from the tenant record whenever
+            # possible; fall back to header metadata only if the lookup can't
+            # be tied back to the tenant document.
+            resolved_tenant_id = (
                 x_tenant_id
+                or (tenant.id if tenant is not None else None)
                 or metadata.get("phone_number_id")
                 or resolved_phone_number_id
             )
             for message in value.get("messages", []):
                 text = (message.get("text") or {}).get("body")
                 sender = message.get("from")
-                if not tenant_id or not sender or not text:
+                if not resolved_tenant_id or not sender or not text:
                     continue
 
                 result = await message_service.process(
-                    tenant_id=str(tenant_id),
+                    tenant_id=str(resolved_tenant_id),
                     user_id=str(sender),
                     text=text,
                 )

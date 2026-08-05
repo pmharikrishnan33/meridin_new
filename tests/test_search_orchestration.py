@@ -8,9 +8,14 @@ from app.models.schemas import (
     MessageType,
     ProductSearchFilters,
     ResponseProduct,
+    EntityType,
+    ExtractedEntity,
+    MessageUnderstanding,
+    IntentType,
 )
 from app.services.inventory_search_service import inventory_search_service
 from app.services.response_service import response_service
+from app.conversation.session import ConversationSession
 
 
 class SearchOrchestrationTests(unittest.TestCase):
@@ -59,6 +64,43 @@ class SearchOrchestrationTests(unittest.TestCase):
         self.assertEqual(page["items"], ["p3", "p4"])
         self.assertFalse(page["has_prev"] is False)
         self.assertEqual(page["has_next"], False)
+
+    def test_context_merge_preserves_prior_search_filters_across_turns(self):
+        session = ConversationSession(
+            conversation_id="conv-merge",
+            tenant_id="tenant-1",
+            customer_id="cust-1",
+            context=ConversationContext(),
+        )
+        session.context.last_search_filters = {"query": "dress", "category": "dress"}
+
+        understanding = MessageUnderstanding(
+            original_text="show me blue dresses under 1000",
+            normalized_text="show me blue dresses under 1000",
+            intent=IntentType.PRODUCT_SEARCH,
+            intent_confidence=0.9,
+            entities=[
+                ExtractedEntity(
+                    entity_type=EntityType.COLOR,
+                    value="blue",
+                    confidence=0.9,
+                    normalized_value="blue",
+                ),
+                ExtractedEntity(
+                    entity_type=EntityType.PRICE,
+                    value="under 1000",
+                    confidence=0.9,
+                    normalized_value="1000",
+                ),
+            ],
+        )
+
+        session.update_context_from_understanding(understanding)
+
+        self.assertEqual(session.context.last_search_filters["query"], "dress")
+        self.assertEqual(session.context.last_search_filters["category"], "dress")
+        self.assertEqual(session.context.last_search_filters["color"], "blue")
+        self.assertEqual(session.context.last_search_filters["max_price"], 1000.0)
 
     def test_response_service_preserves_product_details_for_catalog_cards(self):
         response = response_service.build_product_list_response(

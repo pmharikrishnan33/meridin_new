@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+from app.conversation.context import ConversationContextManager
 from app.models.schemas import (
     ConversationContext,
     IntentType,
@@ -86,9 +87,15 @@ class ConversationSession:
             elif entity.entity_type == EntityType.CATEGORY:
                 self.context.current_category = entity.normalized_value or entity.value
 
-        # Store last search if this was a product search
+        # Store last search if this was a product search. Merge with any
+        # previously captured filters so follow-up messages can refine the
+        # set instead of dropping the earlier context.
         if understanding.intent == IntentType.PRODUCT_SEARCH:
-            self.context.last_search_filters = self._entities_to_filters(understanding.entities)
+            merged_filters = ConversationContextManager.merge_filters(
+                self.context.last_search_filters,
+                self._entities_to_filters(understanding.entities),
+            )
+            self.context.last_search_filters = merged_filters
 
     def _entities_to_filters(self, entities: List[ExtractedEntity]) -> Dict[str, Any]:
         """

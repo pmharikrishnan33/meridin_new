@@ -105,6 +105,27 @@ class WhatsAppSender:
         }
         return await self._send(url, access_token, payload)
 
+    async def send_image(
+        self,
+        phone_number_id: str,
+        access_token: str,
+        to: str,
+        image_url: str,
+        caption: str,
+    ) -> Dict[str, Any]:
+        """Send an image message with a short product caption."""
+        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "image",
+            "image": {
+                "link": image_url,
+                "caption": caption,
+            },
+        }
+        return await self._send(url, access_token, payload)
+
     async def send_interactive(
         self,
         phone_number_id: str,
@@ -169,14 +190,60 @@ class WhatsAppSender:
         WhatsApp API call(s).
 
         - ``text`` / ``order_status`` → plain text message
-        - ``product_list`` / ``product_card`` → text message with product info
+        - ``product_list`` / ``product_card`` → image caption for the first card
+          plus a follow-up text response with remaining details/replies
         - ``template`` → text message referencing a template name (if available)
         """
-        if not response.text:
+        if not response.text and not response.products:
             return {"status": "skipped", "reason": "empty response"}
 
+        if response.response_type in {"product_list", "product_card"} and response.products:
+            # The first product can be rendered in a single image caption message.
+            first_product = response.products[0]
+            caption_lines = [
+                f"{first_product.name}",
+                f"Price: ₹{first_product.price:,.0f}",
+                f"Stock: {first_product.stock}",
+            ]
+            if first_product.colors_available:
+                caption_lines.append(f"Colors: {', '.join(first_product.colors_available)}")
+            if first_product.sizes_available:
+                caption_lines.append(f"Sizes: {', '.join(first_product.sizes_available)}")
+            if first_product.description:
+                caption_lines.append(first_product.description[:60])
+
+            if first_product.image:
+                await self.send_image(
+                    phone_number_id,
+                    access_token,
+                    to,
+                    first_product.image,
+                    "\n".join(caption_lines),
+                )
+
+            remaining_text = response.text or "Here is the product card."
+            if response.quick_replies:
+                buttons = [
+                    {"id": r.get("value", r["label"]), "title": r["label"]}
+                    for r in response.quick_replies
+                ]
+                return await self.send_interactive(
+                    phone_number_id,
+                    access_token,
+                    to,
+                    remaining_text,
+                    buttons,
+                )
+
+            return await self.send_text(
+                phone_number_id,
+                access_token,
+                to,
+                remaining_text,
+            )
+
         # Build the text payload
-        text = response.text
+        text = response.text or ""
 
         # Append quick-reply buttons if present
         if response.quick_replies:
