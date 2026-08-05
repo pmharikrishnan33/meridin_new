@@ -32,19 +32,33 @@ class IntentRouter:
     ) -> BotResponse:
         """
         Route message to appropriate handler based on intent.
-
-        Flow:
-        1. Get intent config
-        2. Check tenant feature flags
-        3. Validate required entities
-        4. Load handler
-        5. Execute handler
-        6. Return structured response
         """
+        # --- 1. RESUME PENDING INTENT (Context Interception) ---
+        session = conversation_manager.get_session(conversation_id)
+        context = session.context if session else None
+
+        if context and context.awaiting_confirmation and context.confirmation_context:
+            pending_intent_str = context.confirmation_context.get("intent")
+            if pending_intent_str:
+                logger.info(f"Resuming pending intent: {pending_intent_str}")
+                
+                # Restore the original intent (e.g., PRODUCT_SEARCH)
+                intent = IntentType(pending_intent_str)
+                understanding.intent = intent
+                
+                # Re-trigger context update so new entities merge into the restored intent
+                session.update_context_from_understanding(understanding)
+                
+                # Clear the waiting state so we don't loop endlessly
+                context.awaiting_confirmation = False
+                context.awaiting_entity = None
+                context.confirmation_context = {}
+                await conversation_manager.save_session(session)
+        # -------------------------------------------------------
 
         intent = understanding.intent
         config = get_intent_config(intent)
-
+        
         logger.info(f"Routing intent: {intent.value} (confidence: {understanding.intent_confidence:.2f})")
 
         # Check confidence threshold
