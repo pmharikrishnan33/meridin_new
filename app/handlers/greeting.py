@@ -17,9 +17,8 @@ from app.utils.logger import logger
 class GreetingHandler(BaseHandler):
     """
     Handles greeting intents (hi, hello, hey, etc.).
-    Returns a warm welcome message with quick-reply options.
+    Returns a warm welcome message as plain text without buttons.
     """
-
     async def handle(
         self,
         understanding: MessageUnderstanding,
@@ -27,7 +26,6 @@ class GreetingHandler(BaseHandler):
         tenant_settings: Dict[str, Any],
         conversation_context: Optional[ConversationContext],
     ) -> BotResponse:
-
         # Prefer the tenant-scoped message template stored in MongoDB.
         template = None
         try:
@@ -43,19 +41,15 @@ class GreetingHandler(BaseHandler):
             "welcome_message",
             "Welcome! How can I help you today?",
         )
+
         if template and template.get("body_text"):
             welcome_msg = template["body_text"]
 
-        quick_replies = [
-            {"label": "Browse Products", "value": "browse_products"},
-            {"label": "Track Order", "value": "track_order"},
-            {"label": "Returns & Refunds", "value": "returns_info"},
-        ]
-
+        # Set quick_replies to [] so no buttons or lists are sent
         return BotResponse(
             response_type="text",
             text=welcome_msg,
-            quick_replies=quick_replies,
+            quick_replies=[],
             metadata={
                 "greeting_handled": True,
                 "template_source": "db" if template else "fallback",
