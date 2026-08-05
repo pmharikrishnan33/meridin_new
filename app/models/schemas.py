@@ -306,6 +306,11 @@ class ConversationContext(BaseModel):
     active_search_page: int = 1
     active_search_page_size: int = 10
 
+    # -- Inventory store -------------------------------------------
+    # The store_name used to resolve the ``inventory.<store_name>`` collection
+    # on follow-up messages (e.g. "show more", pagination).
+    active_store_name: Optional[str] = None
+
 
 class Conversation(BaseModel):
     """
@@ -462,6 +467,10 @@ class ResponseProduct(BaseModel):
     sale_price: Optional[float] = None
     currency: str = "INR"
     image: Optional[str] = None
+    stock: int = 0
+    category: Optional[str] = None
+    product_type: Optional[str] = None
+    description: Optional[str] = None
     sizes_available: List[str] = Field(default_factory=list)
     colors_available: List[str] = Field(default_factory=list)
     in_stock: bool = True
@@ -495,5 +504,33 @@ class AnalyticsEvent(BaseModel):
     event_type: str  # message_received, intent_detected, product_viewed, order_placed, etc.
     event_data: Dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+# ==========================================================
+# TEMPLATE
+# ==========================================================
+
+class Template(BaseModel):
+    """
+    Message template — stored in MongoDB, scoped per tenant.
+
+    Used by handlers (GreetingHandler, ThanksHandler, FallbackHandler) to
+    build responses without hardcoding text.
+    """
+    id: Optional[str] = Field(default=None, alias="_id")
+    tenant_id: str
+    name: str                # e.g. "greeting", "thanks", "fallback"
+    language: str = "en"
+    category: str = "UTILITY"  # MARKETING or UTILITY (WhatsApp category)
+    response_type: str = "text"  # text, product_list, order_status, template, ai
+    body_text: Optional[str] = None
+    quick_replies: List[Dict[str, str]] = Field(default_factory=list)
+    footer_text: Optional[str] = None
+    variables: List[str] = Field(default_factory=list)
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = ConfigDict(populate_by_name=True)

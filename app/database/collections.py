@@ -40,6 +40,16 @@ class Collections:
     def analytics(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["analytics"]
 
+    @property
+    def templates(self) -> AsyncIOMotorCollection:
+        """Message templates stored per-tenant for response rendering."""
+        return mongodb.get_database()["templates"]
+
+    @property
+    def inventory_metadata(self) -> AsyncIOMotorCollection:
+        """Color / size / attribute name resolution (type-discriminated)."""
+        return mongodb.get_database()["inventory_metadata"]
+
     # --- Inventory (new multi-collection schema) ------------------------------
 
     @property
@@ -56,6 +66,17 @@ class Collections:
         """
         brand_suffix = brand.lower().replace(" ", "_") if brand else "default"
         return mongodb.get_database()[f"inventory.clothing_{brand_suffix}"]
+
+    def clothing_store(self, store_name: str) -> AsyncIOMotorCollection:
+        """
+        Return the per-store inventory collection.
+
+        Collection name follows the pattern ``inventory.<store_name>``
+        (e.g. ``inventory.nike``, ``inventory.hm``).  When ``store_name``
+        is empty or None, falls back to a default collection.
+        """
+        suffix = store_name.lower().replace(" ", "_") if store_name else "default"
+        return mongodb.get_database()[f"inventory.{suffix}"]
 
 
 collections = Collections()

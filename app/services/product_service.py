@@ -269,6 +269,7 @@ class ProductService:
         sizes = sorted(set(v.size for v in product.variants))
         colors = sorted(set(v.color for v in product.variants))
         in_stock = any(v.stock > 0 for v in product.variants)
+        total_stock = sum(v.stock for v in product.variants)
 
         # Use sale price if available, otherwise base price
         price = product.base_price
@@ -280,6 +281,7 @@ class ProductService:
 
         # Pick a representative image
         image = product.images[0] if product.images else None
+        product_type = product.sub_category or product.attributes.get("dress_type") if isinstance(product.attributes, dict) else None
 
         return ResponseProduct(
             product_id=product.id,
@@ -288,6 +290,10 @@ class ProductService:
             sale_price=sale_price,
             currency=product.currency,
             image=image,
+            stock=total_stock,
+            category=product.category,
+            product_type=product_type,
+            description=product.description,
             sizes_available=sizes,
             colors_available=colors,
             in_stock=in_stock,

@@ -18,7 +18,9 @@
       "Bash(pip list *)",
       "Bash(git -C /home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML ls-files models data)",
       "Bash(xargs ls -la)",
-      "Bash(.venv/bin/pip show *)"
+      "Bash(.venv/bin/pip show *)",
+      "Bash(mongod --version)",
+      "Bash(mongosh --version)"
     ]
   }
 }

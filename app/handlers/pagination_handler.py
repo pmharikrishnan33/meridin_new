@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from app.handlers.base_handler import BaseHandler
 from app.models.schemas import BotResponse, ConversationContext, MessageUnderstanding
+from app.services.product_service import product_service
 
 
 class PaginationHandler(BaseHandler):
@@ -36,7 +37,7 @@ class PaginationHandler(BaseHandler):
                 metadata={"pagination": False, "results_count": 0},
             )
 
-        page_size = conversation_context.active_search_page_size or 10
+        page_size = conversation_context.active_search_page_size or 3
         total = conversation_context.active_search_total or len(result_ids)
         current_page = conversation_context.active_search_page or 1
         next_page = current_page + 1
@@ -51,13 +52,23 @@ class PaginationHandler(BaseHandler):
                 metadata={"pagination": False, "results_count": 0},
             )
 
+        products = []
+        for product_id in page_items:
+            product = await product_service.get_product_by_id(tenant_id, product_id)
+            if product:
+                products.append(product_service.product_to_response(product))
+
         conversation_context.active_search_offset = offset
         conversation_context.active_search_page = next_page
+        conversation_context.active_search_results = result_ids
 
         return BotResponse(
             response_type="product_list",
             text=f"Showing page {next_page} of your search results.",
-            products=[],
+            products=products,
+            quick_replies=[
+                {"label": "Show more", "value": "show_more"},
+            ] if has_next else [],
             metadata={
                 "pagination": True,
                 "page": next_page,
@@ -66,5 +77,6 @@ class PaginationHandler(BaseHandler):
                 "total": total,
                 "has_next": has_next,
                 "items": page_items,
+                "default_color": "No specific color",
             },
         )

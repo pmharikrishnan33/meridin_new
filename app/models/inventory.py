@@ -15,22 +15,30 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class ClothingItem(BaseModel):
     """
-    A single clothing variant stored in a per-brand collection.
+    A single clothing item stored in an ``inventory.<store_name>`` collection.
 
-    The ``color`` and ``size`` fields are foreign-key IDs that reference
-    documents in ``inventory.clothing_attributes``.
+    ``color_ids`` and ``size_ids`` are lists of foreign-key IDs that reference
+    documents in the ``inventory_metadata`` collection for display-name resolution.
+    The single-value ``color`` and ``size`` fields are kept for backward
+    compatibility with the older ``inventory.clothing_attributes`` schema.
     """
 
     id: str = Field(alias="_id")
     tenant_id: str
+    store_name: Optional[str] = None    # denormalized for convenience
     title: str
     description: Optional[str] = None
     media: List[str] = Field(default_factory=list)
-    category: Optional[str] = None
-    type: Optional[str] = None
+    category: Optional[str] = None      # e.g. "shirt", "dress", "pants"
+    type: Optional[str] = None          # e.g. "t-shirt", "formal shirt"
     brand: Optional[str] = None
-    color: str                     # attribute ID reference
-    size: str                      # attribute ID reference
+    color: Optional[str] = None         # single attribute ID (legacy)
+    size: Optional[str] = None          # single attribute ID (legacy)
+    color_ids: List[str] = Field(default_factory=list)  # array of color attribute IDs
+    size_ids: List[str] = Field(default_factory=list)   # array of size attribute IDs
+    price: float = 0.0
+    stock: int = 0
+    age_group: Optional[str] = None     # e.g. "adult", "kids", "unisex"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = ConfigDict(populate_by_name=True)
