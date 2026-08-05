@@ -45,6 +45,15 @@ class IntentClassifier:
         """
         Predict intent for given text.
         """
+        # --- NEW: Exact match intercept for common greetings ---
+        text_clean = text.strip().lower()
+        if text_clean in {"hi", "hello", "hey", "namaste", "good morning", "good evening", "hii"}:
+            return IntentPrediction(
+                intent=IntentType.GREETING,
+                confidence=0.95,
+                all_scores={IntentType.GREETING.value: 1.0}
+            )
+        # -------------------------------------------------------
 
         # Try ML model first
         if model_loader.intent_model and model_loader.intent_vectorizer:
