@@ -20,7 +20,9 @@
       "Bash(xargs ls -la)",
       "Bash(.venv/bin/pip show *)",
       "Bash(mongod --version)",
-      "Bash(mongosh --version)"
+      "Bash(mongosh --version)",
+      "Bash(pip3 show *)",
+      "Bash(pip3 freeze *)"
     ]
   }
 }

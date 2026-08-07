@@ -589,3 +589,19 @@ entry.0.changes.0.field
 2026-08-04 20:26:19,823 | INFO | meridin | Loaded model: entity_model.pkl
 2026-08-04 20:26:19,835 | INFO | meridin | Loaded model: entity_vectorizer.pkl
 2026-08-04 20:26:19,835 | INFO | meridin | All ML models loaded successfully.
+2026-08-07 22:20:29,398 | INFO | meridin | Loading ML models...
+2026-08-07 22:20:37,326 | INFO | meridin | Restored multi_class='multinomial' on intent_model.pkl (sklearn version compatibility fix)
+2026-08-07 22:20:37,326 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-07 22:20:37,334 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-07 22:20:37,384 | INFO | meridin | Restored multi_class='multinomial' on entity_model.pkl (sklearn version compatibility fix)
+2026-08-07 22:20:37,384 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-07 22:20:37,421 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-07 22:20:37,422 | INFO | meridin | All ML models loaded successfully.
+2026-08-07 22:20:37,422 | INFO | meridin | Loading ML models...
+2026-08-07 22:20:37,425 | INFO | meridin | Restored multi_class='multinomial' on intent_model.pkl (sklearn version compatibility fix)
+2026-08-07 22:20:37,425 | INFO | meridin | Loaded model: intent_model.pkl
+2026-08-07 22:20:37,432 | INFO | meridin | Loaded model: intent_vectorizer.pkl
+2026-08-07 22:20:37,434 | INFO | meridin | Restored multi_class='multinomial' on entity_model.pkl (sklearn version compatibility fix)
+2026-08-07 22:20:37,434 | INFO | meridin | Loaded model: entity_model.pkl
+2026-08-07 22:20:37,451 | INFO | meridin | Loaded model: entity_vectorizer.pkl
+2026-08-07 22:20:37,452 | INFO | meridin | All ML models loaded successfully.

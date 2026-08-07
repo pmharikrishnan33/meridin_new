@@ -30,7 +30,7 @@ class IntentClassifier:
         IntentType.GREETING: ["hi", "hello", "hey", "good morning", "good evening", "namaste"],
         IntentType.PRODUCT_SEARCH: ["need", "want", "looking for", "search", "find", "show me", "buy", "purchase"],
         IntentType.PRODUCT_INQUIRY: ["tell me about", "details", "specs", "material", "fabric", "how is", "describe"],
-        IntentType.AVAILABILITY: ["available", "in stock", "stock", "have", "size", "xl", "xxl", "s", "m", "l"],
+        IntentType.AVAILABILITY: ["available", "in stock", "stock", "have", "size", "xl", "xxl"],
         IntentType.ORDER_STATUS: ["order", "track", "where is", "delivered", "shipped", "status", "order id"],
         IntentType.CANCEL_ORDER: ["cancel", "return", "refund", "don't want", "change mind"],
         IntentType.RETURN_REQUEST: ["return", "exchange", "replace", "wrong size", "defective"],
@@ -39,7 +39,7 @@ class IntentClassifier:
     }
 
     def __init__(self):
-        self._confidence_threshold = 0.5
+        self._confidence_threshold = 0.25
 
     def predict(self, text: str) -> IntentPrediction:
         """
@@ -110,13 +110,16 @@ class IntentClassifier:
         Keyword-based intent classification fallback.
         """
 
+        import re
         text_lower = text.lower()
         scores = {}
 
         for intent, keywords in self.INTENT_KEYWORDS.items():
             score = 0
             for keyword in keywords:
-                if keyword in text_lower:
+                # Use word-boundary matching so short keywords like "hi"
+                # don't match inside larger words (e.g. "history").
+                if re.search(rf"\b{re.escape(keyword)}\b", text_lower):
                     score += 1
             scores[intent.value] = score
 

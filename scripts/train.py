@@ -72,11 +72,9 @@ log = logging.getLogger("train")
 
 # The model may produce class labels that differ from IntentType enum values.
 # This alias map normalises them so the classifier always emits canonical
-# intent names.  ``cancel_request`` and ``product_availability`` are kept as
-# separate classes for richer training signal, then mapped at inference time.
+# intent names.
 INTENT_ALIASES = {
     "cancel_request": "cancel_order",
-    "product_availability": "availability",
 }
 
 

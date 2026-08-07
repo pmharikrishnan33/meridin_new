@@ -37,14 +37,11 @@ class FallbackHandler(BaseHandler):
         tenant_settings: Dict[str, Any],
         conversation_context: Optional[ConversationContext],
     ) -> BotResponse:
-
         fallback_msg = tenant_settings.get(
             "fallback_message",
             "I didn't understand that. Could you please rephrase?",
         )
 
-        # Try AI-powered fallback when the feature flag is on and the
-        # OpenRouter client is configured.
         feature_flags = tenant_settings.get("feature_flags", {})
         if feature_flags.get("enable_ai_responses", False) and ai_fallback.is_available:
             try:
@@ -54,7 +51,9 @@ class FallbackHandler(BaseHandler):
                     tenant_settings=tenant_settings,
                     conversation_history=history,
                 )
-                ai_response.quick_replies = self.QUICK_REPLIES
+                # FIX: Clear the quick replies so WhatsApp doesn't render a list menu
+                ai_response.quick_replies = []
+                
                 logger.info("AI fallback response generated successfully.")
                 return ai_response
             except Exception as exc:
@@ -64,7 +63,7 @@ class FallbackHandler(BaseHandler):
         return BotResponse(
             response_type="text",
             text=fallback_msg,
-            quick_replies=self.QUICK_REPLIES,
+            quick_replies=[], # FIX: Clear it here as well
             metadata={
                 "fallback": True,
             },

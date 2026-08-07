@@ -55,12 +55,16 @@ class MessageService:
         if not text or not text.strip():
             raise ValueError("Message text must not be empty.")
 
-        # Run the full preprocessing pipeline: normalization + vocabulary matching
+        # Run the full preprocessing pipeline
         preprocessed = preprocessor.process(text)
         normalized_text = preprocessed.vocabulary_matched
 
-        prediction = intent_classifier.predict(normalized_text)
+        # FIX: Pass the typo-corrected text to the ML model, NOT the vocabulary_matched text.
+        # This allows the model to actually read words like "hi" or "cancel".
+        prediction = intent_classifier.predict(preprocessed.normalized)
+        
         extraction = entity_extractor.extract(text, intent=prediction.intent.value)
+
         return MessageUnderstanding(
             original_text=text,
             normalized_text=normalized_text,

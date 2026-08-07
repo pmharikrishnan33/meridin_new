@@ -70,7 +70,16 @@
         "is it sold out",
         "available colors",
         "what sizes are available",
-        "is it in stock"
+        "is it in stock",
+        "is it available in stock",
+        "in stock",
+        "available right now",
+        "do you have it",
+        "available in size",
+        "do you have size",
+        "in stock in",
+        "available colors",
+        "what sizes are available"
     ],
     "order_status": [
         "where is my order",
@@ -142,17 +151,5 @@
         "grateful",
         "thank you meridin",
         "much appreciated"
-    ],
-    "product_availability": [
-        "is it available in stock",
-        "in stock",
-        "available right now",
-        "do you have it",
-        "is it in stock",
-        "available in size",
-        "do you have size",
-        "in stock in",
-        "available colors",
-        "what sizes are available"
     ]
 }

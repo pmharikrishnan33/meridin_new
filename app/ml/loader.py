@@ -49,6 +49,21 @@ class ModelLoader:
 
         try:
             model = joblib.load(model_path)
+
+            # --- Compatibility fix for sklearn version mismatch ---
+            # Models trained with sklearn 1.9.0+ (where the multi_class
+            # parameter was removed/renamed) can fail at runtime on
+            # sklearn <= 1.6.1 because predict_proba() still references
+            # self.multi_class.  If the attribute is missing, restore it
+            # so predict_proba works across versions.
+            if hasattr(model, "predict_proba") and not hasattr(model, "multi_class"):
+                model.multi_class = "multinomial"
+                logger.info(
+                    f"Restored multi_class='multinomial' on {model_path.name} "
+                    f"(sklearn version compatibility fix)"
+                )
+            # -------------------------------------------------------
+
             logger.info(f"Loaded model: {model_path.name}")
             return model
         except Exception as e:

@@ -25,7 +25,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
     IntentType.GREETING: IntentConfig(
         handler_class="GreetingHandler",
         requires_entities=False,
-        min_confidence=0.4,
+        min_confidence=0.2,
         response_type="template",
     ),
 
@@ -40,7 +40,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
             EntityType.BRAND,
             EntityType.CATEGORY
         ],
-        min_confidence=0.5,
+        min_confidence=0.25,
         response_type="structured",
         allowed_tenant_features=["enable_product_recommendations"],
     ),
@@ -50,7 +50,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         requires_entities=True,
         required_entities=[EntityType.PRODUCT],
         optional_entities=[EntityType.COLOR, EntityType.SIZE, EntityType.FIT],
-        min_confidence=0.5,
+        min_confidence=0.25,
         response_type="structured",
     ),
 
@@ -59,7 +59,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         requires_entities=True,
         required_entities=[EntityType.PRODUCT],
         optional_entities=[EntityType.SIZE, EntityType.COLOR, EntityType.FIT],
-        min_confidence=0.5,
+        min_confidence=0.25,
         response_type="structured",
     ),
 
@@ -67,7 +67,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         handler_class="OrderStatusHandler",
         requires_entities=True,
         required_entities=[EntityType.ORDER_ID],
-        min_confidence=0.6,
+        min_confidence=0.3,
         response_type="structured",
         allowed_tenant_features=["enable_order_tracking"],
     ),
@@ -76,7 +76,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         handler_class="CancelOrderHandler",
         requires_entities=True,
         required_entities=[EntityType.ORDER_ID],
-        min_confidence=0.7,
+        min_confidence=0.4,
         response_type="structured",
         allowed_tenant_features=["enable_cancellation"],
         fallback_intent=IntentType.ORDER_STATUS,
@@ -87,7 +87,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         requires_entities=True,
         required_entities=[EntityType.ORDER_ID],
         optional_entities=[EntityType.PRODUCT],
-        min_confidence=0.6,
+        min_confidence=0.3,
         response_type="structured",
         allowed_tenant_features=["enable_returns"],
     ),
@@ -96,7 +96,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         handler_class="ComplaintHandler",
         requires_entities=False,
         optional_entities=[EntityType.ORDER_ID, EntityType.PRODUCT],
-        min_confidence=0.5,
+        min_confidence=0.25,
         response_type="template",
         allowed_tenant_features=["enable_human_handoff"],
         fallback_intent=IntentType.COMPLAINT,
@@ -105,7 +105,7 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
     IntentType.THANKS: IntentConfig(
         handler_class="ThanksHandler",
         requires_entities=False,
-        min_confidence=0.4,
+        min_confidence=0.2,
         response_type="template",
     ),
 
