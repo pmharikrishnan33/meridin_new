@@ -192,15 +192,22 @@ class EntityExtractor:
         """
         Extract entities using regex patterns.
         """
-
         entities = []
         text_lower = text.lower()
-
         for entity_type, patterns in self.PATTERNS.items():
             for pattern in patterns:
                 matches = re.finditer(pattern, text_lower, re.IGNORECASE)
                 for match in matches:
-                    value = match.group(1) if match.groups() else match.group(0)
+                    # FIX: Safely find the actual matched value, ignoring any None groups
+                    captured_groups = [g for g in match.groups() if g is not None]
+                    
+                    # Grab the last captured group (the actual entity), or the full match
+                    value = captured_groups[-1] if captured_groups else match.group(0)
+                    
+                    # Prevent any empty values from causing a crash
+                    if not value:
+                        continue
+                        
                     entities.append(ExtractedEntity(
                         entity_type=entity_type,
                         value=value.strip(),
@@ -209,7 +216,6 @@ class EntityExtractor:
                         end_pos=match.end(),
                         normalized_value=self._normalize_value(entity_type, value)
                     ))
-
         return entities
 
     def _extract_keywords(self, text: str) -> List[ExtractedEntity]:

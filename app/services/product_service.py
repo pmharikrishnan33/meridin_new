@@ -93,23 +93,24 @@ class ProductService:
         """
         Search products matching the given filters.
         """
-
         if not mongodb.is_connected:
             logger.warning("Product search skipped because MongoDB is unavailable.")
             return []
 
         query = self._build_mongo_query(filters)
         query["tenant_id"] = tenant_id
-
+        
+        # 1. Start building the query cursor
+        cursor = collections.products.find(query)
+        
+        # 2. Check if we actually have sorting rules
         sort_spec = self._build_sort(filters.sort_by)
-
-        cursor = (
-            collections.products
-            .find(query)
-            .sort(sort_spec)
-            .skip(filters.offset)
-            .limit(filters.limit)
-        )
+        
+        # 3. ONLY apply the sort command if the list is not empty
+        if sort_spec:
+            cursor = cursor.sort(sort_spec)
+            
+        cursor = cursor.skip(filters.offset).limit(filters.limit)
 
         products = []
         async for doc in cursor:
