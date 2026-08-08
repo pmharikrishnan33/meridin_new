@@ -45,8 +45,12 @@ class IntentClassifier:
         """
         Predict intent for given text.
         """
+        import re
+
         # --- NEW: Exact match intercept for common greetings ---
-        text_clean = text.strip().lower()
+        # Strip all punctuation and extra whitespace so "Hi!" or "Hello..." securely match
+        text_clean = re.sub(r'[^\w\s]', '', text).strip().lower()
+        
         if text_clean in {"hi", "hello", "hey", "namaste", "good morning", "good evening", "hii"}:
             return IntentPrediction(
                 intent=IntentType.GREETING,
@@ -62,7 +66,7 @@ class IntentClassifier:
         # Fallback to keyword-based
         logger.warning("Intent model not loaded, using keyword fallback")
         return self._predict_keywords(text)
-
+    
     def _predict_ml(self, text: str) -> IntentPrediction:
         """
         Predict using trained ML model.
