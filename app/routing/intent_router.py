@@ -5,7 +5,13 @@ Intent Router - routes understood messages to appropriate handlers.
 from typing import Optional, Dict, Any
 
 from app.utils.logger import logger
-from app.models.schemas import IntentType, MessageUnderstanding, BotResponse
+from app.models.schemas import (
+    IntentType, 
+    MessageUnderstanding, 
+    BotResponse, 
+    EntityType, 
+    ExtractedEntity
+)
 from app.routing.intent_config import (
     get_intent_config,
     get_required_entities,
