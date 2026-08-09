@@ -36,7 +36,6 @@ class IntentRouter:
         # --- 1. RESUME PENDING INTENT (Context Interception) ---
         session = conversation_manager.get_session(conversation_id)
         context = session.context if session else None
-
         if context and context.awaiting_confirmation and context.confirmation_context:
             pending_intent_str = context.confirmation_context.get("intent")
             if pending_intent_str:
@@ -46,10 +45,21 @@ class IntentRouter:
                 intent = IntentType(pending_intent_str)
                 understanding.intent = intent
                 
+                # FIX: Preserve current_product from context if new message didn't specify one
+                if context.current_product and not any(e.entity_type == EntityType.PRODUCT for e in understanding.entities):
+                    understanding.entities.append(
+                        ExtractedEntity(
+                            entity_type=EntityType.PRODUCT,
+                            value=context.current_product,
+                            confidence=1.0,
+                            normalized_value=context.current_product,
+                        )
+                    )
+
                 # Re-trigger context update so new entities merge into the restored intent
                 session.update_context_from_understanding(understanding)
                 
-                # Clear the waiting state so we don't loop endlessly
+                # Clear the waiting state
                 context.awaiting_confirmation = False
                 context.awaiting_entity = None
                 context.confirmation_context = {}

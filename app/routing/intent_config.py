@@ -32,9 +32,11 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
     IntentType.PRODUCT_SEARCH: IntentConfig(
         handler_class="ProductSearchHandler",
         requires_entities=True,
-        # Move COLOR and SIZE here to force the follow-up question
-        required_entities=[EntityType.PRODUCT, EntityType.COLOR, EntityType.SIZE],
+        # FIX: Only require the product. Do not block searches if color/size are missing.
+        required_entities=[EntityType.PRODUCT],
         optional_entities=[
+            EntityType.COLOR,
+            EntityType.SIZE,
             EntityType.FIT,
             EntityType.PRICE,
             EntityType.BRAND,
