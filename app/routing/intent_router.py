@@ -72,9 +72,22 @@ class IntentRouter:
                 await conversation_manager.save_session(session)
         # -------------------------------------------------------
 
+        # -------------------------------------------------------
         intent = understanding.intent
         config = get_intent_config(intent)
         
+        # --- NEW: Smart Intent Override ---
+        # If the model thinks it's an inquiry or availability, but the user provided 
+        # a price filter, it is definitively a catalog search.
+        extracted_types = {e.entity_type for e in understanding.entities}
+        if intent in {IntentType.PRODUCT_INQUIRY, IntentType.AVAILABILITY}:
+            if EntityType.PRICE in extracted_types:
+                logger.info(f"Smart override: Switched {intent.value} to product_search due to price filter")
+                intent = IntentType.PRODUCT_SEARCH
+                understanding.intent = intent
+                config = get_intent_config(intent)
+        # -------------------------------------------------------
+
         logger.info(f"Routing intent: {intent.value} (confidence: {understanding.intent_confidence:.2f})")
 
         # Check confidence threshold

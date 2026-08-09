@@ -9,6 +9,8 @@ from app.database.mongodb import mongodb
 from app.database.redis_cache import redis_cache
 from app.api.webhook import router as message_router
 
+from fastapi.responses import HTMLResponse
+from pathlib import Path
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,3 +70,22 @@ async def detailed_health():
         "version": settings.APP_VERSION,
         "mongodb": "connected" if mongodb.is_connected else "disconnected"
     }
+
+
+@app.get("/super-admin", response_class=HTMLResponse)
+async def serve_super_admin():
+    """Serves the Super Admin dashboard."""
+    # This assumes super_admin.html is saved in the root folder of your project
+    html_file = Path("/home/harikrishnan/Desktop/FE/super_admin.html")
+    if html_file.exists():
+        return html_file.read_text(encoding="utf-8")
+    return "<h1>Error: super_admin.html not found</h1>"
+
+@app.get("/client-panel", response_class=HTMLResponse)
+async def serve_client_panel():
+    """Serves the Client Portal."""
+    # This assumes client_panel.html is saved in the root folder of your project
+    html_file = Path("/home/harikrishnan/Desktop/FE/client_panel.html")
+    if html_file.exists():
+        return html_file.read_text(encoding="utf-8")
+    return "<h1>Error: client_panel.html not found</h1>"
