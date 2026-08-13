@@ -223,34 +223,69 @@ class ProductService:
         entities: List[ExtractedEntity],
     ) -> ProductSearchFilters:
         """
-        Convert extracted entities into ProductSearchFilters.
+        Convert extracted entities into product search filters.
+
+        PRODUCT:
+            Treated as a text query.
+
+        CATEGORY:
+            Treated as a category filter.
+
+        Other entities:
+            Converted into their corresponding filters.
         """
 
         filters = ProductSearchFilters()
 
         for entity in entities:
+
+            # Get the normalized entity value once.
+            value = entity.normalized_value or entity.value
+
+            if not value:
+                continue
+
+            value = value.strip()
+
             if entity.entity_type == EntityType.PRODUCT:
-                filters.category = (entity.normalized_value or entity.value).lower()
+                filters.query = value.lower()
+
             elif entity.entity_type == EntityType.CATEGORY:
-                filters.category = entity.normalized_value or entity.value
+                filters.category = value.lower()
+
             elif entity.entity_type == EntityType.BRAND:
-                filters.brand = entity.normalized_value or entity.value
+                filters.brand = value.lower()
+
             elif entity.entity_type == EntityType.COLOR:
-                filters.color = entity.normalized_value or entity.value
+                filters.color = value.lower()
+
             elif entity.entity_type == EntityType.SIZE:
-                filters.size = entity.normalized_value or entity.value
+                filters.size = value.upper()
+
             elif entity.entity_type == EntityType.FIT:
-                filters.fit = entity.normalized_value or entity.value
+                filters.fit = value.lower()
+
+            elif entity.entity_type == EntityType.TYPE:
+                filters.type = value.lower()
+
             elif entity.entity_type == EntityType.PRICE:
                 try:
-                    price = float(entity.normalized_value or entity.value)
-                    operator = (entity.metadata or {}).get("operator", "exact")
+                    price = float(value)
+
+                    operator = (entity.metadata or {}).get(
+                        "operator",
+                        "exact"
+                    )
+
                     if operator == "max":
                         filters.max_price = price
+
                     elif operator == "min":
                         filters.min_price = price
-                    elif operator == "exact":
+
+                    else:
                         filters.max_price = price
+
                 except (ValueError, TypeError):
                     pass
 
