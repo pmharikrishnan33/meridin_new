@@ -119,7 +119,7 @@ class InventoryService:
         if not mongodb.is_connected:
             return {"total_products": 0, "total_variants": 0, "in_stock": 0, "out_of_stock": 0}
 
-        cursor = collections.products.find({"tenant_id": tenant_id})
+        cursor = collections.products(tenant_id).find({"tenant_id": tenant_id})
 
         total_products = 0
         total_variants = 0
