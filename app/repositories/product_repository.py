@@ -35,7 +35,7 @@ class ProductRepository:
         if cached is not None:
             return Product(**cached)
 
-        doc = await collections.products.find_one({
+        doc = await collections.products(tenant_id).find_one({
             "_id": product_id,
             "tenant_id": tenant_id,
         })
@@ -51,7 +51,7 @@ class ProductRepository:
         if not mongodb.is_connected:
             return None
 
-        doc = await collections.products.find_one({
+        doc = await collections.products(tenant_id).find_one({
             "tenant_id": tenant_id,
             "name": {"$regex": f"^{name}$", "$options": "i"},
         })
@@ -81,12 +81,7 @@ class ProductRepository:
         if filters.in_stock_only:
             query["variants.stock"] = {"$gt": 0}
 
-        cursor = (
-            collections.products
-            .find(query)
-            .skip(filters.offset)
-            .limit(filters.limit)
-        )
+        cursor = collections.products(tenant_id).find(query).skip(filters.offset).limit(filters.limit)
 
         products: List[Product] = []
         async for doc in cursor:
@@ -100,7 +95,7 @@ class ProductRepository:
             return []
 
         cursor = (
-            collections.products
+            collections.products(tenant_id)
             .find({"tenant_id": tenant_id, "is_featured": True, "is_active": True})
             .sort("created_at", -1)
             .limit(limit)
