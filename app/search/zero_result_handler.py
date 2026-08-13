@@ -63,7 +63,7 @@ async def find_best_relaxation(
     query: str,
     filters: Dict[str, Any],
     search_fn,  # callable: async (filters: Dict) -> List (product IDs or items)
-) -> List[str]:
+) -> Optional[str]:
     """
     Step 3 of the zero-result fallback.
 
@@ -78,16 +78,20 @@ async def find_best_relaxation(
             a list of product IDs (or items).
 
     Returns:
-        The filter key that should be removed, or an empty string if none
-        of the relaxations yielded results.
+        The filter key that should be removed, or ``None`` if none of the
+        permitted relaxations yielded results.
     """
-    if not filters:
-        return ""
+    relaxable_keys = [
+        key for key in filters
+        if key in {"color", "size", "type", "min_price", "max_price", "fit", "brand"}
+    ]
+    if not relaxable_keys:
+        return None
 
     results_per_removal: Dict[str, int] = {}
     results_per_key: Dict[str, List] = {}
 
-    for key in list(filters.keys()):
+    for key in relaxable_keys:
         relaxed = {k: v for k, v in filters.items() if k != key}
         try:
             found = await search_fn(relaxed)
@@ -104,7 +108,7 @@ async def find_best_relaxation(
     best_count = results_per_removal[best_key_by_count]
 
     if best_count == 0:
-        return ""
+        return None
 
     # If there's a tie, let the LLM decide
     tied = [k for k, v in results_per_removal.items() if v == best_count]

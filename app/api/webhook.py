@@ -140,6 +140,13 @@ async def receive_whatsapp_webhook(
         x_whatsapp_phone_number_id, metadata_phone_number_id
     )
 
+    if tenant is None or not tenant.tenant_id:
+        logger.warning("Rejected webhook because no canonical tenant could be resolved.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unknown or unconfigured WhatsApp tenant.",
+        )
+
     # ------------------------------------------------------------------
     # 5. Signature verification (per-tenant when resolvable)
     # ------------------------------------------------------------------
@@ -179,15 +186,11 @@ async def receive_whatsapp_webhook(
         for change in entry.get("changes", []):
             value = change.get("value", {})
             metadata = value.get("metadata", {})
-            # Resolve the real tenant ID from the tenant record whenever
-            # possible; fall back to header metadata only if the lookup can't
-            # be tied back to the tenant document.
-            resolved_tenant_id = (
-                x_tenant_id
-                or (tenant.id if tenant is not None else None)
-                or metadata.get("phone_number_id")
-                or resolved_phone_number_id
-            )
+            message_phone_number_id = metadata.get("phone_number_id")
+            if message_phone_number_id != tenant.phone_number_id:
+                logger.warning("Rejected webhook change with mismatched phone number metadata.")
+                continue
+            resolved_tenant_id = tenant.tenant_id
             for message in value.get("messages", []):
                 text = (message.get("text") or {}).get("body")
                 sender = message.get("from")
@@ -204,10 +207,8 @@ async def receive_whatsapp_webhook(
                 processed.append(chat_response.model_dump())
 
                 # Attempt to send the reply back to WhatsApp
-                phone_number_id = (
-                    x_whatsapp_phone_number_id or resolved_phone_number_id
-                )
-                access_token = x_whatsapp_access_token or resolved_access_token
+                phone_number_id = resolved_phone_number_id
+                access_token = resolved_access_token
 
                 if phone_number_id and access_token:
                     try:

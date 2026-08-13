@@ -200,6 +200,7 @@ class ProductService:
         return {
             "available": available,
             "product_name": product.name,
+            "product_stock": product.stock,
             "total_variants": 1,
             "available_variants": available_variants,
             "all_sizes": sorted(product.size),
@@ -229,7 +230,7 @@ class ProductService:
 
         for entity in entities:
             if entity.entity_type == EntityType.PRODUCT:
-                filters.query = entity.normalized_value or entity.value
+                filters.category = (entity.normalized_value or entity.value).lower()
             elif entity.entity_type == EntityType.CATEGORY:
                 filters.category = entity.normalized_value or entity.value
             elif entity.entity_type == EntityType.BRAND:

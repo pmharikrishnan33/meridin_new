@@ -48,9 +48,17 @@ class TenantRepository:
         if not mongodb.is_connected or not tenant_id:
             return None
 
+        lookup_id = tenant_id
+        try:
+            from bson import ObjectId
+            if ObjectId.is_valid(tenant_id):
+                lookup_id = {"$in": [tenant_id, ObjectId(tenant_id)]}
+        except ImportError:
+            pass
+
         doc = await collections.tenants.find_one(
             {
-                "_id": tenant_id,
+                "_id": lookup_id,
                 "is_active": True,
             }
         )

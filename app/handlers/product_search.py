@@ -8,6 +8,7 @@ from app.models.schemas import (
 )
 from app.services.product_service import product_service
 from app.services.inventory_search_service import inventory_search_service
+from app.services.catalog_metadata_service import catalog_metadata_service
 from app.conversation.context import ConversationContextManager
 from app.search.zero_result_handler import find_best_relaxation, build_relaxation_message
 from app.utils.logger import logger
@@ -27,9 +28,25 @@ class ProductSearchHandler(BaseHandler):
     ) -> BotResponse:
         
         filters = product_service.entities_to_filters(understanding.entities)
+        filters, size_clarification = await catalog_metadata_service.normalize_filters(
+            tenant_id,
+            filters,
+            understanding.original_text,
+        )
 
-        if conversation_context and conversation_context.last_search_filters:
-            filters_dict = filters.model_dump()
+        if size_clarification:
+            return BotResponse(
+                response_type="text",
+                text=size_clarification,
+                metadata={"needs_clarification": True, "missing": "size"},
+            )
+
+        if (
+            conversation_context
+            and conversation_context.last_search_filters
+            and self._should_refine_previous_search(filters)
+        ):
+            filters_dict = filters.model_dump(exclude_none=True)
             merged = ConversationContextManager.merge_filters(
                 conversation_context.last_search_filters,
                 filters_dict,
@@ -37,7 +54,7 @@ class ProductSearchHandler(BaseHandler):
             filters = ProductSearchFilters(**merged)
 
         page_size = 3
-        search_limit = 30
+        search_limit = 100
         filters.limit = search_limit
         filters.offset = 0
 
@@ -146,3 +163,8 @@ class ProductSearchHandler(BaseHandler):
                 "default_color": "No specific color",
             },
         )
+
+    @staticmethod
+    def _should_refine_previous_search(filters: ProductSearchFilters) -> bool:
+        """Only inherit context for follow-up filters, not a new product search."""
+        return not any((filters.query, filters.category, filters.type))

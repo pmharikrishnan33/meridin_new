@@ -98,24 +98,16 @@ class AvailabilityHandler(BaseHandler):
 
         # Build response text
         product_name = availability["product_name"]
-        available_variants = availability.get("available_variants", [])
+        product_stock = availability.get("product_stock", 0)
 
         if size and color:
-            variant = available_variants[0] if available_variants else None
-            if variant:
-                price_str = f"₹{variant['price']}"
-                if variant.get("sale_price"):
-                    price_str = f"₹{variant['sale_price']} (was ₹{variant['price']})"
-                text = (
-                    f"Yes! {product_name} is available in {size} / {color} "
-                    f"— {variant['stock']} in stock at {price_str}."
-                )
-            else:
-                text = f"{product_name} is available, but not in {size} / {color}."
+            text = (
+                f"Yes! {product_name} is available in {size} / {color}. "
+                f"The product has {product_stock} unit(s) in stock overall."
+            )
         else:
             text = (
-                f"Yes! {product_name} is in stock with "
-                f"{len(available_variants)} variant(s) available."
+                f"Yes! {product_name} is in stock with {product_stock} unit(s) available."
             )
 
         # List available sizes/colors
@@ -137,6 +129,6 @@ class AvailabilityHandler(BaseHandler):
                 "availability_checked": True,
                 "available": True,
                 "product_name": product_name,
-                "available_variants": len(available_variants),
+                "stock": product_stock,
             },
         )

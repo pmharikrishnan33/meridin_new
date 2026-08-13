@@ -54,12 +54,12 @@ class SignatureVerificationError(HTTPException):
 def _resolve_webhook_secret(tenant: Optional[Tenant] = None) -> str:
     """Resolve the verification secret with a clear precedence order.
 
-    1. Tenant-specific ``webhook_secret`` when present.
+    1. Tenant-specific ``settings.webhook_secret`` when present.
     2. Shared environment ``WHATSAPP_WEBHOOK_SECRET``.
     3. Shared application ``APP_SECRET`` fallback.
     """
-    if tenant and tenant.webhook_secret:
-        return tenant.webhook_secret
+    if tenant and tenant.settings.webhook_secret:
+        return tenant.settings.webhook_secret
     if settings.WHATSAPP_WEBHOOK_SECRET:
         return settings.WHATSAPP_WEBHOOK_SECRET
     return settings.APP_SECRET
@@ -330,10 +330,12 @@ async def resolve_tenant_credentials(
     tuple
         ``(tenant_or_none, resolved_phone_number_id, resolved_access_token)``
     """
-    lookup_id = phone_number_id or metadata_phone_number_id
+    # Metadata is supplied by Meta in the signed payload and is therefore the
+    # authoritative tenant selector. The header is only a local-test fallback.
+    lookup_id = metadata_phone_number_id or phone_number_id
 
     if not lookup_id:
-        return None, settings.WHATSAPP_PHONE_NUMBER_ID, settings.WHATSAPP_ACCESS_TOKEN
+        return None, "", ""
 
     tenant = await tenant_repository.find_by_phone_number_id(lookup_id)
     if tenant:
@@ -343,9 +345,5 @@ async def resolve_tenant_credentials(
             tenant.access_token,
         )
 
-    # Fall back to environment defaults when the tenant is not in the DB
-    logger.debug(
-        f"Tenant not found for phone_number_id={lookup_id}; "
-        f"falling back to environment defaults."
-    )
-    return None, settings.WHATSAPP_PHONE_NUMBER_ID, settings.WHATSAPP_ACCESS_TOKEN
+    logger.warning("No active tenant matched the supplied WhatsApp phone number ID.")
+    return None, "", ""
