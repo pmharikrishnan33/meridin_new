@@ -65,6 +65,13 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         response_type="structured",
     ),
 
+    IntentType.PAGINATION: IntentConfig(
+        handler_class="PaginationHandler",
+        requires_entities=False,
+        min_confidence=0.2,
+        response_type="structured",
+    ),
+
     IntentType.ORDER_STATUS: IntentConfig(
         handler_class="OrderStatusHandler",
         requires_entities=True,
@@ -118,11 +125,6 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         response_type="template",
     ),
 }
-
-
-# A lightweight pagination intent is treated as a follow-up search action
-# that uses the active cached search state in the session context.
-PAGINATION_INTENT = "pagination"
 
 
 def get_intent_config(intent: IntentType) -> IntentConfig:

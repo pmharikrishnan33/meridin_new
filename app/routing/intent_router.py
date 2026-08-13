@@ -27,6 +27,15 @@ DISABLED_INTENTS = {
     IntentType.RETURN_REQUEST,
 }
 
+PAGINATION_PHRASES = {
+    "show more",
+    "more",
+    "next",
+    "next page",
+    "more products",
+    "show me more",
+}
+
 
 class IntentRouter:
     """
@@ -46,6 +55,9 @@ class IntentRouter:
         """
         Route message to appropriate handler based on intent.
         """
+        if (understanding.normalized_text or "").strip().lower() in PAGINATION_PHRASES:
+            understanding.intent = IntentType.PAGINATION
+
         # --- 1. RESUME PENDING INTENT (Context Interception) ---
         session = conversation_manager.get_session(conversation_id)
         context = session.context if session else None

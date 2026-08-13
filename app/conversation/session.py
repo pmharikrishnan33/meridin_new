@@ -83,9 +83,7 @@ class ConversationSession:
 
         # Update entities in context
         for entity in understanding.entities:
-            if entity.entity_type == EntityType.PRODUCT:
-                self.context.current_product = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.CATEGORY:
+            if entity.entity_type == EntityType.CATEGORY:
                 self.context.current_category = entity.normalized_value or entity.value
 
         # Store last search if this was a product search. Merge with any
@@ -118,13 +116,14 @@ class ConversationSession:
             elif entity.entity_type == EntityType.PRICE:
                 try:
                     price = float(entity.normalized_value or entity.value)
-                    if "under" in str(entity.value).lower() or "below" in str(entity.value).lower():
+                    operator = (entity.metadata or {}).get("operator", "exact")
+                    if operator == "max":
                         filters["max_price"] = price
-                    elif "above" in str(entity.value).lower() or "over" in str(entity.value).lower():
+                    elif operator == "min":
                         filters["min_price"] = price
-                    else:
-                        filters["price"] = price
-                except ValueError:
+                    elif operator == "exact":
+                        filters["max_price"] = price
+                except (ValueError, TypeError):
                     pass
 
         return filters

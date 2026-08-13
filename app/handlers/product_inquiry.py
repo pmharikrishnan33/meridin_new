@@ -54,13 +54,27 @@ class ProductInquiryHandler(BaseHandler):
         product = await product_service.get_product_by_reference(tenant_id, product_id)
 
         if not product:
-            # Try searching by name as fallback
+            # Search by name as a fallback, but do not arbitrarily choose an
+            # item when a generic product term matches multiple catalog items.
             products = await product_service.search_products(
                 tenant_id,
-                ProductSearchFilters(query=product_id, limit=1),
+                ProductSearchFilters(query=product_id, limit=5),
             )
-            if products:
+            if len(products) == 1:
                 product = products[0]
+            elif len(products) > 1:
+                return BotResponse(
+                    response_type="product_list",
+                    text="I found several products. Which one would you like details about?",
+                    products=[
+                        product_service.product_to_response(item)
+                        for item in products[:5]
+                    ],
+                    metadata={
+                        "needs_clarification": True,
+                        "multiple_products": True,
+                    },
+                )
             else:
                 return BotResponse(
                     response_type="text",
@@ -74,20 +88,13 @@ class ProductInquiryHandler(BaseHandler):
         # Build detailed description
         description = product.description
 
-        # Add variant details
-        variant_info = []
-        for variant in product.variants:
-            if variant.stock > 0:
-                price_str = f"₹{variant.price}"
-                if variant.sale_price:
-                    price_str = f"₹{variant.sale_price} (was ₹{variant.price})"
-                variant_info.append(
-                    f"{variant.size} / {variant.color} — {price_str} ({variant.stock} in stock)"
-                )
-
         details = f"\n\n{description}"
-        if variant_info:
-            details += "\n\nAvailable variants:\n" + "\n".join(variant_info)
+        if product.stock > 0:
+            details += f"\n\nStock: {product.stock} available"
+        if product.size:
+            details += f"\nAvailable sizes: {', '.join(sorted(product.size))}"
+        if product.color:
+            details += f"\nAvailable colors: {', '.join(sorted(product.color))}"
 
         # Update context
         if conversation_context:

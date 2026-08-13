@@ -53,7 +53,7 @@ class ProductRepository:
 
         doc = await collections.products(tenant_id).find_one({
             "tenant_id": tenant_id,
-            "name": {"$regex": f"^{name}$", "$options": "i"},
+            "title": {"$regex": f"^{name}$", "$options": "i"},
         })
         return Product(**normalize_mongo_doc(doc)) if doc else None
 
@@ -69,17 +69,25 @@ class ProductRepository:
         query: Dict[str, Any] = {"tenant_id": tenant_id}
 
         if filters.query:
-            query["name"] = {"$regex": filters.query, "$options": "i"}
+            query["$or"] = [
+                {"title": {"$regex": filters.query, "$options": "i"}},
+                {"description": {"$regex": filters.query, "$options": "i"}},
+                {"category": {"$regex": filters.query, "$options": "i"}},
+            ]
         if filters.category:
-            query["category"] = {"$regex": filters.category, "$options": "i"}
-        if filters.brand:
-            query["brand"] = {"$regex": filters.brand, "$options": "i"}
+            query["category"] = {"$regex": f"^{filters.category}$", "$options": "i"}
+        if filters.type:
+            query["type"] = {"$regex": f"^{filters.type}$", "$options": "i"}
         if filters.color:
-            query["variants.color"] = {"$regex": filters.color, "$options": "i"}
+            query["color"] = {"$regex": f"^{filters.color}$", "$options": "i"}
         if filters.size:
-            query["variants.size"] = {"$regex": filters.size, "$options": "i"}
+            query["size"] = {"$regex": f"^{filters.size}$", "$options": "i"}
+        if filters.min_price is not None:
+            query.setdefault("price", {})["$gte"] = filters.min_price
+        if filters.max_price is not None:
+            query.setdefault("price", {})["$lte"] = filters.max_price
         if filters.in_stock_only:
-            query["variants.stock"] = {"$gt": 0}
+            query["stock"] = {"$gt": 0}
 
         cursor = collections.products(tenant_id).find(query).skip(filters.offset).limit(filters.limit)
 

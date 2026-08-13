@@ -1,8 +1,8 @@
 """
 Inventory service - handles stock level queries and inventory operations.
 
-Provides a read-only interface for checking stock levels across product
-variants.  When MongoDB is unavailable the service returns conservative
+Provides a read-only interface for checking flat product stock levels.
+When MongoDB is unavailable the service returns conservative
 defaults so the bot can still respond to the user.
 """
 
@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Product
+from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
 
@@ -32,10 +33,8 @@ class InventoryService:
         """
         Get the stock level for a product, optionally filtered by size/color.
 
-        Returns a dict with keys:
-            - ``in_stock`` (bool): whether any variant has stock > 0
-            - ``total_stock`` (int): total units across matching variants
-            - ``variants`` (list): per-variant stock breakdown
+        A flat product-level stock count is used. Size and color lists are
+        independent in this MVP, so a request matches when each value exists.
         """
         if not mongodb.is_connected:
             logger.debug("Stock level check skipped — MongoDB unavailable.")
@@ -49,30 +48,15 @@ class InventoryService:
         if not doc:
             return {"in_stock": False, "total_stock": 0, "variants": []}
 
-        product = Product(**doc)
-        variants = product.variants
-
-        # Filter by size/color if specified
-        if size:
-            variants = [v for v in variants if v.size.lower() == size.lower()]
-        if color:
-            variants = [v for v in variants if v.color.lower() == color.lower()]
-
-        total_stock = sum(v.stock for v in variants if v.stock > 0)
-        in_stock = total_stock > 0
+        product = Product(**normalize_mongo_doc(doc))
+        size_matches = not size or any(value.lower() == size.lower() for value in product.size)
+        color_matches = not color or any(value.lower() == color.lower() for value in product.color)
+        in_stock = size_matches and color_matches and product.stock > 0
 
         return {
             "in_stock": in_stock,
-            "total_stock": total_stock,
-            "variants": [
-                {
-                    "sku": v.sku,
-                    "size": v.size,
-                    "color": v.color,
-                    "stock": v.stock,
-                }
-                for v in variants
-            ],
+            "total_stock": product.stock if in_stock else 0,
+            "variants": [],
         }
 
     async def is_in_stock(
@@ -93,8 +77,7 @@ class InventoryService:
         limit: int = 50,
     ) -> List[Product]:
         """
-        Return products that have at least one variant below the stock
-        threshold.  Useful for admin dashboards and restock alerts.
+        Return products whose flat stock value is below the threshold.
         """
         if not mongodb.is_connected:
             return []
@@ -103,8 +86,8 @@ class InventoryService:
 
         low_stock: List[Product] = []
         async for doc in cursor:
-            product = Product(**doc)
-            if any(v.stock < threshold for v in product.variants):
+            product = Product(**normalize_mongo_doc(doc))
+            if product.stock < threshold:
                 low_stock.append(product)
 
         return low_stock
@@ -113,8 +96,8 @@ class InventoryService:
         """
         Return an aggregate stock summary for a tenant.
 
-        Returns total product count, total variants, and counts of
-        in-stock vs out-of-stock variants.
+        Returns total product count and counts of in-stock vs out-of-stock
+        products. ``total_variants`` is retained as a compatibility key.
         """
         if not mongodb.is_connected:
             return {"total_products": 0, "total_variants": 0, "in_stock": 0, "out_of_stock": 0}
@@ -128,13 +111,12 @@ class InventoryService:
 
         async for doc in cursor:
             total_products += 1
-            product = Product(**doc)
-            for v in product.variants:
-                total_variants += 1
-                if v.stock > 0:
-                    in_stock += 1
-                else:
-                    out_of_stock += 1
+            product = Product(**normalize_mongo_doc(doc))
+            total_variants += 1
+            if product.stock > 0:
+                in_stock += 1
+            else:
+                out_of_stock += 1
 
         return {
             "total_products": total_products,

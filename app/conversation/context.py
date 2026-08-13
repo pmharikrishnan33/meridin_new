@@ -42,10 +42,7 @@ class ConversationContextManager:
         Apply a single entity to context.
         """
 
-        if entity.entity_type == EntityType.PRODUCT:
-            context.current_product = entity.normalized_value or entity.value
-
-        elif entity.entity_type == EntityType.CATEGORY:
+        if entity.entity_type == EntityType.CATEGORY:
             context.current_category = entity.normalized_value or entity.value
 
         elif entity.entity_type == EntityType.ORDER_ID:
@@ -72,13 +69,14 @@ class ConversationContextManager:
             elif entity.entity_type == EntityType.PRICE:
                 try:
                     price = float(entity.normalized_value or entity.value)
-                    if "under" in str(entity.value).lower() or "below" in str(entity.value).lower():
+                    operator = (entity.metadata or {}).get("operator", "exact")
+                    if operator == "max":
                         filters["max_price"] = price
-                    elif "above" in str(entity.value).lower() or "over" in str(entity.value).lower():
+                    elif operator == "min":
                         filters["min_price"] = price
-                    else:
-                        filters["price"] = price
-                except ValueError:
+                    elif operator == "exact":
+                        filters["max_price"] = price
+                except (ValueError, TypeError):
                     pass
             elif entity.entity_type == EntityType.BRAND:
                 filters["brand"] = entity.normalized_value or entity.value

@@ -37,7 +37,8 @@ class ProductSearchHandler(BaseHandler):
             filters = ProductSearchFilters(**merged)
 
         page_size = 3
-        filters.limit = page_size
+        search_limit = 30
+        filters.limit = search_limit
         filters.offset = 0
 
         products = await product_service.search_products(tenant_id, filters)
@@ -64,7 +65,10 @@ class ProductSearchHandler(BaseHandler):
                 relaxed_dict = {k: v for k, v in filters_dict.items() if k != best_key}
                 relaxed_filters = ProductSearchFilters(**relaxed_dict)
                 relaxed_filters.limit = filters.limit
+                relaxed_filters.offset = 0
                 products = await product_service.search_products(tenant_id, relaxed_filters)
+                if products:
+                    filters = relaxed_filters
                 
                 response_text = build_relaxation_message(
                     query=understanding.original_text,
@@ -99,6 +103,7 @@ class ProductSearchHandler(BaseHandler):
         if conversation_context:
             conversation_context.last_search_filters = filters.model_dump()
             conversation_context.last_search_results = [p.id for p in products]
+            conversation_context.current_product = products[0].id
             conversation_context.active_search_key = page["search_key"]
             conversation_context.active_search_offset = page["offset"]
             conversation_context.active_search_total = page["total"]
@@ -112,13 +117,18 @@ class ProductSearchHandler(BaseHandler):
             if len(products) == 1:
                 response_text = "I found this item for you:"
             else:
-                response_text = f"I found {len(products)} items for you:"
+                if len(products) > page_size:
+                    response_text = (
+                        f"I found more products for you. Here are the first {page_size}:"
+                    )
+                else:
+                    response_text = f"I found {len(products)} items for you:"
 
         quick_replies = [
             {"label": "More Details", "value": "product_details"},
             {"label": "Filter by Price", "value": "filter_price"},
         ]
-        if len(products) > 3:
+        if len(products) > page_size:
             quick_replies.append({"label": "Show more", "value": "show_more"})
 
         return BotResponse(
@@ -131,8 +141,8 @@ class ProductSearchHandler(BaseHandler):
                 "results_count": len(products),
                 "filters_applied": filters.model_dump(exclude_none=True),
                 "page": 1,
-                "page_size": 3,
-                "has_more": len(products) > 3,
+                "page_size": page_size,
+                "has_more": len(products) > page_size,
                 "default_color": "No specific color",
             },
         )

@@ -13,6 +13,7 @@ class IntentType(str, Enum):
     PRODUCT_SEARCH = "product_search"
     PRODUCT_INQUIRY = "product_inquiry"
     AVAILABILITY = "availability"
+    PAGINATION = "pagination"
     ORDER_STATUS = "order_status"
     CANCEL_ORDER = "cancel_order"
     RETURN_REQUEST = "return_request"
@@ -138,9 +139,9 @@ class TenantFeatureFlags(BaseModel):
     """
     enable_ai_responses: bool = True
     enable_product_recommendations: bool = True
-    enable_order_tracking: bool = True
-    enable_returns: bool = True
-    enable_cancellation: bool = True
+    enable_order_tracking: bool = False
+    enable_returns: bool = False
+    enable_cancellation: bool = False
     enable_human_handoff: bool = True
     enable_analytics: bool = True
     max_products_per_response: int = 5
@@ -164,6 +165,7 @@ class Tenant(BaseModel):
     Tenant model - stored in MongoDB.
     """
     id: str = Field(alias="_id")
+    tenant_id: Optional[str] = None
     tenant_name: str
     business_name: str
     phone_number_id: str
@@ -199,18 +201,21 @@ class Product(BaseModel):
     """
     id: str = Field(alias="_id")
     tenant_id: str
-    name: str
+    name: str = Field(alias="title")
     description: str
     category: str
+    type: Optional[str] = None
     sub_category: Optional[str] = None
     brand: Optional[str] = None
     gender: Optional[str] = None  # men, women, unisex, kids
-    base_price: float
+    base_price: float = Field(alias="price")
     currency: str = "INR"
     tags: List[str] = Field(default_factory=list)
     attributes: Dict[str, Any] = Field(default_factory=dict)
-    variants: List[ProductVariant] = Field(default_factory=list)
-    images: List[str] = Field(default_factory=list)
+    color: List[str] = Field(default_factory=list)
+    size: List[str] = Field(default_factory=list)
+    stock: int = 0
+    images: List[str] = Field(default_factory=list, alias="media")
     is_active: bool = True
     is_featured: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -225,6 +230,7 @@ class ProductSearchFilters(BaseModel):
     """
     query: Optional[str] = None
     category: Optional[str] = None
+    type: Optional[str] = None
     sub_category: Optional[str] = None
     brand: Optional[str] = None
     color: Optional[str] = None

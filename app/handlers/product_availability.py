@@ -67,6 +67,12 @@ class AvailabilityHandler(BaseHandler):
 
             if reason == "Product not found":
                 text = f"I couldn't find '{product_name}'. Could you check the name?"
+            elif reason == "No matching variant found":
+                text = (
+                    f"{product_name} doesn't have a variant matching"
+                    f"{' size ' + size if size else ''}"
+                    f"{' and color ' + color if color else ''}."
+                )
             else:
                 text = (
                     f"Unfortunately, {product_name} is currently out of stock"
@@ -125,7 +131,6 @@ class AvailabilityHandler(BaseHandler):
             response_type="text",
             text=text,
             quick_replies=[
-                {"label": "Buy Now", "value": "buy_now"},
                 {"label": "View Product", "value": "product_details"},
             ],
             metadata={
