@@ -54,10 +54,31 @@ class ProductService:
         if filters.type:
             query["type"] = exact(filters.type)
 
+        if filters.sub_category:
+            query["sub_category"] = exact(filters.sub_category)
+
+        if filters.brand:
+            query["brand"] = exact(filters.brand)
+
         if filters.color:
             query["color"] = exact(filters.color)
+
         if filters.size:
             query["size"] = exact(filters.size)
+
+        if filters.fit:
+            query["fit"] = exact(filters.fit)
+
+        if filters.gender:
+            query["gender"] = exact(filters.gender)
+
+        if filters.tags:
+            query["tags"] = {
+                "$in": [
+                    {"$regex": re.escape(tag), "$options": "i"}
+                    for tag in filters.tags
+                ]
+            }
         if filters.min_price is not None:
             query.setdefault("price", {})["$gte"] = filters.min_price
         if filters.max_price is not None:
@@ -162,49 +183,82 @@ class ProductService:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Check stock availability for a product, optionally filtered by size/color.
-        The flat inventory schema tracks stock at product level, so a matching
-        color and size are treated as available together for this MVP.
+        Check product availability using the current flat inventory model.
+
+        Stock is tracked at product level, not at size/color variant level.
+        Therefore size/color are availability attributes, while stock is
+        product-level.
         """
 
-        product = await self.get_product_by_reference(tenant_id, product_id)
+        product = await self.get_product_by_reference(
+            tenant_id,
+            product_id,
+        )
 
         if not product:
-            return {"available": False, "reason": "Product not found"}
-
-        size_matches = not size or any(
-            value.lower() == size.lower() for value in product.size
-        )
-        color_matches = not color or any(
-            value.lower() == color.lower() for value in product.color
-        )
-
-        if not size_matches or not color_matches:
             return {
                 "available": False,
-                "reason": "No matching variant found",
-                "product_name": product.name,
+                "reason": "product_not_found",
             }
 
-        available = product.stock > 0
-        available_variants = []
-        if available:
-            available_variants.append({
-                "size": size,
-                "color": color,
+        size_matches = (
+            True
+            if not size
+            else any(
+                value.strip().lower() == size.strip().lower()
+                for value in product.size
+            )
+        )
+
+        color_matches = (
+            True
+            if not color
+            else any(
+                value.strip().lower() == color.strip().lower()
+                for value in product.color
+            )
+        )
+
+        if not size_matches:
+            return {
+                "available": False,
+                "reason": "size_not_available",
+                "product_name": product.name,
+                "requested_size": size,
+                "available_sizes": sorted(product.size),
                 "stock": product.stock,
-                "price": product.base_price,
-                "sale_price": None,
-            })
+            }
+
+        if not color_matches:
+            return {
+                "available": False,
+                "reason": "color_not_available",
+                "product_name": product.name,
+                "requested_color": color,
+                "available_colors": sorted(product.color),
+                "stock": product.stock,
+            }
+
+        if product.stock <= 0:
+            return {
+                "available": False,
+                "reason": "out_of_stock",
+                "product_name": product.name,
+                "stock": 0,
+                "available_sizes": sorted(product.size),
+                "available_colors": sorted(product.color),
+            }
 
         return {
-            "available": available,
+            "available": True,
+            "reason": "available",
             "product_name": product.name,
-            "product_stock": product.stock,
-            "total_variants": 1,
-            "available_variants": available_variants,
-            "all_sizes": sorted(product.size),
-            "all_colors": sorted(product.color),
+            "stock": product.stock,
+            "requested_size": size,
+            "requested_color": color,
+            "available_sizes": sorted(product.size),
+            "available_colors": sorted(product.color),
+            "price": product.base_price,
         }
 
     async def get_product_inquiry(
@@ -225,21 +279,14 @@ class ProductService:
         """
         Convert extracted entities into product search filters.
 
-        PRODUCT:
-            Treated as a text query.
-
-        CATEGORY:
-            Treated as a category filter.
-
-        Other entities:
-            Converted into their corresponding filters.
+        PRODUCT is treated as a free-text product query.
+        CATEGORY is treated as a category filter.
+        STYLE is mapped to the product 'type' field.
         """
 
         filters = ProductSearchFilters()
 
         for entity in entities:
-
-            # Get the normalized entity value once.
             value = entity.normalized_value or entity.value
 
             if not value:
@@ -265,8 +312,11 @@ class ProductService:
             elif entity.entity_type == EntityType.FIT:
                 filters.fit = value.lower()
 
-            elif entity.entity_type == EntityType.TYPE:
+            elif entity.entity_type == EntityType.STYLE:
                 filters.type = value.lower()
+
+            elif entity.entity_type == EntityType.GENDER:
+                filters.gender = value.lower()
 
             elif entity.entity_type == EntityType.PRICE:
                 try:
@@ -274,7 +324,7 @@ class ProductService:
 
                     operator = (entity.metadata or {}).get(
                         "operator",
-                        "exact"
+                        "exact",
                     )
 
                     if operator == "max":
@@ -287,7 +337,9 @@ class ProductService:
                         filters.max_price = price
 
                 except (ValueError, TypeError):
-                    pass
+                    logger.warning(
+                        f"Unable to parse price entity: {value}"
+                    )
 
         return filters
 

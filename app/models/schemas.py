@@ -164,6 +164,7 @@ class Tenant(BaseModel):
     """
     Tenant model - stored in MongoDB.
     """
+
     id: str = Field(alias="_id")
     tenant_id: Optional[str] = None
     tenant_name: str
@@ -171,13 +172,23 @@ class Tenant(BaseModel):
     phone_number_id: str
     access_token: str
     webhook_verify_token: str
-    webhook_secret: str = ""
     is_active: bool = True
-    settings: TenantSettings = Field(default_factory=TenantSettings)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = ConfigDict(populate_by_name=True)
+    settings: TenantSettings = Field(
+        default_factory=TenantSettings
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 # ==========================================================
