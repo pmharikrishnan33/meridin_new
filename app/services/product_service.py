@@ -49,23 +49,23 @@ class ProductService:
         if filters.gender:
             query["gender"] = contains(filters.gender)
 
+        variant_conditions = {}
+
         if filters.color:
-            query["variants.color"] = contains(filters.color)
-
+            variant_conditions["color"] = contains(filters.color)
         if filters.size:
-            query["variants.size"] = contains(filters.size)
-
+            variant_conditions["size"] = contains(filters.size)
         if filters.fit:
-            query["variants.fit"] = contains(filters.fit)
-
+            variant_conditions["fit"] = contains(filters.fit)
         if filters.min_price is not None:
-            query.setdefault("variants.price", {})["$gte"] = filters.min_price
-
+            variant_conditions.setdefault("price", {})["$gte"] = filters.min_price
         if filters.max_price is not None:
-            query.setdefault("variants.price", {})["$lte"] = filters.max_price
-
+            variant_conditions.setdefault("price", {})["$lte"] = filters.max_price
         if filters.in_stock_only:
-            query["variants.stock"] = {"$gt": 0}
+            variant_conditions["stock"] = {"$gt": 0}
+
+        if variant_conditions:
+            query["variants"] = {"$elemMatch": variant_conditions}
 
         if filters.tags:
             query["tags"] = {"$in": filters.tags}
@@ -249,14 +249,14 @@ class ProductService:
             elif entity.entity_type == EntityType.PRICE:
                 try:
                     price = float(entity.normalized_value or entity.value)
-                    value_lower = str(entity.value).lower()
-                    if "under" in value_lower or "below" in value_lower or "max" in value_lower:
+                    operator = (entity.metadata or {}).get("operator", "exact")
+                    if operator == "max":
                         filters.max_price = price
-                    elif "above" in value_lower or "over" in value_lower or "min" in value_lower:
+                    elif operator == "min":
                         filters.min_price = price
-                    else:
+                    elif operator == "exact":
                         filters.max_price = price
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
 
         return filters

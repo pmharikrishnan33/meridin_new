@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, List, Optional
@@ -212,8 +213,11 @@ class ConversationSession:
         """
 
         text_lower = (incoming_text or "").lower()
-        selection_markers = {"this", "that", "one", "it", "product"}
-        if not any(marker in text_lower for marker in selection_markers):
+        selection_markers = {"this", "that", "this one", "that one"}
+        if not any(
+            re.search(rf"\b{re.escape(marker)}\b", text_lower)
+            for marker in selection_markers
+        ):
             return None
 
         for message in reversed(self.message_history):

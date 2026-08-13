@@ -436,6 +436,7 @@ class ExtractedEntity(BaseModel):
     start_pos: int = 0
     end_pos: int = 0
     normalized_value: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MessageUnderstanding(BaseModel):

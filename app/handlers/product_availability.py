@@ -42,11 +42,10 @@ class AvailabilityHandler(BaseHandler):
             elif entity.entity_type == EntityType.COLOR:
                 color_entity = entity
 
-        # Fall back to conversation context for product
-        if not product_entity and conversation_context and conversation_context.current_product:
-            product_id = conversation_context.current_product
-        elif product_entity:
+        if product_entity:
             product_id = product_entity.normalized_value or product_entity.value
+        elif conversation_context and conversation_context.current_product:
+            product_id = conversation_context.current_product
         else:
             return BotResponse(
                 response_type="text",

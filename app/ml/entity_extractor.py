@@ -29,7 +29,7 @@ class EntityExtractor:
             r'\b(size\s+)?(xs|s|m|l|xl|xxl|3xl)\b',
         ],
         EntityType.PRICE: [
-            r'(?:under|below|less than|max|maximum|budget)\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
+            r'(?:under|below|less than|max|maximum|budget|above|over|more than|min|minimum)\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
             r'(?:rs\.?|inr|₹)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
             r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:rs\.?|inr|₹)',
             r'price\s*(?:rs\.?|inr|₹)?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)',
@@ -198,74 +198,61 @@ class EntityExtractor:
             for pattern in patterns:
                 matches = re.finditer(pattern, text_lower, re.IGNORECASE)
                 for match in matches:
-                    # FIX: Safely find the actual matched value, ignoring any None groups
                     captured_groups = [g for g in match.groups() if g is not None]
-                    
-                    # Grab the last captured group (the actual entity), or the full match
                     value = captured_groups[-1] if captured_groups else match.group(0)
-                    
-                    # Prevent any empty values from causing a crash
                     if not value:
                         continue
-                        
+
+                    metadata = {}
+                    if entity_type == EntityType.PRICE:
+                        full_match = match.group(0).lower()
+                        if any(keyword in full_match for keyword in [
+                            "under", "below", "less than", "max", "maximum", "budget"
+                        ]):
+                            metadata["operator"] = "max"
+                        elif any(keyword in full_match for keyword in [
+                            "above", "over", "more than", "min", "minimum"
+                        ]):
+                            metadata["operator"] = "min"
+                        else:
+                            metadata["operator"] = "exact"
+
                     entities.append(ExtractedEntity(
                         entity_type=entity_type,
                         value=value.strip(),
                         confidence=0.9,
                         start_pos=match.start(),
                         end_pos=match.end(),
-                        normalized_value=self._normalize_value(entity_type, value)
+                        normalized_value=self._normalize_value(entity_type, value),
+                        metadata=metadata,
                     ))
         return entities
 
     def _extract_keywords(self, text: str) -> List[ExtractedEntity]:
         """
-        Extract entities using keyword matching.
+        Extract entities using whole-word keyword matching.
         """
 
         entities = []
         text_lower = text.lower()
-        words = text_lower.split()
-
-        # Check for colors
-        for color in self.COLORS:
-            if color in text_lower:
+        def add_keyword_entities(keywords: List[str], entity_type: EntityType) -> None:
+            for keyword in keywords:
+                match = re.search(rf"\b{re.escape(keyword.lower())}\b", text_lower)
+                if not match:
+                    continue
                 entities.append(ExtractedEntity(
-                    entity_type=EntityType.COLOR,
-                    value=color,
+                    entity_type=entity_type,
+                    value=keyword,
                     confidence=0.85,
-                    normalized_value=self._normalize_value(EntityType.COLOR, color)
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    normalized_value=self._normalize_value(entity_type, keyword),
                 ))
 
-        # Check for fits
-        for fit in self.FITS:
-            if fit in text_lower:
-                entities.append(ExtractedEntity(
-                    entity_type=EntityType.FIT,
-                    value=fit,
-                    confidence=0.85,
-                    normalized_value=self._normalize_value(EntityType.FIT, fit)
-                ))
-
-        # Check for products
-        for product in self.PRODUCTS:
-            if product in text_lower:
-                entities.append(ExtractedEntity(
-                    entity_type=EntityType.PRODUCT,
-                    value=product,
-                    confidence=0.85,
-                    normalized_value=self._normalize_value(EntityType.PRODUCT, product)
-                ))
-
-        # Check for brands
-        for brand in self.BRANDS:
-            if brand in text_lower:
-                entities.append(ExtractedEntity(
-                    entity_type=EntityType.BRAND,
-                    value=brand,
-                    confidence=0.85,
-                    normalized_value=self._normalize_value(EntityType.BRAND, brand)
-                ))
+        add_keyword_entities(self.COLORS, EntityType.COLOR)
+        add_keyword_entities(self.FITS, EntityType.FIT)
+        add_keyword_entities(self.PRODUCTS, EntityType.PRODUCT)
+        add_keyword_entities(self.BRANDS, EntityType.BRAND)
 
         return entities
 

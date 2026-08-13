@@ -36,11 +36,9 @@ class ProductSearchHandler(BaseHandler):
             )
             filters = ProductSearchFilters(**merged)
 
-        max_products = tenant_settings.get("feature_flags", {}).get(
-            "max_products_per_response", 5
-        )
-        page_window = 3
-        filters.limit = min(max(filters.limit, page_window * 2), max(max_products, page_window * 2))
+        page_size = 3
+        filters.limit = page_size
+        filters.offset = 0
 
         products = await product_service.search_products(tenant_id, filters)
         response_text = None

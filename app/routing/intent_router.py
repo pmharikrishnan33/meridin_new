@@ -21,6 +21,13 @@ from app.conversation.manager import conversation_manager
 from app.ai.fallback import ai_fallback
 
 
+DISABLED_INTENTS = {
+    IntentType.ORDER_STATUS,
+    IntentType.CANCEL_ORDER,
+    IntentType.RETURN_REQUEST,
+}
+
+
 class IntentRouter:
     """
     Routes incoming messages to appropriate intent handlers.
@@ -74,6 +81,13 @@ class IntentRouter:
 
         # -------------------------------------------------------
         intent = understanding.intent
+        if intent in DISABLED_INTENTS:
+            logger.info(
+                f"Intent {intent.value} is disabled in the current Meridin phase"
+            )
+            intent = IntentType.UNKNOWN
+            understanding.intent = intent
+
         config = get_intent_config(intent)
         
         # --- NEW: Smart Intent Override ---

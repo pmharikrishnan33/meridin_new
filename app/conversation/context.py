@@ -102,28 +102,36 @@ class ConversationContextManager:
         entities: List[ExtractedEntity]
     ) -> tuple[bool, Optional[str]]:
         """
-        Determine if we need to ask for clarification.
-        Returns (needs_clarification, clarification_question).
+        Determine whether the conversation is missing information required
+        for the current intent.
         """
 
-        # Check if we're already awaiting an entity
         if context.awaiting_entity:
-            return True, f"Please provide the {context.awaiting_entity.value}."
+            return (
+                True,
+                f"Please provide the {context.awaiting_entity.value}.",
+            )
 
-        # Intent-specific required entities
         required_entities = {
-            IntentType.PRODUCT_SEARCH: [EntityType.PRODUCT, EntityType.CATEGORY],
-            IntentType.AVAILABILITY: [EntityType.PRODUCT, EntityType.SIZE],
-            IntentType.ORDER_STATUS: [EntityType.ORDER_ID],
-            IntentType.CANCEL_ORDER: [EntityType.ORDER_ID],
-            IntentType.RETURN_REQUEST: [EntityType.ORDER_ID],
+            IntentType.PRODUCT_SEARCH: [EntityType.PRODUCT],
+            IntentType.PRODUCT_INQUIRY: [EntityType.PRODUCT],
+            IntentType.AVAILABILITY: [EntityType.PRODUCT],
         }
 
         required = required_entities.get(intent, [])
-        found_types = {e.entity_type for e in entities}
+        found_types = {
+            entity.entity_type
+            for entity in entities
+        }
 
-        for req in required:
-            if req not in found_types:
-                return True, f"Could you please specify the {req.value}?"
+        if context.current_product:
+            found_types.add(EntityType.PRODUCT)
+
+        for required_entity in required:
+            if required_entity not in found_types:
+                return (
+                    True,
+                    f"Could you please specify the {required_entity.value}?",
+                )
 
         return False, None

@@ -27,9 +27,9 @@ DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
     "feature_flags": {
         "enable_ai_responses": True,
         "enable_product_recommendations": True,
-        "enable_order_tracking": True,
-        "enable_returns": True,
-        "enable_cancellation": True,
+        "enable_order_tracking": False,
+        "enable_returns": False,
+        "enable_cancellation": False,
         "enable_human_handoff": True,
         "enable_analytics": True,
         "max_products_per_response": 5,

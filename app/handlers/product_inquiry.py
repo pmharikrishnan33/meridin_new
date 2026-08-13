@@ -37,12 +37,11 @@ class ProductInquiryHandler(BaseHandler):
                 product_entity = entity
                 break
 
-        # If no product entity in current message, try conversation context
         product_id = None
-        if conversation_context and conversation_context.current_product:
-            product_id = conversation_context.current_product
-        elif product_entity:
+        if product_entity:
             product_id = product_entity.normalized_value or product_entity.value
+        elif conversation_context and conversation_context.current_product:
+            product_id = conversation_context.current_product
 
         if not product_id:
             return BotResponse(

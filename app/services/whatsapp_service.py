@@ -198,30 +198,34 @@ class WhatsAppSender:
             return {"status": "skipped", "reason": "empty response"}
 
         if response.response_type in {"product_list", "product_card"} and response.products:
-            # The first product can be rendered in a single image caption message.
-            first_product = response.products[0]
-            caption_lines = [
-                f"{first_product.name}",
-                f"Price: ₹{first_product.price:,.0f}",
-                f"Stock: {first_product.stock}",
-            ]
-            if first_product.colors_available:
-                caption_lines.append(f"Colors: {', '.join(first_product.colors_available)}")
-            if first_product.sizes_available:
-                caption_lines.append(f"Sizes: {', '.join(first_product.sizes_available)}")
-            if first_product.description:
-                caption_lines.append(first_product.description[:60])
+            for product in response.products:
+                caption_lines = [
+                    product.name,
+                    f"Price: ₹{product.price:,.0f}",
+                    f"Stock: {product.stock}",
+                ]
+                if product.colors_available:
+                    caption_lines.append(f"Colors: {', '.join(product.colors_available)}")
+                if product.sizes_available:
+                    caption_lines.append(f"Sizes: {', '.join(product.sizes_available)}")
+                if product.description:
+                    caption_lines.append(product.description[:200])
 
-            if first_product.image:
-                await self.send_image(
-                    phone_number_id,
-                    access_token,
-                    to,
-                    first_product.image,
-                    "\n".join(caption_lines),
-                )
-
-            remaining_text = response.text or "Here is the product card."
+                if product.image:
+                    await self.send_image(
+                        phone_number_id,
+                        access_token,
+                        to,
+                        product.image,
+                        "\n".join(caption_lines),
+                    )
+                else:
+                    await self.send_text(
+                        phone_number_id,
+                        access_token,
+                        to,
+                        "\n".join(caption_lines),
+                    )
             if response.quick_replies:
                 buttons = [
                     {"id": r.get("value", r["label"]), "title": r["label"]}
@@ -231,7 +235,7 @@ class WhatsAppSender:
                     phone_number_id,
                     access_token,
                     to,
-                    remaining_text,
+                    response.text or "What would you like to do?",
                     buttons,
                 )
 
@@ -239,7 +243,7 @@ class WhatsAppSender:
                 phone_number_id,
                 access_token,
                 to,
-                remaining_text,
+                response.text or "Here are the products I found.",
             )
 
         # Build the text payload
