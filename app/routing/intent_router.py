@@ -118,8 +118,14 @@ class IntentRouter:
 
         # Validate required entities
         required_entities = get_required_entities(intent)
+
+        session = conversation_manager.get_session(conversation_id)
+        context = session.context if session else None
+
         missing_entities = self._check_required_entities(
-            understanding, required_entities
+            understanding,
+            required_entities,
+            context
         )
 
         if missing_entities:
@@ -174,15 +180,29 @@ class IntentRouter:
     def _check_required_entities(
         self,
         understanding: MessageUnderstanding,
-        required_entities: list
+        required_entities: list,
+        context=None
     ) -> list:
         """
-        Check if all required entities are present.
-        Returns list of missing entity types.
+        Check whether required entities are available from either:
+        1. The current message
+        2. The active conversation context
         """
 
-        extracted_types = {e.entity_type for e in understanding.entities}
-        missing = [e for e in required_entities if e not in extracted_types]
+        available_entities = {
+            e.entity_type
+            for e in understanding.entities
+        }
+
+        if context and context.current_product:
+            available_entities.add(EntityType.PRODUCT)
+
+        missing = [
+            entity_type
+            for entity_type in required_entities
+            if entity_type not in available_entities
+        ]
+
         return missing
 
     async def _handle_missing_entities(

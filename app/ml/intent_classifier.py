@@ -60,8 +60,17 @@ class IntentClassifier:
         # -------------------------------------------------------
 
         # Try ML model first
-        if model_loader.intent_model and model_loader.intent_vectorizer:
-            return self._predict_ml(text)
+        ACTIVE_NER_INTENTS = {
+            "product_search",
+        }
+
+        if (
+            intent in ACTIVE_NER_INTENTS
+            and model_loader.entity_model
+            and model_loader.entity_vectorizer
+        ):
+            ml_entities = self._extract_ml(text)
+            entities.extend(ml_entities)
 
         # Fallback to keyword-based
         logger.warning("Intent model not loaded, using keyword fallback")

@@ -61,10 +61,15 @@ class MessageService:
 
         # FIX: Pass the typo-corrected text to the ML model, NOT the vocabulary_matched text.
         # This allows the model to actually read words like "hi" or "cancel".
-        prediction = intent_classifier.predict(preprocessed.normalized)
-        
-        extraction = entity_extractor.extract(text, intent=prediction.intent.value)
+        prediction = intent_classifier.predict(
+            preprocessed.vocabulary_matched
+        )
 
+        extraction = entity_extractor.extract(
+            preprocessed.vocabulary_matched,
+            intent=prediction.intent.value
+        )
+        
         return MessageUnderstanding(
             original_text=text,
             normalized_text=normalized_text,
