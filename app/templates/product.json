@@ -1,0 +1,15 @@
+{
+  "name": "product_available",
+  "language": "en",
+  "category": "UTILITY",
+  "body": {
+    "text": "✅ {{product_name}} is in stock!\n\nPrice: ₹{{price}}\nSizes: {{sizes}}\nColors: {{colors}}\n\nTap below to place your order."
+  },
+  "quick_reply": {
+    "buttons": [
+      {"type": "text", "text": "Buy Now"},
+      {"type": "text", "text": "View Product"},
+      {"type": "text", "text": "More Products"}
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "order_status",
+  "language": "en",
+  "category": "UTILITY",
+  "body": {
+    "text": "📦 Order Status Update\n\nOrder: {{order_number}}\nStatus: {{status}}\nTotal: ₹{{total}}\n\nYour order is being processed. We'll notify you when it ships."
+  },
+  "quick_reply": {
+    "buttons": [
+      {"type": "text", "text": "Track Another Order"},
+      {"type": "text", "text": "Browse Products"}
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "greeting",
+  "language": "en",
+  "category": "MARKETING",
+  "body": {
+    "text": "Hello! 👋 Welcome to our store. How can I help you today?"
+  },
+  "quick_reply": {
+    "buttons": [
+      {"type": "text", "text": "Browse Products"},
+      {"type": "text", "text": "Track Order"},
+      {"type": "text", "text": "Returns & Refunds"}
+    ]
+  },
+  "footer": {
+    "text": "Reply with any option above or type your question."
+  }
+}

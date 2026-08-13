@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m py_compile app/routing/intent_router.py)",
+      "Bash(python3 -m py_compile app/handlers/base_handler.py)",
+      "Bash(python3 -m py_compile app/handlers/greeting.py)",
+      "Bash(python3 -m py_compile app/handlers/thanks.py)",
+      "Bash(python3 -m py_compile app/handlers/fallback.py)",
+      "Bash(python3 -m py_compile app/services/product_service.py)",
+      "Bash(python3 -m py_compile app/services/order_service.py)",
+      "Bash(python3 -m py_compile app/handlers/complaint.py)",
+      "Bash(python3 *)",
+      "Bash(.venv/bin/python3 *)",
+      "Bash(xargs -0 ls -la)",
+      "Bash(sort -k9)",
+      "Bash(python *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(pip list *)",
+      "Bash(git -C /home/harikrishnan/Desktop/NEW_MERIDIN_WITH_ML ls-files models data)",
+      "Bash(xargs ls -la)",
+      "Bash(.venv/bin/pip show *)",
+      "Bash(mongod --version)",
+      "Bash(mongosh --version)",
+      "Bash(pip3 show *)",
+      "Bash(pip3 freeze *)"
+    ]
+  }
+}

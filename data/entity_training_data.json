@@ -1,0 +1,192 @@
+{
+    "samples": [
+        {
+            "tokens": ["I", "need", "a", "black", "hoodie", "in", "size", "m"],
+            "tags": ["O", "O", "O", "B-COLOR", "B-PRODUCT", "O", "O", "B-SIZE"]
+        },
+        {
+            "tokens": ["show", "me", "blue", "jeans", "under", "500", "rupees"],
+            "tags": ["O", "O", "B-COLOR", "B-PRODUCT", "O", "B-PRICE", "O"]
+        },
+        {
+            "tokens": ["looking", "for", "a", "slim", "fit", "t-shirt"],
+            "tags": ["O", "O", "O", "B-FIT", "I-FIT", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["tell", "me", "about", "this", "shirt", "in", "red"],
+            "tags": ["O", "O", "O", "O", "B-PRODUCT", "O", "B-COLOR"]
+        },
+        {
+            "tokens": ["is", "it", "available", "in", "size", "xl"],
+            "tags": ["O", "O", "O", "O", "O", "B-SIZE"]
+        },
+        {
+            "tokens": ["track", "my", "order", "ORD123456"],
+            "tags": ["O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["where", "is", "my", "order", "SHIPPED123"],
+            "tags": ["O", "O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["show", "me", "cotton", "shirts", "in", "large"],
+            "tags": ["O", "O", "B-MATERIAL", "B-PRODUCT", "O", "B-SIZE"]
+        },
+        {
+            "tokens": ["do", "you", "have", "the", "denim", "jacket", "in", "navy"],
+            "tags": ["O", "O", "O", "O", "B-MATERIAL", "B-PRODUCT", "O", "B-COLOR"]
+        },
+        {
+            "tokens": ["I", "want", "to", "cancel", "order", "AB123456"],
+            "tags": ["O", "O", "O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["what", "sizes", "are", "available", "for", "this", "hoodie"],
+            "tags": ["O", "O", "O", "O", "O", "O", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["find", "me", "a", "white", "t-shirt", "under", "1000"],
+            "tags": ["O", "O", "O", "B-COLOR", "B-PRODUCT", "O", "B-PRICE"]
+        },
+        {
+            "tokens": ["I", "received", "the", "wrong", "size", "in", "my", "order"],
+            "tags": ["O", "O", "O", "O", "O", "O", "O", "O"]
+        },
+        {
+            "tokens": ["is", "this", "available", "in", "oversized", "fit"],
+            "tags": ["O", "O", "O", "O", "B-FIT", "I-FIT"]
+        },
+        {
+            "tokens": ["return", "request", "for", "order", "XYZ789012"],
+            "tags": ["O", "O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["show", "me", "men's", "formal", "shirts"],
+            "tags": ["O", "O", "B-GENDER", "B-PATTERN", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["women", "summer", "dress", "in", "pink"],
+            "tags": ["B-GENDER", "B-SEASON", "B-PRODUCT", "O", "B-COLOR"]
+        },
+        {
+            "tokens": ["check", "status", "of", "order", "123456"],
+            "tags": ["O", "O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["show", "me", "men's", "formal", "shirt", "in", "large"],
+            "tags": ["O", "O", "B-GENDER", "B-STYLE", "B-PRODUCT", "O", "B-SIZE"]
+        },
+        {
+            "tokens": ["find", "me", "a", "women's", "winter", "jacket"],
+            "tags": ["O", "O", "O", "B-GENDER", "B-SEASON", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["do", "you", "have", "this", "in", "stock", "in", "medium"],
+            "tags": ["O", "O", "O", "O", "O", "O", "O", "B-SIZE"]
+        },
+        {
+            "tokens": ["I", "need", "a", "slim", "fit", "jeans", "in", "dark", "blue"],
+            "tags": ["O", "O", "O", "B-FIT", "I-FIT", "B-PRODUCT", "O", "B-COLOR", "I-COLOR"]
+        },
+        {
+            "tokens": ["what", "is", "the", "price", "of", "this", "jacket"],
+            "tags": ["O", "O", "O", "O", "O", "O", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["exchange", "for", "a", "larger", "size", "please"],
+            "tags": ["O", "O", "O", "O", "O", "O"]
+        },
+        {
+            "tokens": ["I", "want", "to", "buy", "a", "black", "crew", "neck", "t-shirt"],
+            "tags": ["O", "O", "O", "O", "O", "B-COLOR", "B-NECK", "I-NECK", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["show", "me", "winter", "jackets", "in", "olive", "green"],
+            "tags": ["O", "O", "B-SEASON", "B-PRODUCT", "O", "B-COLOR", "I-COLOR"]
+        },
+        {
+            "tokens": ["complaint", "about", "order", "ORD999888"],
+            "tags": ["O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["looking", "for", "a", "floral", "print", "dress", "for", "summer"],
+            "tags": ["O", "O", "O", "B-PATTERN", "I-PATTERN", "B-PRODUCT", "O", "B-SEASON"]
+        },
+        {
+            "tokens": ["is", "the", "regular", "fit", "available", "in", "striped", "pattern"],
+            "tags": ["O", "O", "B-FIT", "I-FIT", "O", "O", "B-PATTERN", "I-PATTERN"]
+        },
+        {
+            "tokens": ["I", "need", "a", "v-neck", "sweater", "in", "charcoal"],
+            "tags": ["O", "O", "O", "B-NECK", "B-PRODUCT", "O", "B-COLOR"]
+        },
+        {
+            "tokens": ["track", "order", "DEL123456", "please"],
+            "tags": ["O", "O", "B-ORDER_ID", "O"]
+        },
+        {
+            "tokens": ["show", "me", "formal", "shirts", "under", "2000", "rupees"],
+            "tags": ["O", "O", "B-STYLE", "B-PRODUCT", "O", "B-PRICE", "O"]
+        },
+        {
+            "tokens": ["I", "need", "a", "casual", "shirt", "for", "office"],
+            "tags": ["O", "O", "O", "B-STYLE", "B-PRODUCT", "O", "B-OCCASION"]
+        },
+        {
+            "tokens": ["show", "me", "formal", "shirts", "under", "1500"],
+            "tags": ["O", "O", "B-STYLE", "B-PRODUCT", "O", "B-PRICE"]
+        },
+        {
+            "tokens": ["looking", "for", "a", "party", "dress"],
+            "tags": ["O", "O", "O", "B-OCCASION", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["need", "a", "striped", "pattern", "shirt"],
+            "tags": ["O", "O", "B-PATTERN", "I-PATTERN", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["looking", "for", "a", "plain", "solid", "color", "t-shirt"],
+            "tags": ["O", "O", "O", "B-PATTERN", "I-PATTERN", "O", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["do", "you", "have", "this", "in", "stock"],
+            "tags": ["O", "O", "O", "O", "O", "O"]
+        },
+        {
+            "tokens": ["I", "want", "to", "return", "my", "order", "RET555666"],
+            "tags": ["O", "O", "O", "O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["find", "me", "a", "relaxed", "fit", "pair", "of", "cargo", "pants"],
+            "tags": ["O", "O", "O", "B-FIT", "I-FIT", "O", "O", "B-PRODUCT", "I-PRODUCT"]
+        },
+        {
+            "tokens": ["what", "is", "the", "material", "of", "this", "kurta"],
+            "tags": ["O", "O", "O", "O", "O", "O", "B-PRODUCT"]
+        },
+        {
+            "tokens": ["cancel", "my", "order", "CXL789012"],
+            "tags": ["O", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["show", "me", "party", "wear", "in", "emerald", "green"],
+            "tags": ["O", "O", "B-OCCASION", "B-PRODUCT", "O", "B-COLOR", "I-COLOR"]
+        },
+        {
+            "tokens": ["available", "in", "xs", "s", "m", "l", "xl"],
+            "tags": ["O", "O", "B-SIZE", "B-SIZE", "B-SIZE", "B-SIZE", "B-SIZE"]
+        },
+        {
+            "tokens": ["I", "received", "a", "damaged", "product", "in", "order", "DMG111222"],
+            "tags": ["O", "O", "O", "O", "B-PRODUCT", "O", "O", "B-ORDER_ID"]
+        },
+        {
+            "tokens": ["need", "a", "boat", "neck", "top", "for", "office", "wear"],
+            "tags": ["O", "O", "B-NECK", "I-NECK", "B-PRODUCT", "O", "B-OCCASION", "O"]
+        },
+        {
+            "tokens": ["check", "if", "order", "CHK333444", "is", "shipped"],
+            "tags": ["O", "O", "O", "B-ORDER_ID", "O", "O"]
+        }
+    ]
+}
