@@ -162,17 +162,26 @@ class TenantSettings(BaseModel):
 
 class Tenant(BaseModel):
     """
-    Tenant model - stored in MongoDB.
+    Tenant/client model - stored in the MongoDB `clients` collection.
     """
 
     id: str = Field(alias="_id")
-    tenant_id: Optional[str] = None
-    tenant_name: str
+
+    # Actual database field
+    tenant_id: str
+
     business_name: str
+
+    # WhatsApp credentials
     phone_number_id: str
     access_token: str
     webhook_verify_token: str
+
     is_active: bool = True
+
+    feature_flags: TenantFeatureFlags = Field(
+        default_factory=TenantFeatureFlags
+    )
 
     settings: TenantSettings = Field(
         default_factory=TenantSettings
@@ -189,7 +198,6 @@ class Tenant(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True
     )
-
 
 # ==========================================================
 # PRODUCT
