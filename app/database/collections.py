@@ -1,5 +1,3 @@
-from typing import Optional
-
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.database.mongodb import mongodb
@@ -7,16 +5,23 @@ from app.database.mongodb import mongodb
 
 class Collections:
     """
-    MongoDB collections with tenant-aware access.
-    All tenant-specific data is accessed through these collections.
+    Central MongoDB collection access.
+
+    Tenant-specific inventory is stored as:
+        inventory.<tenant_id>
+
+    Example:
+        inventory.meridin_clothing
     """
 
     @property
-    def tenants(self) -> AsyncIOMotorCollection:
-        """Tenant/client documents are stored in the 'clients' collection."""
+    def clients(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["clients"]
 
     def products(self, tenant_id: str) -> AsyncIOMotorCollection:
+        if not tenant_id:
+            raise ValueError("tenant_id is required")
+
         return mongodb.get_database()[f"inventory.{tenant_id}"]
 
     @property
@@ -32,50 +37,44 @@ class Collections:
         return mongodb.get_database()["messages"]
 
     @property
-    def orders(self) -> AsyncIOMotorCollection:
-        return mongodb.get_database()["orders"]
+    def intents(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["intents"]
 
     @property
-    def analytics(self) -> AsyncIOMotorCollection:
-        return mongodb.get_database()["analytics"]
+    def keywords(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["keywords"]
+
+    @property
+    def learned_keywords(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["learned_keywords"]
+
+    @property
+    def learned_responses(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["learned_responses"]
 
     @property
     def templates(self) -> AsyncIOMotorCollection:
-        """Message templates stored per-tenant for response rendering."""
         return mongodb.get_database()["templates"]
 
     @property
     def inventory_metadata(self) -> AsyncIOMotorCollection:
-        """Color / size / attribute name resolution (type-discriminated)."""
         return mongodb.get_database()["inventory_metadata"]
 
-    # --- Inventory (new multi-collection schema) ------------------------------
+    @property
+    def ai_model_usage(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["ai_model_usage"]
 
     @property
-    def clothing_attributes(self) -> AsyncIOMotorCollection:
-        """Shared attribute/variant lookup collection (all brands)."""
-        return mongodb.get_database()["inventory.clothing_attributes"]
+    def meta_conversation_usage(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["meta_conversation_usage"]
 
-    def clothing(self, brand: Optional[str] = None) -> AsyncIOMotorCollection:
-        """
-        Return the per-brand clothing collection.
+    @property
+    def cache(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["cache"]
 
-        Collection name follows the pattern ``inventory.clothing_{brand}``.
-        When ``brand`` is None, falls back to a brand-agnostic collection.
-        """
-        brand_suffix = brand.lower().replace(" ", "_") if brand else "default"
-        return mongodb.get_database()[f"inventory.clothing_{brand_suffix}"]
-
-    def clothing_store(self, store_name: str) -> AsyncIOMotorCollection:
-        """
-        Return the per-store inventory collection.
-
-        Collection name follows the pattern ``inventory.<store_name>``
-        (e.g. ``inventory.nike``, ``inventory.hm``).  When ``store_name``
-        is empty or None, falls back to a default collection.
-        """
-        suffix = store_name.lower().replace(" ", "_") if store_name else "default"
-        return mongodb.get_database()[f"inventory.{suffix}"]
+    @property
+    def rate_limits(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["rate_limits"]
 
 
 collections = Collections()
