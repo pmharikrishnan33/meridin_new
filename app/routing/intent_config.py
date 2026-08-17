@@ -58,9 +58,11 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
 
     IntentType.AVAILABILITY: IntentConfig(
         handler_class="AvailabilityHandler",
-        requires_entities=True,
-        required_entities=[EntityType.PRODUCT],
-        optional_entities=[EntityType.SIZE, EntityType.COLOR, EntityType.FIT],
+        # Availability can target either a selected product or a catalogue
+        # filter such as "black shirts".  The handler asks a focused question
+        # when neither provides a usable scope.
+        requires_entities=False,
+        optional_entities=[EntityType.PRODUCT, EntityType.CATEGORY, EntityType.SIZE, EntityType.COLOR, EntityType.FIT],
         min_confidence=0.25,
         response_type="structured",
     ),

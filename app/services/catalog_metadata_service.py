@@ -14,7 +14,15 @@ class CatalogMetadataService:
     async def get_metadata(self, tenant_id: str) -> Dict[str, Any]:
         if not mongodb.is_connected:
             return {}
-        document = await collections.inventory_metadata.find_one({"tenant_id": tenant_id})
+        # Metadata is shared across the catalog.  Retain tenant-scoped lookup
+        # as a compatibility fallback for deployments that have it.
+        document = await collections.inventory_metadata.find_one(
+            {"tenant_id": {"$exists": False}}
+        )
+        if not document:
+            document = await collections.inventory_metadata.find_one(
+                {"tenant_id": tenant_id}
+            )
         return dict(document) if document else {}
 
     @staticmethod

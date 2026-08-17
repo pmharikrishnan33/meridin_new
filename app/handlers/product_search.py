@@ -53,7 +53,13 @@ class ProductSearchHandler(BaseHandler):
             )
             filters = ProductSearchFilters(**merged)
 
-        page_size = 3
+        configured_limit = (tenant_settings.get("feature_flags", {}) or {}).get(
+            "max_products_per_response", 5
+        )
+        try:
+            page_size = max(1, min(int(configured_limit), 20))
+        except (TypeError, ValueError):
+            page_size = 5
         search_limit = 100
         filters.limit = search_limit
         filters.offset = 0
@@ -110,11 +116,11 @@ class ProductSearchHandler(BaseHandler):
             filters=filters,
             result_ids=[p.id for p in products],
             page=1,
-            page_size=3,
+            page_size=page_size,
         )
 
         response_products = [
-            product_service.product_to_response(p) for p in products[:3]
+            product_service.product_to_response(p) for p in products[:page_size]
         ]
 
         if conversation_context:

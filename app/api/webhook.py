@@ -31,6 +31,16 @@ class ChatResponse(BaseModel):
     response: Dict[str, Any]
 
 
+def _tenant_message_settings(tenant) -> Dict[str, Any]:
+    """Return only non-sensitive tenant settings needed by message handlers."""
+    return {
+        "business_name": tenant.business_name,
+        "welcome_message": tenant.welcome_message,
+        "fallback_message": tenant.fallback_message,
+        "feature_flags": tenant.feature_flags.model_dump(),
+    }
+
+
 def _to_chat_response(result) -> ChatResponse:
     entities = {}
     for entity in result.understanding.entities:
@@ -201,6 +211,7 @@ async def receive_whatsapp_webhook(
                     tenant_id=str(resolved_tenant_id),
                     user_id=str(sender),
                     text=text,
+                    tenant_settings=_tenant_message_settings(tenant),
                 )
 
                 chat_response = _to_chat_response(result)
@@ -220,7 +231,7 @@ async def receive_whatsapp_webhook(
                         )
                     except Exception as exc:
                         logger.error(f"Failed to send WhatsApp reply: {exc}")
-                        processed[-1]["send_error"] = str(exc)
+                        processed[-1]["delivery_status"] = "failed"
 
     return {"status": "accepted", "processed": processed}
 

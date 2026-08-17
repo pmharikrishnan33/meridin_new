@@ -172,6 +172,12 @@ class Tenant(BaseModel):
 
     business_name: str
 
+    # Tenant-authored response text stored directly on the current clients
+    # documents.  These are optional because existing clients may rely on
+    # templates instead.
+    welcome_message: Optional[str] = None
+    fallback_message: Optional[str] = None
+
     # WhatsApp credentials
     phone_number_id: str
     access_token: str
