@@ -605,3 +605,13 @@ entry.0.changes.0.field
 2026-08-07 22:20:37,434 | INFO | meridin | Loaded model: entity_model.pkl
 2026-08-07 22:20:37,451 | INFO | meridin | Loaded model: entity_vectorizer.pkl
 2026-08-07 22:20:37,452 | INFO | meridin | All ML models loaded successfully.
+2026-08-17 19:43:05,801 | INFO | meridin | Meridin starting...
+2026-08-17 19:43:07,377 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-17 19:43:11,438 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-17 19:43:11,438 | INFO | meridin | Meridin started successfully.
+2026-08-17 19:44:05,948 | INFO | meridin | Meridin shutting down...
+2026-08-17 19:44:06,025 | INFO | meridin | MongoDB connection closed.
+2026-08-17 19:44:08,048 | INFO | meridin | Meridin starting...
+2026-08-17 19:44:09,201 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-17 19:44:13,248 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-17 19:44:13,249 | INFO | meridin | Meridin started successfully.
