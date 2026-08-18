@@ -1,54 +1,151 @@
 """
 WhatsApp outbound messaging service.
 
-Sends bot replies back to Meta's WhatsApp Cloud API so that customers
-receive messages on their devices.  Each tenant supplies its own
-``phone_number_id`` and ``access_token`` (stored in MongoDB or passed
-through the request).
+Responsible only for sending outbound messages through
+the Meta WhatsApp Cloud API.
+
+Business logic should NOT live here.
+
+This service:
+- builds WhatsApp payloads
+- sends them to Meta
+- returns delivery information
+- raises exceptions when Meta delivery fails
 """
 
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 import httpx
 
+from app.core.config import settings
 from app.models.schemas import BotResponse, ResponseProduct
 from app.utils.logger import logger
 
 
+@dataclass
+class WhatsAppSendResult:
+    """
+    Result of a single WhatsApp API send operation.
+    """
+
+    success: bool
+    provider_message_id: Optional[str] = None
+
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+
+    raw_response: Optional[Dict[str, Any]] = None
+
+
 class WhatsAppSender:
     """
-    Sends messages to WhatsApp users via the Meta Graph API.
+    Sends outbound messages to WhatsApp through Meta.
 
-    The Graph API base URL is::
-
-        https://graph.facebook.com/v18.0/{phone_number_id}/messages
-
-    A successful response returns ``{"messages": [{"id": "..."}]}``.
+    Tenant-specific credentials are supplied per request.
     """
 
-    GRAPH_API_BASE = "https://graph.facebook.com/v18.0"
+    GRAPH_API_BASE = (
+        "https://graph.facebook.com/"
+        f"{settings.WHATSAPP_GRAPH_API_VERSION}"
+    )
 
-    def __init__(self, timeout: float = 30.0):
+    def __init__(
+        self,
+        timeout: float = 30.0,
+    ) -> None:
         self._timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: Optional[
+            httpx.AsyncClient
+        ] = None
+
+    # ---------------------------------------------------------
+    # HTTP client
+    # ---------------------------------------------------------
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout)
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout
+            )
+
         return self._client
 
     async def aclose(self) -> None:
-        """Close the underlying HTTP client."""
+        """
+        Close the HTTP client.
+        """
+
         if self._client is not None:
             await self._client.aclose()
             self._client = None
 
+    # ---------------------------------------------------------
+    # Validation
+    # ---------------------------------------------------------
+
     @staticmethod
-    def _build_headers(access_token: str) -> Dict[str, str]:
+    def _validate_credentials(
+        phone_number_id: str,
+        access_token: str,
+        to: str,
+    ) -> None:
+
+        if not phone_number_id:
+            raise ValueError(
+                "phone_number_id is required"
+            )
+
+        if not access_token:
+            raise ValueError(
+                "access_token is required"
+            )
+
+        if not to:
+            raise ValueError(
+                "recipient phone number is required"
+            )
+
+    @staticmethod
+    def _build_headers(
+        access_token: str,
+    ) -> Dict[str, str]:
+
         return {
-            "Authorization": f"Bearer {access_token}",
+            "Authorization": (
+                f"Bearer {access_token}"
+            ),
             "Content-Type": "application/json",
         }
+
+    @staticmethod
+    def _extract_message_id(
+        data: Dict[str, Any],
+    ) -> Optional[str]:
+
+        messages = data.get("messages")
+
+        if not isinstance(messages, list):
+            return None
+
+        if not messages:
+            return None
+
+        first_message = messages[0]
+
+        if not isinstance(first_message, dict):
+            return None
+
+        message_id = first_message.get("id")
+
+        if message_id:
+            return str(message_id)
+
+        return None
+
+    # ---------------------------------------------------------
+    # Basic message types
+    # ---------------------------------------------------------
 
     async def send_text(
         self,
@@ -57,32 +154,42 @@ class WhatsAppSender:
         to: str,
         text: str,
         preview_url: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> WhatsAppSendResult:
         """
-        Send a plain-text message to a WhatsApp user.
-
-        Args:
-            phone_number_id: The WhatsApp Business Account phone number ID.
-            access_token: A valid Meta access token.
-            to: The recipient's phone number (country code + number, no ``+``).
-            text: The message body (max 4096 characters).
-            preview_url: Whether to render URLs as clickable previews.
-
-        Returns:
-            The parsed JSON response from Meta.
+        Send a plain WhatsApp text message.
         """
-        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+
+        self._validate_credentials(
+            phone_number_id,
+            access_token,
+            to,
+        )
+
+        if not text or not text.strip():
+            raise ValueError(
+                "text is required"
+            )
+
+        url = (
+            f"{self.GRAPH_API_BASE}/"
+            f"{phone_number_id}/messages"
+        )
+
         payload = {
             "messaging_product": "whatsapp",
             "to": to,
             "type": "text",
             "text": {
                 "preview_url": preview_url,
-                "body": text,
+                "body": text[:4096],
             },
         }
 
-        return await self._send(url, access_token, payload)
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
 
     async def send_reaction(
         self,
@@ -91,9 +198,32 @@ class WhatsAppSender:
         to: str,
         message_id: str,
         emoji: str,
-    ) -> Dict[str, Any]:
-        """Send a reaction emoji to a specific message."""
-        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+    ) -> WhatsAppSendResult:
+        """
+        Send a reaction to an existing WhatsApp message.
+        """
+
+        self._validate_credentials(
+            phone_number_id,
+            access_token,
+            to,
+        )
+
+        if not message_id:
+            raise ValueError(
+                "message_id is required"
+            )
+
+        if not emoji:
+            raise ValueError(
+                "emoji is required"
+            )
+
+        url = (
+            f"{self.GRAPH_API_BASE}/"
+            f"{phone_number_id}/messages"
+        )
+
         payload = {
             "messaging_product": "whatsapp",
             "to": to,
@@ -103,7 +233,12 @@ class WhatsAppSender:
                 "emoji": emoji,
             },
         }
-        return await self._send(url, access_token, payload)
+
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
 
     async def send_image(
         self,
@@ -111,72 +246,245 @@ class WhatsAppSender:
         access_token: str,
         to: str,
         image_url: str,
-        caption: str,
-    ) -> Dict[str, Any]:
-        """Send an image message with a short product caption."""
-        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+        caption: Optional[str] = None,
+    ) -> WhatsAppSendResult:
+        """
+        Send an image message.
+
+        The image must be publicly accessible by Meta.
+        """
+
+        self._validate_credentials(
+            phone_number_id,
+            access_token,
+            to,
+        )
+
+        if not image_url:
+            raise ValueError(
+                "image_url is required"
+            )
+
+        url = (
+            f"{self.GRAPH_API_BASE}/"
+            f"{phone_number_id}/messages"
+        )
+
+        image_payload: Dict[str, Any] = {
+            "link": image_url,
+        }
+
+        if caption:
+            image_payload["caption"] = caption[:1024]
+
         payload = {
             "messaging_product": "whatsapp",
             "to": to,
             "type": "image",
-            "image": {
-                "link": image_url,
-                "caption": caption,
-            },
+            "image": image_payload,
         }
-        return await self._send(url, access_token, payload)
 
-    async def send_interactive(
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
+
+    # ---------------------------------------------------------
+    # Interactive messages
+    # ---------------------------------------------------------
+
+    async def send_buttons(
         self,
         phone_number_id: str,
         access_token: str,
         to: str,
         body_text: str,
         buttons: List[Dict[str, str]],
-        button_type: str = "reply",
-    ) -> Dict[str, Any]:
+    ) -> WhatsAppSendResult:
         """
-        Send an interactive message with quick-reply buttons.
+        Send WhatsApp reply buttons.
 
-        Args:
-            buttons: List of ``{"id": "...", "title": "..."}`` dicts.
+        buttons:
+            [
+                {
+                    "id": "show_more",
+                    "title": "Show more"
+                }
+            ]
         """
-        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
-        interactive: Dict[str, Any] = {
+
+        self._validate_credentials(
+            phone_number_id,
+            access_token,
+            to,
+        )
+
+        if not body_text:
+            raise ValueError(
+                "body_text is required"
+            )
+
+        if not buttons:
+            raise ValueError(
+                "at least one button is required"
+            )
+
+        if len(buttons) > 3:
+            raise ValueError(
+                "WhatsApp reply buttons support "
+                "a maximum of 3 buttons"
+            )
+
+        formatted_buttons = []
+
+        for button in buttons:
+            button_id = (
+                button.get("id")
+                or button.get("title")
+            )
+
+            title = button.get("title")
+
+            if not title:
+                raise ValueError(
+                    "button title is required"
+                )
+
+            formatted_buttons.append(
+                {
+                    "type": "reply",
+                    "reply": {
+                        "id": button_id,
+                        "title": title[:20],
+                    },
+                }
+            )
+
+        url = (
+            f"{self.GRAPH_API_BASE}/"
+            f"{phone_number_id}/messages"
+        )
+
+        payload = {
             "messaging_product": "whatsapp",
             "to": to,
             "type": "interactive",
             "interactive": {
-                "body": {"text": body_text},
-                "action": {},
+                "type": "button",
+                "body": {
+                    "text": body_text[:1024],
+                },
+                "action": {
+                    "buttons": formatted_buttons,
+                },
             },
         }
 
-        if button_type == "reply":
-            interactive["interactive"]["action"] = {
-                "button": "Choose an option",
-                "sections": [
-                    {
-                        "rows": [
-                            {"id": b.get("id", b["title"]), "title": b["title"]}
-                            for b in buttons
-                        ]
-                    }
-                ],
-            }
-            interactive["interactive"]["type"] = "list"
-        else:
-            interactive["interactive"]["action"] = {
-                "button": body_text,
-                "sections": [],
-            }
-            interactive["interactive"]["type"] = "button"
-            interactive["interactive"]["action"]["buttons"] = [
-                {"type": "reply", "reply": {"id": b.get("id", b["title"]), "title": b["title"]}}
-                for b in buttons
-            ]
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
 
-        return await self._send(url, access_token, interactive)
+    async def send_list(
+        self,
+        phone_number_id: str,
+        access_token: str,
+        to: str,
+        body_text: str,
+        button_text: str,
+        rows: List[Dict[str, str]],
+        section_title: Optional[str] = None,
+    ) -> WhatsAppSendResult:
+        """
+        Send a WhatsApp list message.
+        """
+
+        self._validate_credentials(
+            phone_number_id,
+            access_token,
+            to,
+        )
+
+        if not body_text:
+            raise ValueError(
+                "body_text is required"
+            )
+
+        if not rows:
+            raise ValueError(
+                "at least one row is required"
+            )
+
+        formatted_rows = []
+
+        for row in rows:
+            row_id = (
+                row.get("id")
+                or row.get("title")
+            )
+
+            title = row.get("title")
+
+            if not title:
+                raise ValueError(
+                    "row title is required"
+                )
+
+            item: Dict[str, Any] = {
+                "id": row_id,
+                "title": title[:24],
+            }
+
+            description = row.get(
+                "description"
+            )
+
+            if description:
+                item["description"] = (
+                    description[:72]
+                )
+
+            formatted_rows.append(item)
+
+        section: Dict[str, Any] = {
+            "rows": formatted_rows,
+        }
+
+        if section_title:
+            section["title"] = section_title[:24]
+
+        url = (
+            f"{self.GRAPH_API_BASE}/"
+            f"{phone_number_id}/messages"
+        )
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "interactive",
+            "interactive": {
+                "type": "list",
+                "body": {
+                    "text": body_text[:1024],
+                },
+                "action": {
+                    "button": button_text[:20],
+                    "sections": [section],
+                },
+            },
+        }
+
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
+
+    # ---------------------------------------------------------
+    # Bot response handling
+    # ---------------------------------------------------------
 
     async def send_bot_response(
         self,
@@ -186,117 +494,287 @@ class WhatsAppSender:
         response: BotResponse,
     ) -> Dict[str, Any]:
         """
-        Convert a :class:`~app.models.schemas.BotResponse` into the appropriate
-        WhatsApp API call(s).
+        Convert an internal BotResponse into WhatsApp messages.
 
-        - ``text`` / ``order_status`` → plain text message
-        - ``product_list`` / ``product_card`` → image caption for the first card
-          plus a follow-up text response with remaining details/replies
-        - ``template`` → text message referencing a template name (if available)
+        Returns a delivery summary.
         """
+
         if not response.text and not response.products:
-            return {"status": "skipped", "reason": "empty response"}
+            return {
+                "success": True,
+                "status": "skipped",
+                "sent_count": 0,
+                "message_ids": [],
+            }
 
-        if response.response_type in {"product_list", "product_card"} and response.products:
-            for product in response.products:
-                caption_lines = [
-                    product.name,
-                    f"Price: ₹{product.price:,.0f}",
-                    f"Stock: {product.stock}",
-                ]
-                if product.colors_available:
-                    caption_lines.append(f"Colors: {', '.join(product.colors_available)}")
-                if product.sizes_available:
-                    caption_lines.append(f"Sizes: {', '.join(product.sizes_available)}")
-                if product.description:
-                    caption_lines.append(product.description[:200])
+        message_ids: List[str] = []
 
-                if product.image:
-                    await self.send_image(
-                        phone_number_id,
-                        access_token,
-                        to,
-                        product.image,
-                        "\n".join(caption_lines),
-                    )
-                else:
-                    await self.send_text(
-                        phone_number_id,
-                        access_token,
-                        to,
-                        "\n".join(caption_lines),
-                    )
-            if response.quick_replies:
-                buttons = [
-                    {"id": r.get("value", r["label"]), "title": r["label"]}
-                    for r in response.quick_replies
-                ]
-                return await self.send_interactive(
-                    phone_number_id,
-                    access_token,
-                    to,
-                    response.text or "What would you like to do?",
-                    buttons,
+        # -----------------------------------------------------
+        # Product responses
+        # -----------------------------------------------------
+
+        if (
+            response.response_type
+            in {
+                "product_list",
+                "product_card",
+            }
+            and response.products
+        ):
+
+            max_products = 5
+
+            products = response.products[
+                :max_products
+            ]
+
+            for product in products:
+
+                caption = self._build_product_caption(
+                    product
                 )
 
-            return await self.send_text(
-                phone_number_id,
-                access_token,
-                to,
-                response.text or "Here are the products I found.",
-            )
+                if product.image:
+                    result = await self.send_image(
+                        phone_number_id=phone_number_id,
+                        access_token=access_token,
+                        to=to,
+                        image_url=product.image,
+                        caption=caption,
+                    )
+                else:
+                    result = await self.send_text(
+                        phone_number_id=phone_number_id,
+                        access_token=access_token,
+                        to=to,
+                        text=caption,
+                    )
 
-        # Build the text payload
-        text = response.text or ""
+                if result.provider_message_id:
+                    message_ids.append(
+                        result.provider_message_id
+                    )
 
-        # Append quick-reply buttons if present
+            # Quick replies after products.
+            if response.quick_replies:
+                buttons = [
+                    {
+                        "id": (
+                            reply.get("value")
+                            or reply["label"]
+                        ),
+                        "title": reply["label"],
+                    }
+                    for reply in response.quick_replies
+                ]
+
+                result = await self.send_buttons(
+                    phone_number_id=phone_number_id,
+                    access_token=access_token,
+                    to=to,
+                    body_text=(
+                        response.text
+                        or "What would you like to do?"
+                    ),
+                    buttons=buttons,
+                )
+
+                if result.provider_message_id:
+                    message_ids.append(
+                        result.provider_message_id
+                    )
+
+                return {
+                    "success": True,
+                    "status": "sent",
+                    "sent_count": len(
+                        message_ids
+                    ),
+                    "message_ids": message_ids,
+                }
+
+            return {
+                "success": True,
+                "status": "sent",
+                "sent_count": len(
+                    message_ids
+                ),
+                "message_ids": message_ids,
+            }
+
+        # -----------------------------------------------------
+        # Quick replies without products
+        # -----------------------------------------------------
+
         if response.quick_replies:
+
             buttons = [
-                {"id": r.get("value", r["label"]), "title": r["label"]}
-                for r in response.quick_replies
+                {
+                    "id": (
+                        reply.get("value")
+                        or reply["label"]
+                    ),
+                    "title": reply["label"],
+                }
+                for reply in response.quick_replies
             ]
-            return await self.send_interactive(
-                phone_number_id,
-                access_token,
-                to,
-                text,
-                buttons,
+
+            result = await self.send_buttons(
+                phone_number_id=phone_number_id,
+                access_token=access_token,
+                to=to,
+                body_text=response.text or "Choose an option.",
+                buttons=buttons,
             )
 
-        return await self.send_text(
-            phone_number_id,
-            access_token,
-            to,
-            text,
+            if result.provider_message_id:
+                message_ids.append(
+                    result.provider_message_id
+                )
+
+            return {
+                "success": True,
+                "status": "sent",
+                "sent_count": len(
+                    message_ids
+                ),
+                "message_ids": message_ids,
+            }
+
+        # -----------------------------------------------------
+        # Normal text response
+        # -----------------------------------------------------
+
+        result = await self.send_text(
+            phone_number_id=phone_number_id,
+            access_token=access_token,
+            to=to,
+            text=response.text or "",
         )
+
+        if result.provider_message_id:
+            message_ids.append(
+                result.provider_message_id
+            )
+
+        return {
+            "success": True,
+            "status": "sent",
+            "sent_count": len(
+                message_ids
+            ),
+            "message_ids": message_ids,
+        }
+
+    # ---------------------------------------------------------
+    # Helpers
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def _build_product_caption(
+        product: ResponseProduct,
+    ) -> str:
+
+        lines = [
+            product.name,
+            f"Price: ₹{product.price:,.0f}",
+        ]
+
+        if product.stock is not None:
+            lines.append(
+                f"Stock: {product.stock}"
+            )
+
+        if product.colors_available:
+            lines.append(
+                "Colors: "
+                + ", ".join(
+                    product.colors_available
+                )
+            )
+
+        if product.sizes_available:
+            lines.append(
+                "Sizes: "
+                + ", ".join(
+                    product.sizes_available
+                )
+            )
+
+        if product.description:
+            lines.append(
+                product.description[:200]
+            )
+
+        return "\n".join(lines)
+
+    # ---------------------------------------------------------
+    # Core HTTP operation
+    # ---------------------------------------------------------
 
     async def _send(
         self,
         url: str,
         access_token: str,
         payload: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Internal helper: POST to the Graph API and return parsed JSON."""
+    ) -> WhatsAppSendResult:
+        """
+        POST a message to Meta's Graph API.
+
+        Important:
+        Any Meta/API failure raises an exception.
+        We never silently convert a failed send into success.
+        """
+
         client = self._get_client()
+
         try:
             response = await client.post(
                 url,
-                headers=self._build_headers(access_token),
+                headers=self._build_headers(
+                    access_token
+                ),
                 json=payload,
             )
+
             response.raise_for_status()
+
             data = response.json()
-            logger.info(f"WhatsApp message sent successfully: {data}")
-            return data
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"WhatsApp API error: {e.response.status_code} {e.response.text}"
+
+            provider_message_id = (
+                self._extract_message_id(data)
             )
-            return {"error": True, "status_code": e.response.status_code, "detail": e.response.text}
-        except httpx.RequestError as e:
-            logger.error(f"WhatsApp request failed: {e}")
-            return {"error": True, "detail": str(e)}
+
+            logger.info(
+                "WhatsApp message sent successfully: "
+                "message_id=%s",
+                provider_message_id,
+            )
+
+            return WhatsAppSendResult(
+                success=True,
+                provider_message_id=(
+                    provider_message_id
+                ),
+                raw_response=data,
+            )
+
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "WhatsApp API error: status=%s body=%s",
+                exc.response.status_code,
+                exc.response.text,
+            )
+
+            raise
+
+        except httpx.RequestError as exc:
+            logger.error(
+                "WhatsApp request failed: %s",
+                exc,
+            )
+
+            raise
 
 
-# Module-level singleton
 whatsapp_sender = WhatsAppSender()

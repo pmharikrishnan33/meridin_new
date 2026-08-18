@@ -41,40 +41,68 @@ class IntentClassifier:
     def __init__(self):
         self._confidence_threshold = 0.25
 
-    def predict(self, text: str) -> IntentPrediction:
+    def predict(
+        self,
+        text: str,
+    ) -> IntentPrediction:
         """
-        Predict intent for given text.
+        Predict intent only.
+
+        Entity extraction is handled separately
+        by EntityExtractor.
         """
+
         import re
 
-        # --- NEW: Exact match intercept for common greetings ---
-        # Strip all punctuation and extra whitespace so "Hi!" or "Hello..." securely match
-        text_clean = re.sub(r'[^\w\s]', '', text).strip().lower()
-        
-        if text_clean in {"hi", "hello", "hey", "namaste", "good morning", "good evening", "hii"}:
+        if not text or not text.strip():
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores={},
+            )
+
+        text_clean = re.sub(
+            r"[^\w\s]",
+            "",
+            text,
+        ).strip().lower()
+
+        # Deterministic greetings.
+        if text_clean in {
+            "hi",
+            "hello",
+            "hey",
+            "hii",
+            "namaste",
+            "good morning",
+            "good evening",
+        }:
             return IntentPrediction(
                 intent=IntentType.GREETING,
                 confidence=0.95,
-                all_scores={IntentType.GREETING.value: 1.0}
+                all_scores={
+                    IntentType.GREETING.value: 0.95
+                },
             )
-        # -------------------------------------------------------
 
-        # Try ML model first
-        ACTIVE_NER_INTENTS = {
-            "product_search",
-        }
-
+        # Use ML when available.
         if (
-            intent in ACTIVE_NER_INTENTS
-            and model_loader.entity_model
-            and model_loader.entity_vectorizer
+            model_loader.intent_model is not None
+            and model_loader.intent_vectorizer is not None
         ):
-            ml_entities = self._extract_ml(text)
-            entities.extend(ml_entities)
+            return self._predict_ml(
+                text_clean
+            )
 
-        # Fallback to keyword-based
-        logger.warning("Intent model not loaded, using keyword fallback")
-        return self._predict_keywords(text)
+        # Safe keyword fallback.
+        logger.warning(
+            "Intent model not loaded; "
+            "using keyword fallback"
+        )
+
+        return self._predict_keywords(
+            text_clean
+        )
     
     def _predict_ml(self, text: str) -> IntentPrediction:
         """

@@ -1,13 +1,18 @@
 """
-Product service - handles product search, retrieval, and availability queries.
+Product service.
+
+Handles:
+- product search
+- product retrieval
+- product availability
+- entity -> product filter conversion
+- response transformation
+
+Database access belongs to ProductRepository.
 """
 
-import re
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from app.database.collections import collections
-from app.database.mongodb import mongodb
-from app.database.redis_cache import redis_cache
 from app.models.schemas import (
     Product,
     ProductSearchFilters,
@@ -15,91 +20,22 @@ from app.models.schemas import (
     ExtractedEntity,
     EntityType,
 )
+from app.repositories.product_repository import (
+    product_repository,
+)
 from app.utils.logger import logger
 
 
 class ProductService:
-    """
-    Service layer for product-related operations.
-    Queries MongoDB collections directly.
-    """
+    """Business logic for product-related operations."""
 
-    def _build_mongo_query(
+    def __init__(
         self,
-        filters: ProductSearchFilters,
-        tenant_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Build a MongoDB query dict from ProductSearchFilters.
-        """
-
-        query: Dict[str, Any] = {"tenant_id": tenant_id} if tenant_id else {}
-
-        def contains(value: str) -> Dict[str, str]:
-            return {"$regex": re.escape(value), "$options": "i"}
-
-        def exact(value: str) -> Dict[str, str]:
-            return {"$regex": f"^{re.escape(value)}$", "$options": "i"}
-
-        if filters.query:
-            query["$or"] = [
-                {"title": contains(filters.query)},
-                {"description": contains(filters.query)},
-                {"category": contains(filters.query)},
-            ]
-
-        if filters.category:
-            query["category"] = exact(filters.category)
-
-        if filters.type:
-            query["type"] = exact(filters.type)
-
-        if filters.sub_category:
-            query["sub_category"] = exact(filters.sub_category)
-
-        if filters.brand:
-            query["brand"] = exact(filters.brand)
-
-        if filters.color:
-            query["color"] = exact(filters.color)
-
-        if filters.size:
-            query["size"] = exact(filters.size)
-
-        if filters.fit:
-            query["fit"] = exact(filters.fit)
-
-        if filters.gender:
-            query["gender"] = exact(filters.gender)
-
-        if filters.tags:
-            query["tags"] = {
-                "$in": [
-                    {"$regex": re.escape(tag), "$options": "i"}
-                    for tag in filters.tags
-                ]
-            }
-        if filters.min_price is not None:
-            query.setdefault("price", {})["$gte"] = filters.min_price
-        if filters.max_price is not None:
-            query.setdefault("price", {})["$lte"] = filters.max_price
-        if filters.in_stock_only:
-            query["stock"] = {"$gt": 0}
-
-        return query
-
-    def _build_sort(self, sort_by: str) -> List[tuple]:
-        """
-        Build MongoDB sort spec from sort_by string.
-        """
-
-        sort_map = {
-            "price_asc": [("price", 1)],
-            "price_desc": [("price", -1)],
-            "newest": [("created_at", -1)],
-            "popular": [("is_featured", -1), ("created_at", -1)],
-        }
-        return sort_map.get(sort_by, [])
+        product_repository_instance=product_repository,
+    ):
+        self.product_repository = (
+            product_repository_instance
+        )
 
     async def search_products(
         self,
@@ -107,73 +43,80 @@ class ProductService:
         filters: ProductSearchFilters,
     ) -> List[Product]:
         """
-        Search products matching the given filters.
-        """
-        if not mongodb.is_connected:
-            logger.warning("Product search skipped because MongoDB is unavailable.")
-            return []
+        Search products for a tenant.
 
-        query = self._build_mongo_query(filters, tenant_id)
-        
-        # 1. Start building the query cursor
-        cursor = collections.products(tenant_id).find(query)
-        
-        # 2. Check if we actually have sorting rules
-        sort_spec = self._build_sort(filters.sort_by)
-        
-        # 3. ONLY apply the sort command if the list is not empty
-        if sort_spec:
-            cursor = cursor.sort(sort_spec)
-            
-        cursor = cursor.skip(filters.offset).limit(filters.limit)
-
-        products = []
-        async for doc in cursor:
-            products.append(Product(**self._normalize_document(doc)))
-
-        logger.info(f"Product search returned {len(products)} results for tenant {tenant_id}")
-        return products
-
-    async def get_product_by_id(self, tenant_id: str, product_id: str) -> Optional[Product]:
-        """
-        Retrieve a single product by ID.
+        MongoDB access is handled exclusively
+        by ProductRepository.
         """
 
-        if not mongodb.is_connected:
-            logger.warning("Product lookup skipped because MongoDB is unavailable.")
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        return await self.product_repository.search(
+            tenant_id=tenant_id,
+            filters=filters,
+        )
+
+    async def get_product_by_id(
+        self,
+        tenant_id: str,
+        product_id: str,
+    ) -> Optional[Product]:
+        """
+        Retrieve a product by MongoDB ID.
+        """
+
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if not product_id:
             return None
 
-        # Check Redis cache first
-        cache_key = f"product:{tenant_id}:{product_id}"
-        cached = await redis_cache.get(cache_key)
-        if cached is not None:
-            logger.debug(f"Product cache hit: {product_id}")
-            return Product(**cached)
+        return await self.product_repository.find_by_id(
+            tenant_id=tenant_id,
+            product_id=product_id,
+        )
 
-        doc = await collections.products(tenant_id).find_one({
-            "_id": self._product_id_filter(product_id),
-            "tenant_id": tenant_id,
-        })
+    async def get_product_by_reference(
+        self,
+        tenant_id: str,
+        reference: str,
+    ) -> Optional[Product]:
+        """
+        Find a product using:
+        1. product ID
+        2. exact title match
+        """
 
-        if doc:
-            product = Product(**self._normalize_document(doc))
-            await redis_cache.set(cache_key, product.model_dump(by_alias=True), ttl=600)
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if not reference or not reference.strip():
+            return None
+
+        reference = reference.strip()
+
+        # First try the stable product ID.
+        product = await self.get_product_by_id(
+            tenant_id=tenant_id,
+            product_id=reference,
+        )
+
+        if product:
             return product
 
-        logger.warning(f"Product not found: {product_id} (tenant: {tenant_id})")
-        return None
-
-    async def get_product_by_reference(self, tenant_id: str, reference: str) -> Optional[Product]:
-        """Look up a product by stable ID first, then by a case-insensitive name."""
-        product = await self.get_product_by_id(tenant_id, reference)
-        if product or not mongodb.is_connected:
-            return product
-
-        doc = await collections.products(tenant_id).find_one({
-            "tenant_id": tenant_id,
-            "title": {"$regex": f"^{re.escape(reference)}$", "$options": "i"},
-        })
-        return Product(**self._normalize_document(doc)) if doc else None
+        # Then let the repository perform
+        # the exact title lookup.
+        return await self.product_repository.find_by_title(
+            tenant_id=tenant_id,
+            title=reference,
+        )
 
     async def check_availability(
         self,
@@ -183,16 +126,19 @@ class ProductService:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Check product availability using the current flat inventory model.
+        Check availability using the current flat inventory model.
 
-        Stock is tracked at product level, not at size/color variant level.
-        Therefore size/color are availability attributes, while stock is
-        product-level.
+        Current database contract:
+        - stock is product-level
+        - size is an available size list
+        - color is an available color list
+
+        Size/color do not represent independent stock variants yet.
         """
 
         product = await self.get_product_by_reference(
-            tenant_id,
-            product_id,
+            tenant_id=tenant_id,
+            reference=product_id,
         )
 
         if not product:
@@ -201,21 +147,45 @@ class ProductService:
                 "reason": "product_not_found",
             }
 
+        requested_size = (
+            size.strip().lower()
+            if size
+            else None
+        )
+
+        requested_color = (
+            color.strip().lower()
+            if color
+            else None
+        )
+
+        available_sizes = [
+            value.strip()
+            for value in product.size
+        ]
+
+        available_colors = [
+            value.strip()
+            for value in product.color
+        ]
+
         size_matches = (
             True
-            if not size
+            if requested_size is None
             else any(
-                value.strip().lower() == size.strip().lower()
-                for value in product.size
+                value.lower()
+                == requested_size
+                for value in available_sizes
             )
         )
 
         color_matches = (
             True
-            if not color
+            if requested_color is None
             else any(
-                value.strip().lower() == color.strip().lower()
-                for value in product.color
+                value.lower()
+                == requested_color
+                for value in available_colors
             )
         )
 
@@ -223,9 +193,11 @@ class ProductService:
             return {
                 "available": False,
                 "reason": "size_not_available",
-                "product_name": product.name,
+                "product_name": product.title,
                 "requested_size": size,
-                "available_sizes": sorted(product.size),
+                "available_sizes": sorted(
+                    available_sizes
+                ),
                 "stock": product.stock,
             }
 
@@ -233,9 +205,11 @@ class ProductService:
             return {
                 "available": False,
                 "reason": "color_not_available",
-                "product_name": product.name,
+                "product_name": product.title,
                 "requested_color": color,
-                "available_colors": sorted(product.color),
+                "available_colors": sorted(
+                    available_colors
+                ),
                 "stock": product.stock,
             }
 
@@ -243,22 +217,30 @@ class ProductService:
             return {
                 "available": False,
                 "reason": "out_of_stock",
-                "product_name": product.name,
+                "product_name": product.title,
                 "stock": 0,
-                "available_sizes": sorted(product.size),
-                "available_colors": sorted(product.color),
+                "available_sizes": sorted(
+                    available_sizes
+                ),
+                "available_colors": sorted(
+                    available_colors
+                ),
             }
 
         return {
             "available": True,
             "reason": "available",
-            "product_name": product.name,
+            "product_name": product.title,
             "stock": product.stock,
             "requested_size": size,
             "requested_color": color,
-            "available_sizes": sorted(product.size),
-            "available_colors": sorted(product.color),
-            "price": product.base_price,
+            "available_sizes": sorted(
+                available_sizes
+            ),
+            "available_colors": sorted(
+                available_colors
+            ),
+            "price": product.price,
         }
 
     async def get_product_inquiry(
@@ -267,32 +249,46 @@ class ProductService:
         product_id: str,
     ) -> Optional[Product]:
         """
-        Retrieve full product details for an inquiry.
+        Retrieve a full product for product inquiry.
         """
 
-        return await self.get_product_by_id(tenant_id, product_id)
+        return await self.get_product_by_id(
+            tenant_id=tenant_id,
+            product_id=product_id,
+        )
 
     def entities_to_filters(
         self,
         entities: List[ExtractedEntity],
     ) -> ProductSearchFilters:
         """
-        Convert extracted entities into product search filters.
+        Convert extracted entities into product filters.
 
-        PRODUCT is treated as a free-text product query.
-        CATEGORY is treated as a category filter.
-        STYLE is mapped to the product 'type' field.
+        Supported with the current inventory schema:
+
+        PRODUCT  -> query
+        CATEGORY -> category
+        COLOR    -> color
+        SIZE     -> size
+        STYLE    -> type
+        PRICE    -> min/max price
         """
 
         filters = ProductSearchFilters()
 
         for entity in entities:
-            value = entity.normalized_value or entity.value
+            value = (
+                entity.normalized_value
+                or entity.value
+            )
 
             if not value:
                 continue
 
             value = value.strip()
+
+            if not value:
+                continue
 
             if entity.entity_type == EntityType.PRODUCT:
                 filters.query = value.lower()
@@ -300,97 +296,107 @@ class ProductService:
             elif entity.entity_type == EntityType.CATEGORY:
                 filters.category = value.lower()
 
-            elif entity.entity_type == EntityType.BRAND:
-                filters.brand = value.lower()
-
             elif entity.entity_type == EntityType.COLOR:
                 filters.color = value.lower()
 
             elif entity.entity_type == EntityType.SIZE:
                 filters.size = value.upper()
 
-            elif entity.entity_type == EntityType.FIT:
-                filters.fit = value.lower()
-
             elif entity.entity_type == EntityType.STYLE:
                 filters.type = value.lower()
 
-            elif entity.entity_type == EntityType.GENDER:
-                filters.gender = value.lower()
-
             elif entity.entity_type == EntityType.PRICE:
-                try:
-                    price = float(value)
-
-                    operator = (entity.metadata or {}).get(
-                        "operator",
-                        "exact",
-                    )
-
-                    if operator == "max":
-                        filters.max_price = price
-
-                    elif operator == "min":
-                        filters.min_price = price
-
-                    else:
-                        filters.max_price = price
-
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Unable to parse price entity: {value}"
-                    )
+                self._apply_price_entity(
+                    filters=filters,
+                    entity=entity,
+                    value=value,
+                )
 
         return filters
 
-    def product_to_response(self, product: Product) -> ResponseProduct:
+    @staticmethod
+    def _apply_price_entity(
+        filters: ProductSearchFilters,
+        entity: ExtractedEntity,
+        value: str,
+    ) -> None:
         """
-        Convert a Product model to a ResponseProduct for the bot response.
+        Convert a PRICE entity to price filters.
         """
 
-        sizes = sorted(product.size)
-        colors = sorted(product.color)
-        in_stock = product.stock > 0
-        price = product.base_price
-        sale_price = None
-        image = product.images[0] if product.images else None
-        product_type = product.type or product.sub_category
+        try:
+            price = float(value)
+        except (ValueError, TypeError):
+            logger.warning(
+                "Unable to parse price entity: %s",
+                value,
+            )
+            return
+
+        metadata = entity.metadata or {}
+
+        operator = metadata.get(
+            "operator",
+            "max",
+        )
+
+        if operator == "max":
+            filters.max_price = price
+
+        elif operator == "min":
+            filters.min_price = price
+
+        elif operator == "exact":
+            filters.min_price = price
+            filters.max_price = price
+
+        else:
+            # Safe default for phrases such as:
+            # "under 1500"
+            filters.max_price = price
+
+    @staticmethod
+    def product_to_response(
+        product: Product,
+    ) -> ResponseProduct:
+        """
+        Convert the actual inventory Product model
+        into a WhatsApp response product.
+        """
+
+        sizes = sorted(
+            product.size
+        )
+
+        colors = sorted(
+            product.color
+        )
+
+        in_stock = (
+            product.stock > 0
+        )
+
+        image = (
+            product.media[0]
+            if product.media
+            else None
+        )
 
         return ResponseProduct(
             product_id=product.id,
-            name=product.name,
-            price=price,
-            sale_price=sale_price,
-            currency=product.currency,
+            name=product.title,
+            price=product.price,
+            sale_price=None,
+            currency="INR",
             image=image,
             stock=product.stock,
             category=product.category,
-            product_type=product_type,
+            product_type=product.type,
             description=product.description,
             sizes_available=sizes,
             colors_available=colors,
             in_stock=in_stock,
         )
-
-    @staticmethod
-    def _normalize_document(doc: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert MongoDB identifiers to the string form used by Product."""
-        normalized = dict(doc)
-        if "_id" in normalized:
-            normalized["_id"] = str(normalized["_id"])
-        return normalized
-
-    @staticmethod
-    def _product_id_filter(product_id: str) -> Any:
-        """Match either a legacy string ID or a BSON ObjectId."""
-        candidates = [product_id]
-        try:
-            from bson import ObjectId
-            if ObjectId.is_valid(product_id):
-                candidates.append(ObjectId(product_id))
-        except ImportError:
-            pass
-        return {"$in": candidates} if len(candidates) > 1 else product_id
 
 
 product_service = ProductService()

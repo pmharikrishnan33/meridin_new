@@ -1,10 +1,20 @@
 """
-Repository layer for tenant data access.
+Repository layer for tenant/client data access.
 
-Resolves tenant-specific Meta / WhatsApp credentials from MongoDB so that
-each client can operate with its own ``phone_number_id``, ``access_token``,
-``webhook_verify_token``, and ``webhook_secret`` rather than relying solely
-on shared environment-level defaults.
+MongoDB collection:
+    clients
+
+Application/domain concept:
+    Tenant
+
+The MongoDB document uses:
+    _id
+    tenant_id
+    phone_number_id
+    access_token
+    webhook_verify_token
+    feature_flags
+    settings
 """
 
 from typing import Optional
@@ -17,74 +27,151 @@ from app.utils.logger import logger
 
 
 class TenantRepository:
-    """
-    MongoDB-backed repository for ``Tenant`` documents.
-
-    Every method degrades gracefully when MongoDB is unavailable — the
-    application falls back to shared environment-level configuration.
-    """
+    """MongoDB-backed repository for client/tenant configuration."""
 
     async def find_by_phone_number_id(
         self,
         phone_number_id: str,
     ) -> Optional[Tenant]:
-        """Find an active tenant by the WhatsApp Business phone-number ID."""
+        """
+        Resolve a tenant from the WhatsApp Business phone number ID.
+        """
+
         if not mongodb.is_connected or not phone_number_id:
             return None
 
-        doc = await collections.tenants.find_one(
+        doc = await collections.clients.find_one(
             {
                 "phone_number_id": phone_number_id,
                 "is_active": True,
             }
         )
-        if doc:
-            normalized_doc = normalize_mongo_doc(doc.copy())
-            return Tenant(**normalized_doc)
-        return None
 
-    async def find_by_id(self, tenant_id: str) -> Optional[Tenant]:
-        """Find an active tenant by its primary ID."""
+        if not doc:
+            return None
+
+        try:
+            return Tenant(
+                **normalize_mongo_doc(doc.copy())
+            )
+        except Exception:
+            logger.exception(
+                "Failed to parse tenant document for phone_number_id=%s",
+                phone_number_id,
+            )
+            return None
+
+    async def find_by_tenant_id(
+        self,
+        tenant_id: str,
+    ) -> Optional[Tenant]:
+        """
+        Resolve an active tenant using the application tenant_id.
+
+        Example:
+            meridin_clothing
+        """
+
         if not mongodb.is_connected or not tenant_id:
             return None
 
-        lookup_id = tenant_id
+        doc = await collections.clients.find_one(
+            {
+                "tenant_id": tenant_id,
+                "is_active": True,
+            }
+        )
+
+        if not doc:
+            return None
+
+        try:
+            return Tenant(
+                **normalize_mongo_doc(doc.copy())
+            )
+        except Exception:
+            logger.exception(
+                "Failed to parse tenant document for tenant_id=%s",
+                tenant_id,
+            )
+            return None
+
+    async def find_by_id(
+        self,
+        client_id: str,
+    ) -> Optional[Tenant]:
+        """
+        Resolve a tenant by MongoDB _id.
+
+        This is the internal client-document ID and is different
+        from tenant_id.
+        """
+
+        if not mongodb.is_connected or not client_id:
+            return None
+
+        lookup_id = client_id
+
         try:
             from bson import ObjectId
-            if ObjectId.is_valid(tenant_id):
-                lookup_id = {"$in": [tenant_id, ObjectId(tenant_id)]}
+
+            if ObjectId.is_valid(client_id):
+                lookup_id = ObjectId(client_id)
+
         except ImportError:
             pass
 
-        doc = await collections.tenants.find_one(
+        doc = await collections.clients.find_one(
             {
                 "_id": lookup_id,
                 "is_active": True,
             }
         )
-        if doc:
-            normalized_doc = normalize_mongo_doc(doc.copy())
-            return Tenant(**normalized_doc)
-        return None
 
-    async def verify_verify_token(self, verify_token: str) -> Optional[Tenant]:
+        if not doc:
+            return None
+
+        try:
+            return Tenant(
+                **normalize_mongo_doc(doc.copy())
+            )
+        except Exception:
+            logger.exception(
+                "Failed to parse tenant document for _id=%s",
+                client_id,
+            )
+            return None
+
+    async def verify_verify_token(
+        self,
+        verify_token: str,
+    ) -> Optional[Tenant]:
         """
-        Find a tenant whose ``webhook_verify_token`` matches the supplied
-        value during the Meta verification handshake.
+        Resolve the tenant during Meta webhook verification.
         """
+
         if not mongodb.is_connected or not verify_token:
             return None
 
-        doc = await collections.tenants.find_one(
+        doc = await collections.clients.find_one(
             {
                 "webhook_verify_token": verify_token,
                 "is_active": True,
             }
         )
-        if doc:
-            normalized_doc = normalize_mongo_doc(doc.copy())
-            return Tenant(**normalized_doc)
-        return None
+
+        if not doc:
+            return None
+
+        try:
+            return Tenant(
+                **normalize_mongo_doc(doc.copy())
+            )
+        except Exception:
+            logger.exception(
+                "Failed to parse tenant document during webhook verification"
+            )
+            return None
 
 
 tenant_repository = TenantRepository()

@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Meridin"
     APP_VERSION: str = "1.0.0"
 
-    DEBUG: bool = True
+    DEBUG: bool = False
+    WHATSAPP_GRAPH_API_VERSION: str = "v18.0"
 
     @field_validator("DEBUG", mode="before")
     @classmethod

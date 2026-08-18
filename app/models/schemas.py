@@ -134,22 +134,20 @@ class IncomingMessage(BaseModel):
 # ==========================================================
 
 class TenantFeatureFlags(BaseModel):
-    """
-    Feature flags per tenant - stored in MongoDB.
-    """
     enable_ai_responses: bool = True
     enable_product_recommendations: bool = True
+
+    # Future features — currently disabled/not implemented.
     enable_order_tracking: bool = False
     enable_returns: bool = False
     enable_cancellation: bool = False
+
     enable_human_handoff: bool = True
     enable_analytics: bool = True
-    max_products_per_response: int = 5
-    supported_languages: List[str] = Field(default_factory=lambda: ["en"])
-    business_hours: Dict[str, str] = Field(default_factory=dict)
-    auto_reply_outside_hours: bool = False
-    out_of_hours_message: str = "We're currently closed. We'll get back to you during business hours."
 
+    max_products_per_response: int = 5
+
+    auto_reply_outside_hours: bool = False
 
 class TenantSettings(BaseModel):
     """
@@ -222,53 +220,76 @@ class ProductVariant(BaseModel):
 
 class Product(BaseModel):
     """
-    Product model - stored in MongoDB (tenant-specific collection or shared with tenant_id).
+    Product document stored in:
+        inventory.<tenant_id>
     """
+
     id: str = Field(alias="_id")
+
     tenant_id: str
-    name: str = Field(alias="title")
-    description: str
+
+    title: str
+    description: str = ""
+
+    media: List[str] = Field(
+        default_factory=list
+    )
+
     category: str
     type: Optional[str] = None
-    sub_category: Optional[str] = None
-    brand: Optional[str] = None
-    gender: Optional[str] = None  # men, women, unisex, kids
-    base_price: float = Field(alias="price")
-    currency: str = "INR"
-    tags: List[str] = Field(default_factory=list)
-    attributes: Dict[str, Any] = Field(default_factory=dict)
-    color: List[str] = Field(default_factory=list)
-    size: List[str] = Field(default_factory=list)
-    stock: int = 0
-    images: List[str] = Field(default_factory=list, alias="media")
-    is_active: bool = True
-    is_featured: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = ConfigDict(populate_by_name=True)
+    color: List[str] = Field(
+        default_factory=list
+    )
+
+    size: List[str] = Field(
+        default_factory=list
+    )
+
+    color_ids: List[int] = Field(
+        default_factory=list
+    )
+
+    size_ids: List[int] = Field(
+        default_factory=list
+    )
+
+    price: float
+    stock: int = 0
+
+    age_group: Optional[str] = None
+    care_instructions: Optional[str] = None
+    target_customers: Optional[str] = None
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 class ProductSearchFilters(BaseModel):
-    """
-    Filters for product search.
-    """
     query: Optional[str] = None
+
     category: Optional[str] = None
     type: Optional[str] = None
-    sub_category: Optional[str] = None
-    brand: Optional[str] = None
+
     color: Optional[str] = None
     size: Optional[str] = None
-    fit: Optional[str] = None
+
     min_price: Optional[float] = None
     max_price: Optional[float] = None
+
     in_stock_only: bool = True
-    gender: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
+
+    age_group: Optional[str] = None
+
     limit: int = 10
     offset: int = 0
-    sort_by: str = "relevance"  # relevance, price_asc, price_desc, newest, popular
+
+    sort_by: str = "relevance"
 
 
 class ProductSearchResult(BaseModel):
