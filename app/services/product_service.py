@@ -261,22 +261,11 @@ class ProductService:
         self,
         entities: List[ExtractedEntity],
     ) -> ProductSearchFilters:
-        """
-        Convert extracted entities into product filters.
-
-        Supported with the current inventory schema:
-
-        PRODUCT  -> query
-        CATEGORY -> category
-        COLOR    -> color
-        SIZE     -> size
-        STYLE    -> type
-        PRICE    -> min/max price
-        """
 
         filters = ProductSearchFilters()
 
         for entity in entities:
+
             value = (
                 entity.normalized_value
                 or entity.value
@@ -290,22 +279,37 @@ class ProductService:
             if not value:
                 continue
 
-            if entity.entity_type == EntityType.PRODUCT:
+            entity_type = entity.entity_type
+
+            if entity_type == EntityType.PRODUCT:
                 filters.query = value.lower()
 
-            elif entity.entity_type == EntityType.CATEGORY:
+            elif entity_type == EntityType.CATEGORY:
                 filters.category = value.lower()
 
-            elif entity.entity_type == EntityType.COLOR:
+            elif entity_type == EntityType.COLOR:
                 filters.color = value.lower()
 
-            elif entity.entity_type == EntityType.SIZE:
+            elif entity_type == EntityType.SIZE:
                 filters.size = value.upper()
 
-            elif entity.entity_type == EntityType.STYLE:
+            elif entity_type == EntityType.STYLE:
                 filters.type = value.lower()
 
-            elif entity.entity_type == EntityType.PRICE:
+            elif entity_type == EntityType.BRAND:
+                filters.brand = value.lower()
+
+            elif entity_type == EntityType.MATERIAL:
+                filters.material = value.lower()
+
+            elif entity_type == EntityType.FIT:
+                filters.fit = value.lower()
+
+            elif entity_type == EntityType.GENDER:
+                filters.gender = value.lower()
+
+            elif entity_type == EntityType.PRICE:
+
                 self._apply_price_entity(
                     filters=filters,
                     entity=entity,

@@ -1,11 +1,31 @@
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.ruff_cache/
 .venv/
+
+# Environment
 .env
+.env.*
+!.env.example
+
+# Tests
+.pytest_cache/
+.coverage
 coverage.xml
 htmlcov/
+
+# Build
 dist/
 build/
 *.egg-info/
+
+# IDE
+.idea/
+.vscode/
+
+# Claude/local tooling
+.claude/
+
+# Logs
+logs/
+*.log

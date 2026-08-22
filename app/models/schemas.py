@@ -218,9 +218,27 @@ class ProductVariant(BaseModel):
     images: List[str] = Field(default_factory=list)
 
 
+class ProductVariant(BaseModel):
+    size: str
+    color: str
+    fit: Optional[str] = None
+
+    sku: str
+
+    stock: int = 0
+
+    price: float
+    sale_price: Optional[float] = None
+
+    images: List[str] = Field(
+        default_factory=list
+    )
+
+
 class Product(BaseModel):
     """
     Product document stored in:
+
         inventory.<tenant_id>
     """
 
@@ -228,15 +246,41 @@ class Product(BaseModel):
 
     tenant_id: str
 
+    # ------------------------------
+    # BASIC INFORMATION
+    # ------------------------------
+
     title: str
+
     description: str = ""
 
     media: List[str] = Field(
         default_factory=list
     )
 
+    # ------------------------------
+    # CLASSIFICATION
+    # ------------------------------
+
     category: str
+
     type: Optional[str] = None
+
+    brand: Optional[str] = None
+
+    material: Optional[str] = None
+
+    fit: Optional[str] = None
+
+    gender: Optional[str] = None
+
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
+    # ------------------------------
+    # ATTRIBUTES
+    # ------------------------------
 
     color: List[str] = Field(
         default_factory=list
@@ -254,32 +298,74 @@ class Product(BaseModel):
         default_factory=list
     )
 
+    # ------------------------------
+    # PRICE / STOCK
+    # ------------------------------
+
     price: float
+
+    sale_price: Optional[float] = None
+
     stock: int = 0
 
+    # ------------------------------
+    # OPTIONAL METADATA
+    # ------------------------------
+
     age_group: Optional[str] = None
+
     care_instructions: Optional[str] = None
+
     target_customers: Optional[str] = None
+
+    # ------------------------------
+    # VARIANTS
+    # ------------------------------
+
+    variants: List[ProductVariant] = Field(
+        default_factory=list
+    )
 
     created_at: datetime = Field(
         default_factory=datetime.utcnow
     )
 
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
     model_config = ConfigDict(
-        populate_by_name=True
+        populate_by_name=True,
+        extra="ignore",
     )
 
 
 class ProductSearchFilters(BaseModel):
+
     query: Optional[str] = None
 
     category: Optional[str] = None
+
     type: Optional[str] = None
 
+    brand: Optional[str] = None
+
+    material: Optional[str] = None
+
+    fit: Optional[str] = None
+
+    gender: Optional[str] = None
+
     color: Optional[str] = None
+
     size: Optional[str] = None
 
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
     min_price: Optional[float] = None
+
     max_price: Optional[float] = None
 
     in_stock_only: bool = True
@@ -287,9 +373,14 @@ class ProductSearchFilters(BaseModel):
     age_group: Optional[str] = None
 
     limit: int = 10
+
     offset: int = 0
 
     sort_by: str = "relevance"
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )
 
 
 class ProductSearchResult(BaseModel):
@@ -395,6 +486,7 @@ class Message(BaseModel):
     tenant_id: str
     conversation_id: str
     customer_id: str
+    whatsapp_message_id: Optional[str] = None
     direction: MessageDirection
     message_type: MessageType
     text: Optional[str] = None

@@ -31,20 +31,31 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
 
     IntentType.PRODUCT_SEARCH: IntentConfig(
         handler_class="ProductSearchHandler",
-        requires_entities=True,
-        # FIX: Only require the product. Do not block searches if color/size are missing.
-        required_entities=[EntityType.PRODUCT],
+
+        requires_entities=False,
+
+        required_entities=[],
+
         optional_entities=[
+            EntityType.PRODUCT,
             EntityType.COLOR,
             EntityType.SIZE,
             EntityType.FIT,
             EntityType.PRICE,
             EntityType.BRAND,
-            EntityType.CATEGORY
+            EntityType.CATEGORY,
+            EntityType.MATERIAL,
+            EntityType.GENDER,
+            EntityType.STYLE,
         ],
+
         min_confidence=0.25,
+
         response_type="structured",
-        allowed_tenant_features=["enable_product_recommendations"],
+
+        allowed_tenant_features=[
+            "enable_product_recommendations"
+        ],
     ),
 
     IntentType.PRODUCT_INQUIRY: IntentConfig(

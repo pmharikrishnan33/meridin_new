@@ -50,29 +50,41 @@ class MessageService:
     def __init__(self) -> None:
         self._conversation_keys: Dict[tuple[str, str], str] = {}
 
-    def understand(self, text: str) -> MessageUnderstanding:
-        """Create a single canonical understanding object for a text message."""
+    def understand(
+        self,
+        text: str,
+    ) -> MessageUnderstanding:
+
         if not text or not text.strip():
-            raise ValueError("Message text must not be empty.")
+            raise ValueError(
+                "Message text must not be empty."
+            )
 
-        # Run the full preprocessing pipeline
-        preprocessed = preprocessor.process(text)
-        normalized_text = preprocessed.vocabulary_matched
-
-        # FIX: Pass the typo-corrected text to the ML model, NOT the vocabulary_matched text.
-        # This allows the model to actually read words like "hi" or "cancel".
-        prediction = intent_classifier.predict(
-            preprocessed.vocabulary_matched
+        preprocessed = (
+            preprocessor.process(text)
         )
 
-        extraction = entity_extractor.extract(
-            preprocessed.vocabulary_matched,
-            intent=prediction.intent.value
+        # Use the normalized text as the canonical
+        # ML input. This preserves typo correction
+        # without aggressive vocabulary replacement.
+        ml_text = preprocessed.normalized
+
+        prediction = (
+            intent_classifier.predict(
+                ml_text
+            )
         )
-        
+
+        extraction = (
+            entity_extractor.extract(
+                ml_text,
+                intent=prediction.intent.value,
+            )
+        )
+
         return MessageUnderstanding(
             original_text=text,
-            normalized_text=normalized_text,
+            normalized_text=ml_text,
             intent=prediction.intent,
             intent_confidence=prediction.confidence,
             entities=extraction.entities,

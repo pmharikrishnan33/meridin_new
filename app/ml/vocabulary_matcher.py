@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import List, Dict, Set
-
+import re
 from rapidfuzz import process, fuzz
 
 from app.core.config import settings
@@ -88,19 +88,102 @@ class VocabularyMatcher:
         """
         return list(self._categories.get(category, set()))
 
-    def process(self, text: str, score_cutoff: int = 85) -> str:
-        """
-        Process entire text, matching each word to vocabulary.
-        """
+    def process(
+        self,
+        text: str,
+        score_cutoff: int = 85,
+    ) -> str:
+
         if not self.words:
             return text
 
-        words = text.split()
-        output = []
+        result = text
+
+        # ------------------------------------------
+        # Multi-word vocabulary first
+        # ------------------------------------------
+
+        phrases = sorted(
+            [
+                word
+                for word in self.words
+                if " " in word
+            ],
+            key=lambda value: len(
+                value.split()
+            ),
+            reverse=True,
+        )
+
+        for phrase in phrases:
+
+            pattern = re.compile(
+                rf"\b{re.escape(phrase)}\b",
+                re.IGNORECASE,
+            )
+
+            result = pattern.sub(
+                phrase,
+                result,
+            )
+
+        # ------------------------------------------
+        # Individual words
+        # ------------------------------------------
+
+        words = result.split()
+
+        output: List[str] = []
+
+        single_words = [
+            word
+            for word in self.words
+            if " " not in word
+        ]
 
         for word in words:
-            matched = self.match_word(word, score_cutoff)
-            output.append(matched)
+
+            clean_word = word.strip(
+                ".,!?;:()[]{}\"'"
+            )
+
+            if not clean_word:
+                output.append(word)
+                continue
+
+            # Don't fuzzy-match tiny words.
+            if len(clean_word) < 4:
+                output.append(clean_word)
+                continue
+
+            exact = next(
+                (
+                    vocabulary_word
+                    for vocabulary_word
+                    in single_words
+                    if vocabulary_word.lower()
+                    == clean_word.lower()
+                ),
+                None,
+            )
+
+            if exact:
+                output.append(exact)
+                continue
+
+            result_match = process.extractOne(
+                clean_word.lower(),
+                single_words,
+                scorer=fuzz.ratio,
+                score_cutoff=score_cutoff,
+            )
+
+            if result_match:
+                output.append(
+                    result_match[0]
+                )
+            else:
+                output.append(clean_word)
 
         return " ".join(output)
 

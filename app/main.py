@@ -62,11 +62,22 @@ async def health_check():
 
 
 @app.get("/health")
-async def detailed_health():
+async def health():
+
+    mongodb_ok = mongodb.is_connected
+
+    redis_ok = redis_cache.is_connected
 
     return {
-        "status": "healthy",
+        "status": (
+            "healthy"
+            if mongodb_ok
+            else "degraded"
+        ),
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "mongodb": "connected" if mongodb.is_connected else "disconnected"
+        "dependencies": {
+            "mongodb": mongodb_ok,
+            "redis": redis_ok,
+        },
     }

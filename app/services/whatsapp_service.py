@@ -761,9 +761,8 @@ class WhatsAppSender:
 
         except httpx.HTTPStatusError as exc:
             logger.error(
-                "WhatsApp API error: status=%s body=%s",
+                "WhatsApp API request failed: status=%s",
                 exc.response.status_code,
-                exc.response.text,
             )
 
             raise
