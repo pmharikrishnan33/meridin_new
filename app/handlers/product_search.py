@@ -59,12 +59,15 @@ class ProductSearchHandler(BaseHandler):
         try:
             page_size = max(1, min(int(configured_limit), 20))
         except (TypeError, ValueError):
-            page_size = 5
+            page_size = 3
         search_limit = 100
         filters.limit = search_limit
         filters.offset = 0
 
-        products = await product_service.search_products(tenant_id, filters)
+        products = await product_service.search_products(
+            tenant_id,
+            filters
+        )
         response_text = None
 
         # --- NEW: Zero-Result Fallback (Auto-select available color/filter) ---
@@ -114,59 +117,140 @@ class ProductSearchHandler(BaseHandler):
         page = inventory_search_service.build_search_page(
             tenant_id=tenant_id,
             filters=filters,
-            result_ids=[p.id for p in products],
+            result_ids=[
+                p.id for p in products
+            ],
             page=1,
-            page_size=page_size,
+            page_size=3,
         )
 
-        response_products = [
-            product_service.product_to_response(p) for p in products[:page_size]
-        ]
+        # =========================================================
+        # SAVE PAGINATION STATE
+        # =========================================================
 
         if conversation_context:
-            conversation_context.last_search_filters = filters.model_dump()
-            conversation_context.last_search_results = [p.id for p in products]
-            conversation_context.current_product = products[0].id
-            conversation_context.active_search_key = page["search_key"]
-            conversation_context.active_search_offset = page["offset"]
-            conversation_context.active_search_total = page["total"]
-            conversation_context.active_search_query = filters.query
-            conversation_context.active_search_filters = filters.model_dump(exclude_none=True)
-            conversation_context.active_search_page = page["page"]
-            conversation_context.active_search_page_size = page["page_size"]
-            conversation_context.active_search_results = [p.id for p in products]
 
-        if not response_text:
-            if len(products) == 1:
-                response_text = "I found this item for you:"
-            else:
-                if len(products) > page_size:
-                    response_text = (
-                        f"I found more products for you. Here are the first {page_size}:"
-                    )
-                else:
-                    response_text = f"I found {len(products)} items for you:"
+            conversation_context.last_search_filters = (
+                filters.model_dump()
+            )
 
-        quick_replies = [
-            {"label": "More Details", "value": "product_details"},
-            {"label": "Filter by Price", "value": "filter_price"},
+            conversation_context.last_search_results = [
+                p.id for p in products
+            ]
+
+            conversation_context.current_product = (
+                products[0].id
+            )
+
+            conversation_context.active_search_key = (
+                page["search_key"]
+            )
+
+            conversation_context.active_search_offset = (
+                page["offset"]
+            )
+
+            conversation_context.active_search_total = (
+                page["total"]
+            )
+
+            conversation_context.active_search_query = (
+                filters.query
+            )
+
+            conversation_context.active_search_filters = (
+                filters.model_dump(
+                    exclude_none=True
+                )
+            )
+
+            conversation_context.active_search_page = 1
+
+            conversation_context.active_search_page_size = 3
+
+            # IMPORTANT:
+            # Keep the COMPLETE ranked result list.
+            conversation_context.active_search_results = [
+                p.id for p in products
+            ]
+
+        # =========================================================
+        # FIRST THREE PRODUCTS ONLY
+        # =========================================================
+
+        response_products = [
+            product_service.product_to_response(
+                product
+            )
+            for product in products[:3]
         ]
-        if len(products) > page_size:
-            quick_replies.append({"label": "Show more", "value": "show_more"})
+
+        has_more = len(products) > 3
+
+        # =========================================================
+        # RESPONSE TEXT
+        # =========================================================
+
+        if len(products) == 1:
+
+            response_text = (
+                "I found this item for you:"
+            )
+
+        else:
+
+            response_text = (
+                "I found these products for you:"
+            )
+
+        # =========================================================
+        # ONLY SHOW MORE BUTTON
+        # =========================================================
+
+        quick_replies = []
+
+        if has_more:
+
+            quick_replies = [
+                {
+                    "label": "Show more",
+                    "value": "show_more",
+                }
+            ]
+
+        # =========================================================
+        # RESPONSE
+        # =========================================================
 
         return BotResponse(
             response_type="product_list",
+
             text=response_text,
+
             products=response_products,
+
             quick_replies=quick_replies,
+
             metadata={
                 "search_performed": True,
+
                 "results_count": len(products),
-                "filters_applied": filters.model_dump(exclude_none=True),
+
+                "filters_applied":
+                    filters.model_dump(
+                        exclude_none=True
+                    ),
+
                 "page": 1,
-                "page_size": page_size,
-                "has_more": len(products) > page_size,
-                "default_color": "No specific color",
+
+                "page_size": 3,
+
+                "has_more": has_more,
+
+                "total_results": len(products),
+
+                "default_color":
+                    "No specific color",
             },
         )
 

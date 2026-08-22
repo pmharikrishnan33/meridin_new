@@ -217,24 +217,6 @@ class ProductVariant(BaseModel):
     sale_price: Optional[float] = None
     images: List[str] = Field(default_factory=list)
 
-
-class ProductVariant(BaseModel):
-    size: str
-    color: str
-    fit: Optional[str] = None
-
-    sku: str
-
-    stock: int = 0
-
-    price: float
-    sale_price: Optional[float] = None
-
-    images: List[str] = Field(
-        default_factory=list
-    )
-
-
 class Product(BaseModel):
     """
     Product document stored in:
@@ -482,28 +464,62 @@ class Message(BaseModel):
     """
     Message model - stored in MongoDB.
     """
+
     id: Optional[str] = Field(default=None, alias="_id")
+
     tenant_id: str
     conversation_id: str
     customer_id: str
+
+    # WhatsApp provider message ID.
+    # For inbound messages this is Meta's incoming message ID.
+    # For outbound messages this is Meta's response message ID.
     whatsapp_message_id: Optional[str] = None
+
     direction: MessageDirection
     message_type: MessageType
+
     text: Optional[str] = None
+
     media_url: Optional[str] = None
     media_id: Optional[str] = None
     media_mime_type: Optional[str] = None
+
     intent: Optional[IntentType] = None
     intent_confidence: Optional[float] = None
-    entities: Dict[str, Any] = Field(default_factory=dict)
+
+    entities: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     response_to_message_id: Optional[str] = None
+
     is_from_bot: bool = False
-    bot_response_type: Optional[str] = None  # template, ai, structured
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = ConfigDict(populate_by_name=True)
+    bot_response_type: Optional[str] = None
 
+    # Delivery lifecycle:
+    # pending -> sending -> sent
+    # pending -> sending -> failed
+    delivery_status: Optional[str] = None
+
+    delivery_error: Optional[str] = None
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    sent_at: Optional[datetime] = None
+
+    failed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 # ==========================================================
 # ORDER

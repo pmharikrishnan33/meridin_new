@@ -18,6 +18,12 @@ from app.models.schemas import IncomingWhatsAppWebhook
 from app.services.message_service import message_service
 from app.services.whatsapp_service import whatsapp_sender
 from app.utils.logger import logger
+from app.services.whatsapp_inbound import (
+    normalize_whatsapp_message,
+)
+from app.services.message_service import (
+    DuplicateWhatsAppMessage,
+)
 
 
 router = APIRouter(tags=["messages"])
@@ -201,9 +207,103 @@ async def receive_whatsapp_webhook(
                 logger.warning("Rejected webhook change with mismatched phone number metadata.")
                 continue
             resolved_tenant_id = tenant.tenant_id
-            for message in value.get("messages", []):
-                text = (message.get("text") or {}).get("body")
-                sender = message.get("from")
+            for message in value.get(
+                "messages",
+                [],
+            ):
+
+                normalized = (
+                    normalize_whatsapp_message(
+                        message
+                    )
+                )
+
+                if not normalized:
+                    logger.info(
+                        "Ignoring unsupported WhatsApp message."
+                    )
+                    continue
+
+                sender = normalized[
+                    "user_id"
+                ]
+
+                text = normalized[
+                    "text"
+                ]
+
+                whatsapp_message_id = (
+                    normalized[
+                        "whatsapp_message_id"
+                    ]
+                )
+
+                if not resolved_tenant_id:
+                    continue
+
+                try:
+
+                    result = await (
+                        message_service.process(
+                            tenant_id=str(
+                                resolved_tenant_id
+                            ),
+
+                            user_id=str(
+                                sender
+                            ),
+
+                            text=text,
+
+                            tenant_settings=(
+                                _tenant_message_settings(
+                                    tenant
+                                )
+                            ),
+
+                            whatsapp_message_id=(
+                                whatsapp_message_id
+                            ),
+
+                            message_type=MessageType(
+                                normalized[
+                                    "message_type"
+                                ]
+                            ),
+
+                            inbound_metadata=(
+                                normalized.get(
+                                    "metadata",
+                                    {},
+                                )
+                            ),
+                        )
+                    )
+
+                except DuplicateWhatsAppMessage:
+
+                    logger.info(
+                        "Duplicate WhatsApp message ignored: %s",
+                        whatsapp_message_id,
+                    )
+
+                    processed.append({
+                        "status":
+                            "duplicate",
+
+                        "whatsapp_message_id":
+                            whatsapp_message_id,
+                    })
+
+                    continue
+
+                chat_response = (
+                    _to_chat_response(result)
+                )
+
+                processed.append(
+                    chat_response.model_dump()
+                )
                 if not resolved_tenant_id or not sender or not text:
                     continue
 

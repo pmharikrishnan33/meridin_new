@@ -7,6 +7,7 @@ Handles:
 - product availability
 - entity -> product filter conversion
 - response transformation
+- bulk product retrieval for pagination
 
 Database access belongs to ProductRepository.
 """
@@ -79,6 +80,48 @@ class ProductService:
         return await self.product_repository.find_by_id(
             tenant_id=tenant_id,
             product_id=product_id,
+        )
+
+    async def get_products_by_ids(
+        self,
+        tenant_id: str,
+        product_ids: List[str],
+    ) -> List[Product]:
+        """
+        Retrieve multiple products by their IDs.
+
+        Used by pagination so that the next three products
+        can be fetched in a single database operation.
+
+        IMPORTANT:
+        ProductRepository may not return products in the
+        same order as product_ids. The caller must restore
+        the original ranking/order when necessary.
+        """
+
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if not product_ids:
+            return []
+
+        # Remove invalid IDs while preserving order.
+        valid_product_ids = [
+            product_id
+            for product_id in product_ids
+            if product_id
+            and isinstance(product_id, str)
+            and product_id.strip()
+        ]
+
+        if not valid_product_ids:
+            return []
+
+        return await self.product_repository.find_by_ids(
+            tenant_id=tenant_id,
+            product_ids=valid_product_ids,
         )
 
     async def get_product_by_reference(
@@ -261,6 +304,10 @@ class ProductService:
         self,
         entities: List[ExtractedEntity],
     ) -> ProductSearchFilters:
+        """
+        Convert extracted entities into product
+        search filters.
+        """
 
         filters = ProductSearchFilters()
 
@@ -330,11 +377,14 @@ class ProductService:
 
         try:
             price = float(value)
+
         except (ValueError, TypeError):
+
             logger.warning(
                 "Unable to parse price entity: %s",
                 value,
             )
+
             return
 
         metadata = entity.metadata or {}
@@ -345,16 +395,20 @@ class ProductService:
         )
 
         if operator == "max":
+
             filters.max_price = price
 
         elif operator == "min":
+
             filters.min_price = price
 
         elif operator == "exact":
+
             filters.min_price = price
             filters.max_price = price
 
         else:
+
             # Safe default for phrases such as:
             # "under 1500"
             filters.max_price = price
