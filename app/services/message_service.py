@@ -1,109 +1,238 @@
+"""
+Message service.
+
+Responsible for:
+
+- message understanding
+- command detection
+- conversation/session management
+- inbound message persistence
+- intent routing
+- outbound message persistence
+- WhatsApp message idempotency
+"""
+
 from dataclasses import dataclass
 from typing import Any, Dict
+
 from uuid import uuid4
 
-from app.conversation.session import ConversationSession
-from app.conversation.manager import conversation_manager
+from app.conversation.session import (
+    ConversationSession,
+)
 
-from app.ml.entity_extractor import entity_extractor
-from app.ml.intent_classifier import intent_classifier
-from app.ml.preprocessor import preprocessor
+from app.conversation.manager import (
+    conversation_manager,
+)
+
+from app.ml.entity_extractor import (
+    entity_extractor,
+)
+
+from app.ml.intent_classifier import (
+    intent_classifier,
+)
+
+from app.ml.preprocessor import (
+    preprocessor,
+)
 
 from app.models.schemas import (
     BotResponse,
     EntityType,
     ExtractedEntity,
+    IntentType,
     Message,
     MessageDirection,
     MessageType,
     MessageUnderstanding,
-    IntentType,
 )
 
-from app.routing.intent_router import intent_router
+from app.routing.intent_router import (
+    intent_router,
+)
 
 
 DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
-    "welcome_message": "Welcome! How can I help you today?",
-    "fallback_message": "I didn't understand that. Could you please rephrase?",
+    "welcome_message":
+        "Welcome! How can I help you today?",
+
+    "fallback_message":
+        "I didn't understand that. "
+        "Could you please rephrase?",
+
     "feature_flags": {
-        "enable_ai_responses": True,
-        "enable_product_recommendations": True,
-        "enable_order_tracking": False,
-        "enable_returns": False,
-        "enable_cancellation": False,
-        "enable_human_handoff": True,
-        "enable_analytics": True,
-        "max_products_per_response": 5,
+
+        "enable_ai_responses":
+            True,
+
+        "enable_product_recommendations":
+            True,
+
+        "enable_order_tracking":
+            False,
+
+        "enable_returns":
+            False,
+
+        "enable_cancellation":
+            False,
+
+        "enable_human_handoff":
+            True,
+
+        "enable_analytics":
+            True,
+
+        # Product search itself uses a fixed
+        # WhatsApp page size of 3.
+        #
+        # This setting is kept for compatibility
+        # with existing tenant configuration.
+        "max_products_per_response":
+            5,
     },
 }
-
-@staticmethod
-def extract_command(
-    text: str,
-) -> str | None:
-
-    prefix = "__COMMAND__:"
-
-    if not text.startswith(prefix):
-        return None
-
-    command = text[
-        len(prefix):
-    ].strip()
-
-    return command or None
 
 
 @dataclass
 class ProcessedMessage:
+    """
+    Result returned after processing one inbound
+    WhatsApp message.
+    """
+
     conversation_id: str
+
     understanding: MessageUnderstanding
+
     response: BotResponse
+
     outbound_message_id: str | None = None
 
-class DuplicateWhatsAppMessage(Exception):
+
+class DuplicateWhatsAppMessage(
+    Exception
+):
     """
-    Raised when Meta sends the same WhatsApp message more than once.
+    Raised when Meta sends the same WhatsApp
+    message more than once.
     """
 
     def __init__(
         self,
         whatsapp_message_id: str,
     ):
+
         self.whatsapp_message_id = (
             whatsapp_message_id
         )
 
         super().__init__(
-            "WhatsApp message already processed: "
+            "WhatsApp message already "
+            "processed: "
             f"{whatsapp_message_id}"
         )
 
+
 class MessageService:
-    """Coordinates normalization, ML understanding, session state, and routing."""
+    """
+    Coordinates:
+
+    normalization
+        ↓
+    command detection
+        ↓
+    ML understanding
+        ↓
+    conversation state
+        ↓
+    intent routing
+        ↓
+    response persistence
+    """
 
     def __init__(self) -> None:
-        self._conversation_keys: Dict[tuple[str, str], str] = {}
+
+        self._conversation_keys: (
+            Dict[
+                tuple[str, str],
+                str,
+            ]
+        ) = {}
+
+    # =========================================================
+    # COMMAND EXTRACTION
+    # =========================================================
+
+    @staticmethod
+    def extract_command(
+        text: str,
+    ) -> str | None:
+        """
+        Extract an internal command from a normalized
+        WhatsApp interactive reply.
+
+        Example:
+
+            __COMMAND__:show_more
+
+        becomes:
+
+            show_more
+
+        Normal customer messages return None.
+        """
+
+        if not text:
+            return None
+
+        prefix = "__COMMAND__:"
+
+        if not text.startswith(
+            prefix
+        ):
+
+            return None
+
+        command = text[
+            len(prefix):
+        ].strip()
+
+        return command or None
+
+    # =========================================================
+    # MESSAGE UNDERSTANDING
+    # =========================================================
 
     def understand(
         self,
         text: str,
     ) -> MessageUnderstanding:
+        """
+        Run preprocessing, intent classification,
+        and entity extraction.
+        """
 
-        if not text or not text.strip():
+        if (
+            not text
+            or not text.strip()
+        ):
+
             raise ValueError(
                 "Message text must not be empty."
             )
 
         preprocessed = (
-            preprocessor.process(text)
+            preprocessor.process(
+                text
+            )
         )
 
-        # Use the normalized text as the canonical
-        # ML input. This preserves typo correction
-        # without aggressive vocabulary replacement.
-        ml_text = preprocessed.normalized
+        # Use normalized text as canonical ML input.
+        ml_text = (
+            preprocessed.normalized
+        )
 
         prediction = (
             intent_classifier.predict(
@@ -120,44 +249,128 @@ class MessageService:
 
         return MessageUnderstanding(
             original_text=text,
+
             normalized_text=ml_text,
+
             intent=prediction.intent,
-            intent_confidence=prediction.confidence,
-            entities=extraction.entities,
+
+            intent_confidence=(
+                prediction.confidence
+            ),
+
+            entities=(
+                extraction.entities
+            ),
         )
 
-    async def _get_or_create_session(self, tenant_id: str, user_id: str) -> ConversationSession:
-        """
-        Get or create a conversation session through the ConversationManager.
+    # =========================================================
+    # SESSION
+    # =========================================================
 
-        Uses the MongoDB-backed ConversationManager so that customer records
-        and conversation state are persisted when the database is available.
-        A local cache of (tenant_id, user_id) -> conversation_id keeps
-        sessions alive across requests even when MongoDB is disconnected.
+    async def _get_or_create_session(
+        self,
+        tenant_id: str,
+        user_id: str,
+    ) -> ConversationSession:
         """
-        key = (tenant_id, user_id)
-        conversation_id = self._conversation_keys.get(key)
+        Get or create a conversation session.
+
+        MongoDB-backed ConversationManager is the
+        persistent source of truth.
+        """
+
+        key = (
+            tenant_id,
+            user_id,
+        )
+
+        conversation_id = (
+            self._conversation_keys.get(
+                key
+            )
+        )
+
         if conversation_id:
-            existing = conversation_manager.get_session(conversation_id)
+
+            existing = (
+                conversation_manager
+                .get_session(
+                    conversation_id
+                )
+            )
+
             if existing:
                 return existing
 
-        # Resolve customer (persisted when MongoDB is available, transient otherwise)
-        customer = await conversation_manager.get_or_create_customer(
-            tenant_id=tenant_id,
-            phone_number=user_id,
-            wa_id=user_id,
+        # -----------------------------------------------------
+        # CUSTOMER
+        # -----------------------------------------------------
+
+        customer = (
+            await conversation_manager
+            .get_or_create_customer(
+                tenant_id=tenant_id,
+                phone_number=user_id,
+                wa_id=user_id,
+            )
         )
 
-        # Get or create the conversation session via the manager
-        session = await conversation_manager.get_or_create_conversation(
-            tenant_id=tenant_id,
-            customer_id=customer.id,
-            customer_phone=user_id,
+        # -----------------------------------------------------
+        # CONVERSATION
+        # -----------------------------------------------------
+
+        session = (
+            await conversation_manager
+            .get_or_create_conversation(
+                tenant_id=tenant_id,
+                customer_id=customer.id,
+                customer_phone=user_id,
+            )
         )
 
-        self._conversation_keys[key] = session.conversation_id
+        self._conversation_keys[
+            key
+        ] = session.conversation_id
+
         return session
+
+    # =========================================================
+    # TENANT SETTINGS
+    # =========================================================
+
+    @staticmethod
+    def _merge_tenant_settings(
+        tenant_settings: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        """
+        Merge tenant settings with safe defaults.
+        """
+
+        tenant_settings = (
+            tenant_settings or {}
+        )
+
+        return {
+            **DEFAULT_TENANT_SETTINGS,
+
+            **tenant_settings,
+
+            "feature_flags": {
+
+                **DEFAULT_TENANT_SETTINGS[
+                    "feature_flags"
+                ],
+
+                **tenant_settings.get(
+                    "feature_flags",
+                    {},
+                ),
+            },
+        }
+
+    # =========================================================
+    # MAIN PROCESS
+    # =========================================================
 
     async def process(
         self,
@@ -167,18 +380,32 @@ class MessageService:
         text: str,
         tenant_settings: Dict[str, Any] | None = None,
         whatsapp_message_id: str | None = None,
-        message_type: MessageType = MessageType.TEXT,
+        message_type: MessageType = (
+            MessageType.TEXT
+        ),
         inbound_metadata: Dict[str, Any] | None = None,
     ) -> ProcessedMessage:
+        """
+        Process one inbound WhatsApp message.
 
-        if not text or not text.strip():
+        Important:
+
+        A WhatsApp message is processed exactly once
+        when its WhatsApp message ID is available.
+        """
+
+        if (
+            not text
+            or not text.strip()
+        ):
+
             raise ValueError(
                 "Message text must not be empty."
             )
 
-        # =========================================================
+        # =====================================================
         # IDEMPOTENCY
-        # =========================================================
+        # =====================================================
 
         if whatsapp_message_id:
 
@@ -186,6 +413,7 @@ class MessageService:
                 await conversation_manager
                 .get_message_by_whatsapp_id(
                     tenant_id=tenant_id,
+
                     whatsapp_message_id=(
                         whatsapp_message_id
                     ),
@@ -193,54 +421,71 @@ class MessageService:
             )
 
             if existing:
+
                 raise DuplicateWhatsAppMessage(
                     whatsapp_message_id
                 )
 
-        # =========================================================
+        # =====================================================
         # COMMAND
-        # =========================================================
+        # =====================================================
 
-        command = self.extract_command(
-            text
+        command = (
+            self.extract_command(
+                text
+            )
         )
 
         if command:
 
             return await self.process_command(
                 tenant_id=tenant_id,
+
                 user_id=user_id,
+
                 command=command,
+
                 whatsapp_message_id=(
                     whatsapp_message_id
                 ),
-                tenant_settings=tenant_settings,
-                message_type=message_type,
+
+                tenant_settings=(
+                    tenant_settings
+                ),
+
+                message_type=(
+                    message_type
+                ),
+
                 inbound_metadata=(
                     inbound_metadata
                 ),
             )
 
-        # =========================================================
+        # =====================================================
         # NORMAL TEXT → ML
-        # =========================================================
+        # =====================================================
 
-        understanding = self.understand(
-            text
+        understanding = (
+            self.understand(
+                text
+            )
         )
 
-        # =========================================================
+        # =====================================================
         # SESSION
-        # =========================================================
+        # =====================================================
 
-        session = await self._get_or_create_session(
-            tenant_id,
-            user_id,
+        session = (
+            await self._get_or_create_session(
+                tenant_id,
+                user_id,
+            )
         )
 
-        # =========================================================
+        # =====================================================
         # REPLY CONTEXT
-        # =========================================================
+        # =====================================================
 
         reply_product = (
             session.resolve_reply_context(
@@ -252,44 +497,67 @@ class MessageService:
 
             understanding.entities.append(
                 ExtractedEntity(
-                    entity_type=EntityType.PRODUCT,
+                    entity_type=(
+                        EntityType.PRODUCT
+                    ),
+
                     value=reply_product,
+
                     confidence=1.0,
-                    normalized_value=reply_product,
+
+                    normalized_value=(
+                        reply_product
+                    ),
                 )
             )
 
-        # =========================================================
-        # SAVE INBOUND
-        # =========================================================
+        # =====================================================
+        # INBOUND MESSAGE
+        # =====================================================
 
         inbound_msg = Message(
             id=str(uuid4()),
 
             tenant_id=tenant_id,
-            conversation_id=session.conversation_id,
-            customer_id=session.customer_id,
+
+            conversation_id=(
+                session.conversation_id
+            ),
+
+            customer_id=(
+                session.customer_id
+            ),
 
             whatsapp_message_id=(
                 whatsapp_message_id
             ),
 
-            direction=MessageDirection.INBOUND,
+            direction=(
+                MessageDirection.INBOUND
+            ),
 
-            message_type=message_type,
+            message_type=(
+                message_type
+            ),
 
             text=text,
 
-            intent=understanding.intent,
+            intent=(
+                understanding.intent
+            ),
 
             intent_confidence=(
                 understanding.intent_confidence
             ),
 
             entities={
-                e.entity_type.value:
-                    e.normalized_value or e.value
-                for e in understanding.entities
+                entity.entity_type.value:
+                    (
+                        entity.normalized_value
+                        or entity.value
+                    )
+                for entity
+                in understanding.entities
             },
 
             metadata=(
@@ -297,23 +565,38 @@ class MessageService:
             ),
         )
 
-        await conversation_manager.save_message(
-            inbound_msg
+        await (
+            conversation_manager
+            .save_message(
+                inbound_msg
+            )
         )
 
-        # =========================================================
-        # SESSION
-        # =========================================================
+        # =====================================================
+        # SESSION INBOUND
+        # =====================================================
 
         session.add_message(
             message_id=inbound_msg.id,
-            direction=MessageDirection.INBOUND,
+
+            direction=(
+                MessageDirection.INBOUND
+            ),
+
             text=text,
-            intent=understanding.intent,
+
+            intent=(
+                understanding.intent
+            ),
+
             intent_confidence=(
                 understanding.intent_confidence
             ),
-            entities=understanding.entities,
+
+            entities=(
+                understanding.entities
+            ),
+
             metadata=(
                 {
                     "reply_context_product":
@@ -328,51 +611,58 @@ class MessageService:
             understanding
         )
 
-        # =========================================================
+        # =====================================================
         # SETTINGS
-        # =========================================================
+        # =====================================================
 
-        settings = {
-            **DEFAULT_TENANT_SETTINGS,
-            **(tenant_settings or {}),
-            "feature_flags": {
-                **DEFAULT_TENANT_SETTINGS[
-                    "feature_flags"
-                ],
-                **(tenant_settings or {}).get(
-                    "feature_flags",
-                    {},
-                ),
-            },
-        }
-
-        # =========================================================
-        # ROUTE
-        # =========================================================
-
-        response = await intent_router.route(
-            understanding=understanding,
-            tenant_id=tenant_id,
-            tenant_settings=settings,
-            conversation_id=(
-                session.conversation_id
-            ),
+        settings = (
+            self._merge_tenant_settings(
+                tenant_settings
+            )
         )
 
-        # =========================================================
-        # SAVE OUTBOUND
-        # =========================================================
+        # =====================================================
+        # ROUTING
+        # =====================================================
+
+        response = (
+            await intent_router.route(
+                understanding=understanding,
+
+                tenant_id=tenant_id,
+
+                tenant_settings=settings,
+
+                conversation_id=(
+                    session.conversation_id
+                ),
+            )
+        )
+
+        # =====================================================
+        # OUTBOUND MESSAGE
+        # =====================================================
 
         outbound_msg = Message(
             id=str(uuid4()),
 
             tenant_id=tenant_id,
-            conversation_id=session.conversation_id,
-            customer_id=session.customer_id,
 
-            direction=MessageDirection.OUTBOUND,
+            conversation_id=(
+                session.conversation_id
+            ),
 
-            message_type=MessageType.TEXT,
+            customer_id=(
+                session.customer_id
+            ),
+
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
+
+            message_type=(
+                MessageType.TEXT
+            ),
 
             text=response.text or "",
 
@@ -393,8 +683,9 @@ class MessageService:
                     response.response_type,
 
                 "product_ids": [
-                    p.product_id
-                    for p in response.products
+                    product.product_id
+                    for product
+                    in response.products
                 ],
 
                 "source_message_id":
@@ -402,43 +693,69 @@ class MessageService:
             },
         )
 
-        await conversation_manager.save_message(
-            outbound_msg
+        await (
+            conversation_manager
+            .save_message(
+                outbound_msg
+            )
         )
 
-        # =========================================================
+        # =====================================================
         # SESSION OUTBOUND
-        # =========================================================
+        # =====================================================
 
         session.add_message(
             message_id=outbound_msg.id,
-            direction=MessageDirection.OUTBOUND,
+
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
+
             text=response.text or "",
+
             is_from_bot=True,
+
             bot_response_type=(
                 response.response_type
             ),
+
             metadata={
                 "outbound_message_id":
                     outbound_msg.id,
             },
         )
 
-        await conversation_manager.save_session(
-            session
+        await (
+            conversation_manager
+            .save_session(
+                session
+            )
         )
+
+        # =====================================================
+        # RESULT
+        # =====================================================
 
         return ProcessedMessage(
             conversation_id=(
                 session.conversation_id
             ),
-            understanding=understanding,
+
+            understanding=(
+                understanding
+            ),
+
             response=response,
+
             outbound_message_id=(
                 outbound_msg.id
             ),
         )
-        
+
+    # =========================================================
+    # COMMAND PROCESSING
+    # =========================================================
+
     async def process_command(
         self,
         *,
@@ -450,54 +767,162 @@ class MessageService:
         message_type: MessageType,
         inbound_metadata: Dict[str, Any] | None,
     ) -> ProcessedMessage:
+        """
+        Process internal commands generated by
+        WhatsApp interactive replies.
 
-        command = command.strip().lower()
+        Currently supported:
 
-        # =========================================================
-        # GET SESSION
-        # =========================================================
+            show_more
+        """
 
-        session = await self._get_or_create_session(
-            tenant_id,
-            user_id,
+        command = (
+            command.strip().lower()
         )
 
-        # =========================================================
-        # CREATE UNDERSTANDING
-        # =========================================================
+        # =====================================================
+        # SESSION
+        # =====================================================
 
-        understanding = MessageUnderstanding(
-            original_text=command,
-            normalized_text=command,
-            intent=IntentType.PAGINATION,
-            intent_confidence=1.0,
-            entities=[],
+        session = (
+            await self._get_or_create_session(
+                tenant_id,
+                user_id,
+            )
         )
 
-        # =========================================================
-        # SAVE COMMAND AS INBOUND MESSAGE
-        # =========================================================
+        # =====================================================
+        # COMMAND VALIDATION
+        # =====================================================
+
+        if command != "show_more":
+
+            # Still persist the unknown command as an
+            # inbound message so debugging is possible.
+
+            understanding = MessageUnderstanding(
+                original_text=command,
+
+                normalized_text=command,
+
+                intent=IntentType.PAGINATION,
+
+                intent_confidence=1.0,
+
+                entities=[],
+            )
+
+            response = BotResponse(
+                response_type="text",
+
+                text=(
+                    "I couldn't process that "
+                    "selection. Please try again."
+                ),
+
+                products=[],
+
+                quick_replies=[],
+
+                metadata={
+                    "command":
+                        command,
+
+                    "success":
+                        False,
+                },
+            )
+
+        else:
+
+            # =================================================
+            # PAGINATION UNDERSTANDING
+            # =================================================
+
+            understanding = (
+                MessageUnderstanding(
+                    original_text=command,
+
+                    normalized_text=command,
+
+                    intent=(
+                        IntentType.PAGINATION
+                    ),
+
+                    intent_confidence=1.0,
+
+                    entities=[],
+                )
+            )
+
+            # =================================================
+            # SETTINGS
+            # =================================================
+
+            settings = (
+                self._merge_tenant_settings(
+                    tenant_settings
+                )
+            )
+
+            # =================================================
+            # PAGINATION ROUTER
+            # =================================================
+
+            response = (
+                await intent_router.route(
+                    understanding=(
+                        understanding
+                    ),
+
+                    tenant_id=tenant_id,
+
+                    tenant_settings=settings,
+
+                    conversation_id=(
+                        session.conversation_id
+                    ),
+                )
+            )
+
+        # =====================================================
+        # SAVE INBOUND COMMAND
+        # =====================================================
 
         inbound_msg = Message(
             id=str(uuid4()),
 
             tenant_id=tenant_id,
-            conversation_id=session.conversation_id,
-            customer_id=session.customer_id,
+
+            conversation_id=(
+                session.conversation_id
+            ),
+
+            customer_id=(
+                session.customer_id
+            ),
 
             whatsapp_message_id=(
                 whatsapp_message_id
             ),
 
-            direction=MessageDirection.INBOUND,
+            direction=(
+                MessageDirection.INBOUND
+            ),
 
-            message_type=message_type,
+            message_type=(
+                message_type
+            ),
 
             text=command,
 
-            intent=IntentType.PAGINATION,
+            intent=(
+                understanding.intent
+            ),
 
-            intent_confidence=1.0,
+            intent_confidence=(
+                understanding.intent_confidence
+            ),
 
             entities={},
 
@@ -506,85 +931,61 @@ class MessageService:
             ),
         )
 
-        await conversation_manager.save_message(
-            inbound_msg
+        await (
+            conversation_manager
+            .save_message(
+                inbound_msg
+            )
         )
 
         session.add_message(
             message_id=inbound_msg.id,
-            direction=MessageDirection.INBOUND,
+
+            direction=(
+                MessageDirection.INBOUND
+            ),
+
             text=command,
-            intent=IntentType.PAGINATION,
-            intent_confidence=1.0,
+
+            intent=(
+                understanding.intent
+            ),
+
+            intent_confidence=(
+                understanding.intent_confidence
+            ),
+
             entities=[],
+
             metadata=(
                 inbound_metadata or {}
             ),
         )
 
-        # =========================================================
-        # ONLY SHOW_MORE IS SUPPORTED HERE
-        # =========================================================
-
-        if command != "show_more":
-
-            response = BotResponse(
-                response_type="text",
-                text=(
-                    "I couldn't process that "
-                    "selection. Please try again."
-                ),
-                products=[],
-                quick_replies=[],
-                metadata={
-                    "command": command,
-                    "success": False,
-                },
-            )
-
-        else:
-
-            # =====================================================
-            # ROUTE PAGINATION
-            # =====================================================
-
-            settings = {
-                **DEFAULT_TENANT_SETTINGS,
-                **(tenant_settings or {}),
-                "feature_flags": {
-                    **DEFAULT_TENANT_SETTINGS[
-                        "feature_flags"
-                    ],
-                    **(tenant_settings or {}).get(
-                        "feature_flags",
-                        {},
-                    ),
-                },
-            }
-
-            response = await intent_router.route(
-                understanding=understanding,
-                tenant_id=tenant_id,
-                tenant_settings=settings,
-                conversation_id=(
-                    session.conversation_id
-                ),
-            )
-
-        # =========================================================
+        # =====================================================
         # SAVE OUTBOUND
-        # =========================================================
+        # =====================================================
 
         outbound_msg = Message(
             id=str(uuid4()),
 
             tenant_id=tenant_id,
-            conversation_id=session.conversation_id,
-            customer_id=session.customer_id,
 
-            direction=MessageDirection.OUTBOUND,
+            conversation_id=(
+                session.conversation_id
+            ),
 
-            message_type=MessageType.TEXT,
+            customer_id=(
+                session.customer_id
+            ),
+
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
+
+            message_type=(
+                MessageType.TEXT
+            ),
 
             text=response.text or "",
 
@@ -605,49 +1006,80 @@ class MessageService:
                     response.response_type,
 
                 "product_ids": [
-                    p.product_id
-                    for p in response.products
+                    product.product_id
+                    for product
+                    in response.products
                 ],
 
                 "source_message_id":
                     inbound_msg.id,
 
-                "pagination": True,
+                "pagination":
+                    command == "show_more",
             },
         )
 
-        await conversation_manager.save_message(
-            outbound_msg
+        await (
+            conversation_manager
+            .save_message(
+                outbound_msg
+            )
         )
+
+        # =====================================================
+        # SESSION OUTBOUND
+        # =====================================================
 
         session.add_message(
             message_id=outbound_msg.id,
-            direction=MessageDirection.OUTBOUND,
+
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
+
             text=response.text or "",
+
             is_from_bot=True,
+
             bot_response_type=(
                 response.response_type
             ),
+
             metadata={
-                "pagination": True,
+                "pagination":
+                    command == "show_more",
+
                 "outbound_message_id":
                     outbound_msg.id,
             },
         )
 
-        await conversation_manager.save_session(
-            session
+        await (
+            conversation_manager
+            .save_session(
+                session
+            )
         )
+
+        # =====================================================
+        # RESULT
+        # =====================================================
 
         return ProcessedMessage(
             conversation_id=(
                 session.conversation_id
             ),
-            understanding=understanding,
+
+            understanding=(
+                understanding
+            ),
+
             response=response,
+
             outbound_message_id=(
                 outbound_msg.id
             ),
         )
+
 
 message_service = MessageService()
