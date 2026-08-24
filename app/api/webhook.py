@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.models.schemas import (
     IncomingWhatsAppWebhook,
     MessageType,
+    Tenant,
 )
 from app.services.message_service import (
     DuplicateWhatsAppMessage,
@@ -195,24 +196,12 @@ async def receive_whatsapp_webhook(
     # =========================================================
     # 2. READ RAW BODY
     # =========================================================
-
     raw_body = await request.body()
-
-    # =========================================================
-    # 3. BODY SIZE
-    # =========================================================
 
     check_body_size(raw_body)
 
-    # =========================================================
-    # =========================================================
-    # 4. TENANT RESOLUTION
-    # =========================================================
-
-    metadata_phone_number_id = (
-        _extract_metadata_phone_number_id(
-            raw_body
-        )
+    metadata_phone_number_id = _extract_metadata_phone_number_id(
+        raw_body
     )
 
     (
@@ -224,16 +213,22 @@ async def receive_whatsapp_webhook(
         metadata_phone_number_id,
     )
 
-    # =========================================================
-    # 5. SIGNATURE VERIFICATION
-    # =========================================================
+    rate_limit_tenant_id = (
+        tenant.tenant_id
+        if tenant is not None
+        else metadata_phone_number_id or x_tenant_id or "default"
+    )
+
+    await rate_limiter.check(
+        request,
+        tenant_id=str(rate_limit_tenant_id),
+    )
 
     verify_tenant_signature(
         raw_body,
         x_hub_signature_256,
         tenant,
     )
-
     # =========================================================
     # 6. PARSE JSON
     # =========================================================

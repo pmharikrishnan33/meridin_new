@@ -2,15 +2,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from pymongo.errors import ConnectionFailure
-
+from app.database.indexes import ensure_indexes
 from app.core.config import settings
 from app.utils.logger import logger
 from app.database.mongodb import mongodb
 from app.database.redis_cache import redis_cache
 from app.api.webhook import router as message_router
-
-from fastapi.responses import HTMLResponse
-from pathlib import Path
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,10 +20,13 @@ async def lifespan(app: FastAPI):
 
     try:
         await mongodb.connect()
+        await ensure_indexes()
     except ConnectionFailure:
         if settings.MONGODB_REQUIRED:
             raise
-        logger.warning("MongoDB is unavailable; running in stateless ML-only mode.")
+        logger.warning(
+            "MongoDB is unavailable; running in stateless ML-only mode."
+        )
 
     await redis_cache.connect()
 

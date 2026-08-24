@@ -17,8 +17,7 @@ The MongoDB document uses:
     settings
 """
 
-from typing import Optional
-
+from typing import Any, Optional
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Tenant

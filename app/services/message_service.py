@@ -10,11 +10,31 @@ Responsible for:
 - intent routing
 - outbound message persistence
 - WhatsApp message idempotency
+- outbound delivery status updates
+
+Important:
+
+This service does NOT send messages to WhatsApp.
+
+The workflow is:
+
+    MessageService
+        ↓
+    create outbound message
+        ↓
+    delivery_status = pending
+        ↓
+    webhook.py / WhatsAppSender
+        ↓
+    Meta WhatsApp API
+        ↓
+    MessageService.mark_outbound_sent()
+        OR
+    MessageService.mark_outbound_failed()
 """
 
 from dataclasses import dataclass
 from typing import Any, Dict
-
 from uuid import uuid4
 
 from app.conversation.session import (
@@ -54,43 +74,27 @@ from app.routing.intent_router import (
 
 
 DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
-    "welcome_message":
-        "Welcome! How can I help you today?",
+    "welcome_message": (
+        "Welcome! How can I help you today?"
+    ),
 
-    "fallback_message":
+    "fallback_message": (
         "I didn't understand that. "
-        "Could you please rephrase?",
+        "Could you please rephrase?"
+    ),
 
     "feature_flags": {
+        "enable_ai_responses": True,
+        "enable_product_recommendations": True,
+        "enable_order_tracking": False,
+        "enable_returns": False,
+        "enable_cancellation": False,
+        "enable_human_handoff": True,
+        "enable_analytics": True,
 
-        "enable_ai_responses":
-            True,
-
-        "enable_product_recommendations":
-            True,
-
-        "enable_order_tracking":
-            False,
-
-        "enable_returns":
-            False,
-
-        "enable_cancellation":
-            False,
-
-        "enable_human_handoff":
-            True,
-
-        "enable_analytics":
-            True,
-
-        # Product search itself uses a fixed
-        # WhatsApp page size of 3.
-        #
-        # This setting is kept for compatibility
-        # with existing tenant configuration.
-        "max_products_per_response":
-            5,
+        # Product search itself uses the WhatsApp
+        # response limit enforced by the sender.
+        "max_products_per_response": 5,
     },
 }
 
@@ -111,9 +115,7 @@ class ProcessedMessage:
     outbound_message_id: str | None = None
 
 
-class DuplicateWhatsAppMessage(
-    Exception
-):
+class DuplicateWhatsAppMessage(Exception):
     """
     Raised when Meta sends the same WhatsApp
     message more than once.
@@ -122,7 +124,7 @@ class DuplicateWhatsAppMessage(
     def __init__(
         self,
         whatsapp_message_id: str,
-    ):
+    ) -> None:
 
         self.whatsapp_message_id = (
             whatsapp_message_id
@@ -139,17 +141,22 @@ class MessageService:
     """
     Coordinates:
 
-    normalization
-        ↓
-    command detection
-        ↓
-    ML understanding
-        ↓
-    conversation state
-        ↓
-    intent routing
-        ↓
-    response persistence
+        normalization
+            ↓
+        command detection
+            ↓
+        ML understanding
+            ↓
+        conversation state
+            ↓
+        intent routing
+            ↓
+        response persistence
+            ↓
+        delivery status update
+
+    MessageService does NOT communicate directly
+    with Meta WhatsApp API.
     """
 
     def __init__(self) -> None:
@@ -189,15 +196,10 @@ class MessageService:
 
         prefix = "__COMMAND__:"
 
-        if not text.startswith(
-            prefix
-        ):
-
+        if not text.startswith(prefix):
             return None
 
-        command = text[
-            len(prefix):
-        ].strip()
+        command = text[len(prefix):].strip()
 
         return command or None
 
@@ -214,22 +216,15 @@ class MessageService:
         and entity extraction.
         """
 
-        if (
-            not text
-            or not text.strip()
-        ):
-
+        if not text or not text.strip():
             raise ValueError(
                 "Message text must not be empty."
             )
 
         preprocessed = (
-            preprocessor.process(
-                text
-            )
+            preprocessor.process(text)
         )
 
-        # Use normalized text as canonical ML input.
         ml_text = (
             preprocessed.normalized
         )
@@ -249,18 +244,12 @@ class MessageService:
 
         return MessageUnderstanding(
             original_text=text,
-
             normalized_text=ml_text,
-
             intent=prediction.intent,
-
             intent_confidence=(
                 prediction.confidence
             ),
-
-            entities=(
-                extraction.entities
-            ),
+            entities=extraction.entities,
         )
 
     # =========================================================
@@ -285,16 +274,13 @@ class MessageService:
         )
 
         conversation_id = (
-            self._conversation_keys.get(
-                key
-            )
+            self._conversation_keys.get(key)
         )
 
         if conversation_id:
 
             existing = (
-                conversation_manager
-                .get_session(
+                conversation_manager.get_session(
                     conversation_id
                 )
             )
@@ -356,7 +342,6 @@ class MessageService:
             **tenant_settings,
 
             "feature_flags": {
-
                 **DEFAULT_TENANT_SETTINGS[
                     "feature_flags"
                 ],
@@ -367,6 +352,80 @@ class MessageService:
                 ),
             },
         }
+
+    # =========================================================
+    # OUTBOUND DELIVERY STATUS
+    # =========================================================
+
+    async def mark_outbound_sent(
+        self,
+        outbound_message_id: str,
+        whatsapp_message_id: str | None = None,
+    ) -> None:
+        """
+        Mark an outbound message as successfully sent.
+
+        This method must be called AFTER Meta accepts
+        the outbound WhatsApp message.
+
+        Example workflow:
+
+            MessageService.process()
+                ↓
+            pending
+                ↓
+            WhatsAppSender.send_bot_response()
+                ↓
+            Meta success
+                ↓
+            mark_outbound_sent()
+        """
+
+        if not outbound_message_id:
+            raise ValueError(
+                "outbound_message_id is required"
+            )
+
+        await (
+            conversation_manager
+            .update_message_delivery(
+                outbound_message_id,
+                status="sent",
+                whatsapp_message_id=(
+                    whatsapp_message_id
+                ),
+            )
+        )
+
+    async def mark_outbound_failed(
+        self,
+        outbound_message_id: str,
+        error: str,
+    ) -> None:
+        """
+        Mark an outbound message as failed.
+
+        This method must be called when the WhatsApp
+        provider rejects the message or the send
+        operation raises an exception.
+        """
+
+        if not outbound_message_id:
+            raise ValueError(
+                "outbound_message_id is required"
+            )
+
+        if not error:
+            error = "Unknown WhatsApp delivery error"
+
+        await (
+            conversation_manager
+            .update_message_delivery(
+                outbound_message_id,
+                status="failed",
+                error=error[:2000],
+            )
+        )
 
     # =========================================================
     # MAIN PROCESS
@@ -388,17 +447,11 @@ class MessageService:
         """
         Process one inbound WhatsApp message.
 
-        Important:
-
         A WhatsApp message is processed exactly once
         when its WhatsApp message ID is available.
         """
 
-        if (
-            not text
-            or not text.strip()
-        ):
-
+        if not text or not text.strip():
             raise ValueError(
                 "Message text must not be empty."
             )
@@ -413,7 +466,6 @@ class MessageService:
                 await conversation_manager
                 .get_message_by_whatsapp_id(
                     tenant_id=tenant_id,
-
                     whatsapp_message_id=(
                         whatsapp_message_id
                     ),
@@ -421,7 +473,6 @@ class MessageService:
             )
 
             if existing:
-
                 raise DuplicateWhatsAppMessage(
                     whatsapp_message_id
                 )
@@ -431,32 +482,22 @@ class MessageService:
         # =====================================================
 
         command = (
-            self.extract_command(
-                text
-            )
+            self.extract_command(text)
         )
 
         if command:
 
             return await self.process_command(
                 tenant_id=tenant_id,
-
                 user_id=user_id,
-
                 command=command,
-
                 whatsapp_message_id=(
                     whatsapp_message_id
                 ),
-
                 tenant_settings=(
                     tenant_settings
                 ),
-
-                message_type=(
-                    message_type
-                ),
-
+                message_type=message_type,
                 inbound_metadata=(
                     inbound_metadata
                 ),
@@ -467,9 +508,7 @@ class MessageService:
         # =====================================================
 
         understanding = (
-            self.understand(
-                text
-            )
+            self.understand(text)
         )
 
         # =====================================================
@@ -500,11 +539,8 @@ class MessageService:
                     entity_type=(
                         EntityType.PRODUCT
                     ),
-
                     value=reply_product,
-
                     confidence=1.0,
-
                     normalized_value=(
                         reply_product
                     ),
@@ -536,9 +572,7 @@ class MessageService:
                 MessageDirection.INBOUND
             ),
 
-            message_type=(
-                message_type
-            ),
+            message_type=message_type,
 
             text=text,
 
@@ -628,11 +662,8 @@ class MessageService:
         response = (
             await intent_router.route(
                 understanding=understanding,
-
                 tenant_id=tenant_id,
-
                 tenant_settings=settings,
-
                 conversation_id=(
                     session.conversation_id
                 ),
@@ -643,54 +674,11 @@ class MessageService:
         # OUTBOUND MESSAGE
         # =====================================================
 
-        outbound_msg = Message(
-            id=str(uuid4()),
-
+        outbound_msg = self._build_outbound_message(
             tenant_id=tenant_id,
-
-            conversation_id=(
-                session.conversation_id
-            ),
-
-            customer_id=(
-                session.customer_id
-            ),
-
-            direction=(
-                MessageDirection.OUTBOUND
-            ),
-
-            message_type=(
-                MessageType.TEXT
-            ),
-
-            text=response.text or "",
-
-            is_from_bot=True,
-
-            bot_response_type=(
-                response.response_type
-            ),
-
-            response_to_message_id=(
-                inbound_msg.id
-            ),
-
-            delivery_status="pending",
-
-            metadata={
-                "response_type":
-                    response.response_type,
-
-                "product_ids": [
-                    product.product_id
-                    for product
-                    in response.products
-                ],
-
-                "source_message_id":
-                    inbound_msg.id,
-            },
+            session=session,
+            inbound_message=inbound_msg,
+            response=response,
         )
 
         await (
@@ -753,6 +741,81 @@ class MessageService:
         )
 
     # =========================================================
+    # OUTBOUND MESSAGE BUILDER
+    # =========================================================
+
+    @staticmethod
+    def _build_outbound_message(
+        *,
+        tenant_id: str,
+        session: ConversationSession,
+        inbound_message: Message,
+        response: BotResponse,
+        pagination: bool = False,
+    ) -> Message:
+        """
+        Build an outbound Message document.
+
+        Delivery starts as 'pending'.
+
+        It MUST be changed to 'sent' or 'failed'
+        after WhatsApp delivery is attempted.
+        """
+
+        return Message(
+            id=str(uuid4()),
+
+            tenant_id=tenant_id,
+
+            conversation_id=(
+                session.conversation_id
+            ),
+
+            customer_id=(
+                session.customer_id
+            ),
+
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
+
+            message_type=(
+                MessageType.TEXT
+            ),
+
+            text=response.text or "",
+
+            is_from_bot=True,
+
+            bot_response_type=(
+                response.response_type
+            ),
+
+            response_to_message_id=(
+                inbound_message.id
+            ),
+
+            delivery_status="pending",
+
+            metadata={
+                "response_type":
+                    response.response_type,
+
+                "product_ids": [
+                    product.product_id
+                    for product
+                    in response.products
+                ],
+
+                "source_message_id":
+                    inbound_message.id,
+
+                "pagination":
+                    pagination,
+            },
+        )
+
+    # =========================================================
     # COMMAND PROCESSING
     # =========================================================
 
@@ -776,9 +839,7 @@ class MessageService:
             show_more
         """
 
-        command = (
-            command.strip().lower()
-        )
+        command = command.strip().lower()
 
         # =====================================================
         # SESSION
@@ -797,15 +858,14 @@ class MessageService:
 
         if command != "show_more":
 
-            # Still persist the unknown command as an
-            # inbound message so debugging is possible.
-
             understanding = MessageUnderstanding(
                 original_text=command,
 
                 normalized_text=command,
 
-                intent=IntentType.PAGINATION,
+                intent=(
+                    IntentType.PAGINATION
+                ),
 
                 intent_confidence=1.0,
 
@@ -825,11 +885,8 @@ class MessageService:
                 quick_replies=[],
 
                 metadata={
-                    "command":
-                        command,
-
-                    "success":
-                        False,
+                    "command": command,
+                    "success": False,
                 },
             )
 
@@ -910,9 +967,7 @@ class MessageService:
                 MessageDirection.INBOUND
             ),
 
-            message_type=(
-                message_type
-            ),
+            message_type=message_type,
 
             text=command,
 
@@ -966,57 +1021,16 @@ class MessageService:
         # SAVE OUTBOUND
         # =====================================================
 
-        outbound_msg = Message(
-            id=str(uuid4()),
-
-            tenant_id=tenant_id,
-
-            conversation_id=(
-                session.conversation_id
-            ),
-
-            customer_id=(
-                session.customer_id
-            ),
-
-            direction=(
-                MessageDirection.OUTBOUND
-            ),
-
-            message_type=(
-                MessageType.TEXT
-            ),
-
-            text=response.text or "",
-
-            is_from_bot=True,
-
-            bot_response_type=(
-                response.response_type
-            ),
-
-            response_to_message_id=(
-                inbound_msg.id
-            ),
-
-            delivery_status="pending",
-
-            metadata={
-                "response_type":
-                    response.response_type,
-
-                "product_ids": [
-                    product.product_id
-                    for product
-                    in response.products
-                ],
-
-                "source_message_id":
-                    inbound_msg.id,
-
-                "pagination":
-                    command == "show_more",
-            },
+        outbound_msg = (
+            self._build_outbound_message(
+                tenant_id=tenant_id,
+                session=session,
+                inbound_message=inbound_msg,
+                response=response,
+                pagination=(
+                    command == "show_more"
+                ),
+            )
         )
 
         await (
