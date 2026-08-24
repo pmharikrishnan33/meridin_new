@@ -7,10 +7,14 @@ color/size variant, referencing entries in ``inventory.clothing_attributes``
 for the resolved display names, pricing, and stock.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field, ConfigDict
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class ClothingItem(BaseModel):
@@ -39,7 +43,7 @@ class ClothingItem(BaseModel):
     price: float = 0.0
     stock: int = 0
     age_group: Optional[str] = None     # e.g. "adult", "kids", "unisex"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -61,7 +65,7 @@ class ClothingAttribute(BaseModel):
     price: float = 0.0
     stock: int = 0
     age_group: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
     model_config = ConfigDict(populate_by_name=True)
 

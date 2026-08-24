@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # ==========================================================
@@ -125,7 +129,7 @@ class IncomingMessage(BaseModel):
     media_id: Optional[str] = None
     media_url: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_now_utc)
     raw_payload: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -192,11 +196,11 @@ class Tenant(BaseModel):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow
+        default_factory=_now_utc
     )
 
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow
+        default_factory=_now_utc
     )
 
     model_config = ConfigDict(
@@ -309,11 +313,11 @@ class Product(BaseModel):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow
+        default_factory=_now_utc
     )
 
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow
+        default_factory=_now_utc
     )
 
     model_config = ConfigDict(
@@ -392,8 +396,8 @@ class Customer(BaseModel):
     tags: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     is_blocked: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
     last_interaction_at: Optional[datetime] = None
 
     model_config = ConfigDict(populate_by_name=True)
@@ -435,6 +439,7 @@ class ConversationContext(BaseModel):
     # The store_name used to resolve the ``inventory.<store_name>`` collection
     # on follow-up messages (e.g. "show more", pagination).
     active_store_name: Optional[str] = None
+    _message_history: Optional[List[Dict[str, Any]]] = PrivateAttr(default=None)
 
 
 class Conversation(BaseModel):
@@ -449,8 +454,8 @@ class Conversation(BaseModel):
     assigned_agent_id: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
     closed_at: Optional[datetime] = None
 
     model_config = ConfigDict(populate_by_name=True)
@@ -510,7 +515,7 @@ class Message(BaseModel):
     )
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow
+        default_factory=_now_utc
     )
 
     sent_at: Optional[datetime] = None
@@ -572,8 +577,8 @@ class Order(BaseModel):
     carrier: Optional[str] = None
     notes: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
     confirmed_at: Optional[datetime] = None
     shipped_at: Optional[datetime] = None
     delivered_at: Optional[datetime] = None
@@ -664,7 +669,7 @@ class AnalyticsEvent(BaseModel):
     conversation_id: Optional[str] = None
     event_type: str  # message_received, intent_detected, product_viewed, order_placed, etc.
     event_data: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_now_utc)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -691,7 +696,7 @@ class Template(BaseModel):
     footer_text: Optional[str] = None
     variables: List[str] = Field(default_factory=list)
     is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
 
     model_config = ConfigDict(populate_by_name=True)

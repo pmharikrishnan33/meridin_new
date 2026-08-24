@@ -108,6 +108,8 @@ class IntentClassifier:
         """
         Predict using trained ML model.
         """
+        if model_loader.intent_vectorizer is None or model_loader.intent_model is None:
+            return self._predict_keywords(text)
 
         try:
             # Vectorize text
@@ -119,7 +121,7 @@ class IntentClassifier:
 
             # Get top prediction
             max_idx = np.argmax(probabilities)
-            predicted_intent_str = classes[max_idx]
+            predicted_intent_str = str(classes[max_idx])
             confidence = float(probabilities[max_idx])
 
             # Map to IntentType enum
@@ -127,7 +129,7 @@ class IntentClassifier:
 
             # Build all scores dict
             all_scores = {
-                self._map_to_intent_type(cls).value: float(prob)
+                self._map_to_intent_type(str(cls)).value: float(prob)
                 for cls, prob in zip(classes, probabilities)
             }
 
@@ -153,20 +155,20 @@ class IntentClassifier:
 
         import re
         text_lower = text.lower()
-        scores = {}
+        scores: Dict[str, int] = {}
 
-        for intent, keywords in self.INTENT_KEYWORDS.items():
+        for intent_enum, keywords in self.INTENT_KEYWORDS.items():
             score = 0
             for keyword in keywords:
                 # Use word-boundary matching so short keywords like "hi"
                 # don't match inside larger words (e.g. "history").
                 if re.search(rf"\b{re.escape(keyword)}\b", text_lower):
                     score += 1
-            scores[intent.value] = score
+            scores[intent_enum.value] = score
 
         # Find best match
         if scores:
-            best_intent = max(scores, key=scores.get)
+            best_intent = max(scores, key=lambda k: scores[k])
             best_score = scores[best_intent]
 
             # Normalize confidence (0-1)

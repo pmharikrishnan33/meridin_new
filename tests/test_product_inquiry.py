@@ -3,11 +3,12 @@ from unittest.mock import AsyncMock, patch
 
 from app.handlers.product_inquiry import ProductInquiryHandler
 from app.models.schemas import (
-    Product,
-    MessageUnderstanding,
-    IntentType,
-    ExtractedEntity,
     EntityType,
+    ExtractedEntity,
+    IntentType,
+    MessageUnderstanding,
+    Product,
+    ResponseProduct,
 )
 
 
@@ -51,10 +52,11 @@ async def test_product_inquiry_uses_title_not_name():
             )
         )
 
-        service.product_to_response.return_value = (
-            {
-                "product_id": "product_001"
-            }
+        service.product_to_response.return_value = ResponseProduct(
+            product_id="product_001",
+            name="Black Shirt",
+            price=999.0,
+            stock=10,
         )
 
         handler = ProductInquiryHandler()

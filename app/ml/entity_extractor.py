@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from app.ml.loader import model_loader
 from app.models.schemas import EntityType, ExtractedEntity
@@ -109,6 +109,8 @@ class EntityExtractor:
         """
         Extract entities using trained ML model (NER).
         """
+        if model_loader.entity_vectorizer is None or model_loader.entity_model is None:
+            return []
 
         try:
             # The shipped NER model is a token-level classifier. Preserve token
@@ -299,7 +301,7 @@ class EntityExtractor:
         Remove duplicate entities, keeping highest confidence.
         """
 
-        seen = {}
+        seen: Dict[Tuple[EntityType, str], ExtractedEntity] = {}
         for entity in entities:
             key = (entity.entity_type, entity.normalized_value or entity.value)
             if key not in seen or entity.confidence > seen[key].confidence:

@@ -104,7 +104,7 @@ async def find_best_relaxation(
             results_per_key[key] = []
 
     # Find the best by count
-    best_key_by_count = max(results_per_removal, key=results_per_removal.get)
+    best_key_by_count = max(results_per_removal, key=lambda k: results_per_removal[k])
     best_count = results_per_removal[best_key_by_count]
 
     if best_count == 0:

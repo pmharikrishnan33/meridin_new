@@ -1,9 +1,9 @@
-from pymongo.database import Database
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database.mongodb import mongodb
 
 
-def get_database() -> Database:
+def get_database() -> AsyncIOMotorDatabase:
     """
     Return the MongoDB database instance.
     """

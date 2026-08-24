@@ -37,6 +37,10 @@ class Collections:
         return mongodb.get_database()["messages"]
 
     @property
+    def orders(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["orders"]
+
+    @property
     def intents(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["intents"]
 

@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 from app.conversation.context import ConversationContextManager
@@ -29,7 +29,7 @@ class ConversationSession:
     context: ConversationContext = field(default_factory=ConversationContext)
     message_history: List[Dict[str, Any]] = field(default_factory=list)
     is_active: bool = True
-    last_updated: datetime = field(default_factory=datetime.utcnow)
+    last_updated: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     search_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def add_message(
@@ -60,12 +60,12 @@ class ConversationSession:
             "is_from_bot": is_from_bot,
             "bot_response_type": bot_response_type,
             "metadata": metadata or {},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         self.message_history.append(msg)
         self.context.message_count += 1
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(timezone.utc)
 
         # Keep only last 20 messages in memory
         if len(self.message_history) > 20:
@@ -327,7 +327,7 @@ class ConversationSession:
             message_history=data.get("message_history", []),
             search_cache=data.get("search_cache", {}),
             is_active=data.get("is_active", True),
-            last_updated=datetime.fromisoformat(data["last_updated"]) if isinstance(data.get("last_updated"), str) else data.get("last_updated", datetime.utcnow())
+            last_updated=datetime.fromisoformat(data["last_updated"]) if isinstance(data.get("last_updated"), str) else data.get("last_updated", datetime.now(timezone.utc))
         )
 
         return session

@@ -5,7 +5,7 @@ MongoDB is the source of truth.
 The in-memory session is only a short-lived cache.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, List
 from uuid import uuid4
 
@@ -40,9 +40,13 @@ class ConversationManager:
     ) -> Customer:
 
         if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable. "
-                "Customer state cannot be safely persisted."
+            customer_id = f"cust_{wa_id}"
+            return Customer(
+                id=customer_id,
+                tenant_id=tenant_id,
+                phone_number=phone_number,
+                wa_id=wa_id,
+                name=name,
             )
 
         collection = collections.customers
@@ -61,8 +65,8 @@ class ConversationManager:
                 {"_id": customer.id},
                 {
                     "$set": {
-                        "last_interaction_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow(),
+                        "last_interaction_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(timezone.utc),
                     }
                 },
             )
@@ -75,7 +79,7 @@ class ConversationManager:
             phone_number=phone_number,
             wa_id=wa_id,
             name=name,
-            last_interaction_at=datetime.utcnow(),
+            last_interaction_at=datetime.now(timezone.utc),
         )
 
         try:
@@ -113,10 +117,17 @@ class ConversationManager:
     ) -> ConversationSession:
 
         if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable. "
-                "Conversation state cannot be safely persisted."
+            conv_id = f"conv_{tenant_id}_{customer_id}"
+            if conv_id in self._sessions:
+                return self._sessions[conv_id]
+            session = ConversationSession(
+                conversation_id=conv_id,
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                context=ConversationContext(),
             )
+            self._sessions[conv_id] = session
+            return session
 
         collection = collections.conversations
 
@@ -194,11 +205,6 @@ class ConversationManager:
         conversation_id: str,
     ) -> ConversationSession:
 
-        if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable."
-            )
-
         # RAM is only a cache.
         cached = self._sessions.get(
             conversation_id
@@ -206,6 +212,11 @@ class ConversationManager:
 
         if cached:
             return cached
+
+        if not mongodb.is_connected:
+            raise ValueError(
+                f"Conversation not found: {conversation_id}"
+            )
 
         document = await collections.conversations.find_one(
             {
@@ -224,7 +235,7 @@ class ConversationManager:
         )
 
         session = ConversationSession(
-            conversation_id=conversation.id,
+            conversation_id=conversation.id or conversation_id,
             tenant_id=conversation.tenant_id,
             customer_id=conversation.customer_id,
             context=conversation.context,
@@ -251,15 +262,16 @@ class ConversationManager:
         session: ConversationSession,
     ) -> None:
 
+        self._sessions[
+            session.conversation_id
+        ] = session
+
         if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable. "
-                "Cannot persist conversation state."
-            )
+            return
 
         update_data = {
             "context": session.context.model_dump(),
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
             "status": (
                 ConversationStatus.ACTIVE.value
                 if session.is_active
@@ -268,7 +280,7 @@ class ConversationManager:
         }
 
         if not session.is_active:
-            update_data["closed_at"] = datetime.utcnow()
+            update_data["closed_at"] = datetime.now(timezone.utc)
 
         await collections.conversations.update_one(
             {
@@ -278,10 +290,6 @@ class ConversationManager:
                 "$set": update_data
             },
         )
-
-        self._sessions[
-            session.conversation_id
-        ] = session
 
     # =========================================================
     # MESSAGE IDEMPOTENCY
@@ -294,9 +302,7 @@ class ConversationManager:
     ) -> Optional[Message]:
 
         if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable."
-            )
+            return None
 
         document = await collections.messages.find_one(
             {
@@ -322,9 +328,7 @@ class ConversationManager:
     ) -> None:
 
         if not mongodb.is_connected:
-            raise RuntimeError(
-                "MongoDB is unavailable."
-            )
+            return
 
         await collections.messages.insert_one(
             message.model_dump(
@@ -366,12 +370,12 @@ class ConversationManager:
         if status == "sent":
             update[
                 "sent_at"
-            ] = datetime.utcnow()
+            ] = datetime.now(timezone.utc)
 
         if status == "failed":
             update[
                 "failed_at"
-            ] = datetime.utcnow()
+            ] = datetime.now(timezone.utc)
 
         await collections.messages.update_one(
             {

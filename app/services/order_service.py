@@ -2,7 +2,7 @@
 Order service - handles order status lookup, cancellation, and returns.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 from app.database.collections import collections
@@ -109,7 +109,7 @@ class OrderService:
             {
                 "$set": {
                     "status": OrderStatus.CANCELLED.value,
-                    "cancelled_at": datetime.utcnow(),
+                    "cancelled_at": datetime.now(timezone.utc),
                 }
             },
         )

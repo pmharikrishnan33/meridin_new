@@ -96,7 +96,7 @@ class ModelLoader:
         return self._entity_vectorizer
 
     def is_loaded(self) -> bool:
-        return self._loaded
+        return bool(self._loaded)
 
 
 model_loader = ModelLoader()

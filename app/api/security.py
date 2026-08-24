@@ -54,12 +54,18 @@ class SignatureVerificationError(HTTPException):
 def _resolve_webhook_secret(tenant: Optional[Tenant] = None) -> str:
     """Resolve the verification secret with a clear precedence order.
 
-    1. Tenant-specific ``settings.webhook_secret`` when present.
+    1. Tenant-specific ``webhook_secret`` or ``settings.webhook_secret`` when present.
     2. Shared environment ``WHATSAPP_WEBHOOK_SECRET``.
     3. Shared application ``APP_SECRET`` fallback.
     """
-    if tenant and tenant.settings.webhook_secret:
-        return tenant.settings.webhook_secret
+    if tenant:
+        secret = getattr(tenant, "webhook_secret", None)
+        if isinstance(secret, str) and secret:
+            return secret
+        if hasattr(tenant, "settings") and tenant.settings:
+            nested_secret = getattr(tenant.settings, "webhook_secret", None)
+            if isinstance(nested_secret, str) and nested_secret:
+                return nested_secret
     if settings.WHATSAPP_WEBHOOK_SECRET:
         return settings.WHATSAPP_WEBHOOK_SECRET
     return settings.APP_SECRET
@@ -299,7 +305,7 @@ def check_body_size(body: bytes) -> None:
             f"(max {WEBHOOK_MAX_BODY_BYTES})"
         )
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=getattr(status, "HTTP_413_CONTENT_TOO_LARGE", 413),
             detail="Request body too large.",
         )
 
@@ -330,14 +336,15 @@ async def resolve_tenant_credentials(
     tuple
         ``(tenant_or_none, resolved_phone_number_id, resolved_access_token)``
     """
-    # Metadata is supplied by Meta in the signed payload and is therefore the
-    # authoritative tenant selector. The header is only a local-test fallback.
-    lookup_id = metadata_phone_number_id or phone_number_id
+    # Header ID has precedence over metadata ID for test/routing overrides
+    lookup_id = phone_number_id or metadata_phone_number_id
 
-    if not lookup_id:
-        return None, "", ""
+    tenant = None
+    if lookup_id:
+        tenant = await tenant_repository.find_by_phone_number_id(lookup_id)
+        if tenant is None:
+            tenant = await tenant_repository.find_by_tenant_id(lookup_id)
 
-    tenant = await tenant_repository.find_by_phone_number_id(lookup_id)
     if tenant:
         return (
             tenant,
@@ -345,5 +352,10 @@ async def resolve_tenant_credentials(
             tenant.access_token,
         )
 
-    logger.warning("No active tenant matched the supplied WhatsApp phone number ID.")
-    return None, "", ""
+    logger.debug("No active tenant matched in DB; falling back to default settings.")
+    return (
+        None,
+        settings.WHATSAPP_PHONE_NUMBER_ID,
+        settings.WHATSAPP_ACCESS_TOKEN,
+    )
+

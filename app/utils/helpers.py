@@ -6,7 +6,7 @@ Includes text processing, ID generation, and data formatting utilities.
 
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -22,7 +22,7 @@ def generate_order_number(prefix: str = "ORD") -> str:
     Format: ``{prefix}{YYMMDD}{random4}``
     Example: ``ORD250731A8F3``
     """
-    date_str = datetime.utcnow().strftime("%y%m%d")
+    date_str = datetime.now(timezone.utc).strftime("%y%m%d")
     random_suffix = uuid.uuid4().hex[:4].upper()
     return f"{prefix}{date_str}{random_suffix}"
 
@@ -152,5 +152,5 @@ def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
 def format_timestamp(dt: Optional[datetime] = None, fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
     """Format a datetime as a string, defaulting to now in UTC."""
     if dt is None:
-        dt = datetime.utcnow()
+        dt = datetime.now(timezone.utc)
     return dt.strftime(fmt)

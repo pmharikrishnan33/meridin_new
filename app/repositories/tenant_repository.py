@@ -110,7 +110,7 @@ class TenantRepository:
         if not mongodb.is_connected or not client_id:
             return None
 
-        lookup_id = client_id
+        lookup_id: Any = client_id
 
         try:
             from bson import ObjectId
