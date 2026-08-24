@@ -36,6 +36,7 @@ The workflow is:
 from dataclasses import dataclass
 from typing import Any, Dict
 from uuid import uuid4
+from pymongo.errors import DuplicateKeyError
 
 from app.conversation.session import (
     ConversationSession,
@@ -599,12 +600,19 @@ class MessageService:
             ),
         )
 
-        await (
-            conversation_manager
-            .save_message(
+        try:
+            await conversation_manager.save_message(
                 inbound_msg
             )
-        )
+
+        except DuplicateKeyError:
+
+            if whatsapp_message_id:
+                raise DuplicateWhatsAppMessage(
+                    whatsapp_message_id
+                )
+
+            raise
 
         # =====================================================
         # SESSION INBOUND

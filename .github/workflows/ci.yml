@@ -55,7 +55,71 @@ jobs:
   build:
     needs: [lint, test]
     runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Build Docker image
-        run: docker build -t meridin:latest .
+        run: |
+          docker build \
+            -t meridin:latest \
+            .
+
+      - name: Start MongoDB
+        run: |
+          docker ps
+
+      - name: Start Meridin container
+        run: |
+          docker run \
+            -d \
+            --name meridin \
+            --network host \
+            -e APP_SECRET="ci-test-secret" \
+            -e MONGODB_URI="mongodb://127.0.0.1:27017" \
+            -e DATABASE_NAME="meridin_test" \
+            -e OPENROUTER_API_KEY="ci-test-key" \
+            -e MONGODB_REQUIRED="true" \
+            -e REDIS_URL="redis://127.0.0.1:6379/0" \
+            meridin:latest
+
+      - name: Wait for API
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          url = "http://127.0.0.1:8000/health"
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(
+                      url,
+                      timeout=2,
+                  ) as response:
+                      if response.status == 200:
+                          print(response.read().decode())
+                          raise SystemExit(0)
+              except Exception:
+                  time.sleep(2)
+
+          raise SystemExit(
+              "Meridin API did not become healthy"
+          )
+          PY
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          docker logs meridin

@@ -8,7 +8,7 @@ The in-memory session is only a short-lived cache.
 from datetime import datetime, timezone
 from typing import Dict, Optional, List
 from uuid import uuid4
-
+from pymongo.errors import DuplicateKeyError
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import (
@@ -326,6 +326,9 @@ class ConversationManager:
         self,
         message: Message,
     ) -> None:
+        """
+        Persist a message to MongoDB.
+        """
 
         if not mongodb.is_connected:
             return
@@ -336,7 +339,6 @@ class ConversationManager:
                 exclude_none=True,
             )
         )
-
     # =========================================================
     # UPDATE DELIVERY
     # =========================================================

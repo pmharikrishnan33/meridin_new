@@ -22,19 +22,83 @@ class ModelLoader:
 
     def load_all(self) -> None:
         """
-        Load all models at startup.
+        Load all ML models.
+
+        Missing or invalid model files do not crash the
+        application. The individual ML components can
+        fall back to their fallback logic.
+
+        The log message accurately reports which models
+        were loaded and which are missing.
         """
 
-        logger.info("Loading ML models...")
+        logger.info(
+            "Loading ML models..."
+        )
 
-        self._intent_model = self._load_model(settings.INTENT_MODEL)
-        self._intent_vectorizer = self._load_model(settings.INTENT_VECTORIZER)
-        self._entity_model = self._load_model(settings.ENTITY_MODEL)
-        self._entity_vectorizer = self._load_model(settings.ENTITY_VECTORIZER)
+        self._intent_model = (
+            self._load_model(
+                settings.INTENT_MODEL
+            )
+        )
+
+        self._intent_vectorizer = (
+            self._load_model(
+                settings.INTENT_VECTORIZER
+            )
+        )
+
+        self._entity_model = (
+            self._load_model(
+                settings.ENTITY_MODEL
+            )
+        )
+
+        self._entity_vectorizer = (
+            self._load_model(
+                settings.ENTITY_VECTORIZER
+            )
+        )
 
         self._loaded = True
 
-        logger.info("All ML models loaded successfully.")
+        models = {
+            "intent_model": (
+                self._intent_model
+            ),
+
+            "intent_vectorizer": (
+                self._intent_vectorizer
+            ),
+
+            "entity_model": (
+                self._entity_model
+            ),
+
+            "entity_vectorizer": (
+                self._entity_vectorizer
+            ),
+        }
+
+        missing = [
+            name
+            for name, model in models.items()
+            if model is None
+        ]
+
+        if missing:
+
+            logger.warning(
+                "ML pipeline loaded with missing "
+                "models: %s",
+                ", ".join(missing),
+            )
+
+        else:
+
+            logger.info(
+                "All ML models loaded successfully."
+            )
 
     def _load_model(self, path: str) -> Optional[Any]:
         """
