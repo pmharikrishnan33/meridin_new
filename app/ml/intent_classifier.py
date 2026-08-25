@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from typing import Dict, Optional
-from app.core.config import settings
+from typing import Dict
 from app.ml.loader import model_loader
 from app.models.schemas import IntentType
 from app.utils.logger import logger

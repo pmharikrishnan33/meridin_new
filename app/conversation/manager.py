@@ -8,7 +8,6 @@ The in-memory session is only a short-lived cache.
 from datetime import datetime, timezone
 from typing import Dict, Optional, List
 from uuid import uuid4
-from pymongo.errors import DuplicateKeyError
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import (
@@ -89,8 +88,7 @@ class ConversationManager:
                     exclude_none=True,
                 )
             )
-        except Exception:
-            # Another concurrent request may have created it.
+        except DuplicateKeyError:
             existing = await collection.find_one(
                 {
                     "tenant_id": tenant_id,
@@ -162,9 +160,7 @@ class ConversationManager:
                     exclude_none=True,
                 )
             )
-        except Exception:
-            # Race protection:
-            # another request may have created the active conversation.
+        except DuplicateKeyError:
             existing = await collection.find_one(
                 {
                     "tenant_id": tenant_id,
@@ -204,8 +200,13 @@ class ConversationManager:
         self,
         conversation_id: str,
     ) -> ConversationSession:
+        """
+        Load the conversation and its recent message history.
 
-        # RAM is only a cache.
+        MongoDB is the source of truth.
+        RAM is only a cache.
+        """
+
         cached = self._sessions.get(
             conversation_id
         )
@@ -221,7 +222,6 @@ class ConversationManager:
         document = await collections.conversations.find_one(
             {
                 "_id": conversation_id,
-                "status": ConversationStatus.ACTIVE.value,
             }
         )
 
@@ -234,8 +234,16 @@ class ConversationManager:
             **document
         )
 
+        history = await self.get_conversation_history(
+            conversation_id=conversation.id,
+            limit=20,
+        )
+
         session = ConversationSession(
-            conversation_id=conversation.id or conversation_id,
+            conversation_id=(
+                conversation.id
+                or conversation_id
+            ),
             tenant_id=conversation.tenant_id,
             customer_id=conversation.customer_id,
             context=conversation.context,
@@ -246,6 +254,27 @@ class ConversationManager:
                 == ConversationStatus.ACTIVE
             ),
         )
+
+        for message in history:
+            session.add_message(
+                message_id=message.id,
+                direction=message.direction,
+                text=message.text or "",
+                intent=message.intent,
+                intent_confidence=(
+                    message.intent_confidence
+                ),
+                entities=[],
+                is_from_bot=(
+                    message.direction
+                    == "outbound"
+                    and message.is_from_bot
+                ),
+                bot_response_type=(
+                    message.bot_response_type
+                ),
+                metadata=message.metadata or {},
+            )
 
         self._sessions[
             conversation_id

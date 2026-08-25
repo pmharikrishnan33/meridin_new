@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 
 from app.database.collections import collections
 from app.database.mongodb import mongodb
-from app.database.redis_cache import redis_cache
 from app.models.schemas import Product, ProductSearchFilters
 from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
@@ -305,9 +304,22 @@ class ProductRepository:
         # --------------------------------------------------
 
         if filters.in_stock_only:
-            query["stock"] = {
-                "$gt": 0
-            }
+            query["$or"] = [
+                {
+                    "stock": {
+                        "$gt": 0
+                    }
+                },
+                {
+                    "variants": {
+                        "$elemMatch": {
+                            "stock": {
+                                "$gt": 0
+                            }
+                        }
+                    }
+                },
+            ]
 
         # --------------------------------------------------
         # SORT

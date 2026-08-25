@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # signing / HMAC verification when a tenant-specific or explicit
     # webhook secret is not supplied.
     APP_SECRET: str
-
+    TRUST_PROXY_HEADERS: bool = False
     # ==========================================================
     # DATABASE
     # ==========================================================

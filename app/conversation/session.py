@@ -11,8 +11,7 @@ from app.models.schemas import (
     ExtractedEntity,
     MessageUnderstanding,
     MessageDirection,
-    MessageType,
-    ConversationStatus,
+    MessageType
 )
 
 

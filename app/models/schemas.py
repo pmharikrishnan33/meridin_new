@@ -222,51 +222,15 @@ class ProductVariant(BaseModel):
     images: List[str] = Field(default_factory=list)
 
 class Product(BaseModel):
-    """
-    Product document stored in:
-
-        inventory.<tenant_id>
-    """
-
-    id: str = Field(alias="_id")
-
-    tenant_id: str
-
-    # ------------------------------
-    # BASIC INFORMATION
-    # ------------------------------
-
+    id: str
     title: str
+    description: Optional[str] = None
 
-    description: str = ""
+    price: float = 0.0
 
-    media: List[str] = Field(
-        default_factory=list
-    )
-
-    # ------------------------------
-    # CLASSIFICATION
-    # ------------------------------
-
-    category: str
-
+    category: Optional[str] = None
     type: Optional[str] = None
-
     brand: Optional[str] = None
-
-    material: Optional[str] = None
-
-    fit: Optional[str] = None
-
-    gender: Optional[str] = None
-
-    tags: List[str] = Field(
-        default_factory=list
-    )
-
-    # ------------------------------
-    # ATTRIBUTES
-    # ------------------------------
 
     color: List[str] = Field(
         default_factory=list
@@ -276,55 +240,32 @@ class Product(BaseModel):
         default_factory=list
     )
 
-    color_ids: List[int] = Field(
+    material: Optional[str] = None
+    fit: Optional[str] = None
+    gender: Optional[str] = None
+    age_group: Optional[str] = None
+
+    tags: List[str] = Field(
         default_factory=list
     )
-
-    size_ids: List[int] = Field(
-        default_factory=list
-    )
-
-    # ------------------------------
-    # PRICE / STOCK
-    # ------------------------------
-
-    price: float
-
-    sale_price: Optional[float] = None
 
     stock: int = 0
 
-    # ------------------------------
-    # OPTIONAL METADATA
-    # ------------------------------
-
-    age_group: Optional[str] = None
-
-    care_instructions: Optional[str] = None
-
-    target_customers: Optional[str] = None
-
-    # ------------------------------
-    # VARIANTS
-    # ------------------------------
-
-    variants: List[ProductVariant] = Field(
+    variants: List[Dict[str, Any]] = Field(
         default_factory=list
     )
 
-    created_at: datetime = Field(
-        default_factory=_now_utc
-    )
+    is_featured: bool = False
 
-    updated_at: datetime = Field(
-        default_factory=_now_utc
-    )
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        extra="ignore",
-    )
-
+    @property
+    def name(self) -> str:
+        """
+        Backward-compatible alias.
+        """
+        return self.title
 
 class ProductSearchFilters(BaseModel):
 

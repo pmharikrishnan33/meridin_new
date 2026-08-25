@@ -13,7 +13,6 @@ from app.models.schemas import (
     ProductSearchFilters,
 )
 from app.services.product_service import product_service
-from app.utils.logger import logger
 
 
 class AvailabilityHandler(BaseHandler):

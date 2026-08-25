@@ -296,18 +296,91 @@ class EntityExtractor:
 
         return value
 
-    def _deduplicate(self, entities: List[ExtractedEntity]) -> List[ExtractedEntity]:
+    def _deduplicate(
+        self,
+        entities: List[ExtractedEntity],
+    ) -> List[ExtractedEntity]:
         """
-        Remove duplicate entities, keeping highest confidence.
+        Remove duplicate and overlapping entities.
+
+        Priority:
+        1. Higher confidence.
+        2. Longer span when confidence is equal.
+        3. Preserve different entity types when spans do not overlap.
         """
 
-        seen: Dict[Tuple[EntityType, str], ExtractedEntity] = {}
-        for entity in entities:
-            key = (entity.entity_type, entity.normalized_value or entity.value)
-            if key not in seen or entity.confidence > seen[key].confidence:
-                seen[key] = entity
+        if not entities:
+            return []
 
-        return list(seen.values())
+        sorted_entities = sorted(
+            entities,
+            key=lambda entity: (
+                -float(entity.confidence),
+                -(
+                    entity.end_pos
+                    - entity.start_pos
+                ),
+                entity.start_pos,
+            ),
+        )
+
+        selected: List[ExtractedEntity] = []
+
+        for candidate in sorted_entities:
+            candidate_start = candidate.start_pos
+            candidate_end = candidate.end_pos
+
+            duplicate = False
+
+            for existing in selected:
+                existing_start = existing.start_pos
+                existing_end = existing.end_pos
+
+                overlaps = (
+                    candidate_start < existing_end
+                    and candidate_end > existing_start
+                )
+
+                if not overlaps:
+                    continue
+
+                same_type = (
+                    candidate.entity_type
+                    == existing.entity_type
+                )
+
+                same_value = (
+                    (
+                        candidate.normalized_value
+                        or candidate.value
+                    ).strip().lower()
+                    ==
+                    (
+                        existing.normalized_value
+                        or existing.value
+                    ).strip().lower()
+                )
+
+                if same_type or same_value:
+                    duplicate = True
+                    break
+
+                # Different entity types may overlap.
+                # Prefer the higher-confidence entity.
+                if (
+                    candidate.confidence
+                    <= existing.confidence
+                ):
+                    duplicate = True
+                    break
+
+            if not duplicate:
+                selected.append(candidate)
+
+        return sorted(
+            selected,
+            key=lambda entity: entity.start_pos,
+        )
 
 
 entity_extractor = EntityExtractor()

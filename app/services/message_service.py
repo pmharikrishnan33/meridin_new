@@ -159,6 +159,36 @@ class MessageService:
     MessageService does NOT communicate directly
     with Meta WhatsApp API.
     """
+    @staticmethod
+    def _expected_provider_message_count(
+        response: BotResponse,
+    ) -> int:
+        """
+        Calculate how many WhatsApp provider messages
+        are expected for one BotResponse.
+        """
+
+        count = 0
+
+        if (
+            response.response_type
+            in {
+                "product_list",
+                "product_card",
+            }
+        ):
+            count += len(
+                response.products[:5]
+            )
+
+        elif response.text:
+            count += 1
+
+        if response.quick_replies:
+            count += 1
+
+        return count
+
 
     def __init__(self) -> None:
 
@@ -863,7 +893,21 @@ class MessageService:
         # =====================================================
         # COMMAND VALIDATION
         # =====================================================
-
+        if command == "search_again":
+            return BotResponse(
+                response_type="text",
+                text=(
+                    "Sure. Tell me what product, "
+                    "category, colour, size, or price "
+                    "range you are looking for."
+                ),
+                metadata={
+                    "command": "search_again",
+                    "reset_search": True,
+                },
+            )
+            
+    
         if command != "show_more":
 
             understanding = MessageUnderstanding(
@@ -994,13 +1038,22 @@ class MessageService:
             ),
         )
 
-        await (
-            conversation_manager
-            .save_message(
-                inbound_msg
+        try:
+            await (
+                conversation_manager
+                .save_message(
+                    inbound_msg
+                )
             )
-        )
 
+        except DuplicateKeyError:
+
+            if whatsapp_message_id:
+                raise DuplicateWhatsAppMessage(
+                    whatsapp_message_id
+                )
+
+            raise
         session.add_message(
             message_id=inbound_msg.id,
 
@@ -1029,23 +1082,27 @@ class MessageService:
         # SAVE OUTBOUND
         # =====================================================
 
-        outbound_msg = (
-            self._build_outbound_message(
-                tenant_id=tenant_id,
-                session=session,
-                inbound_message=inbound_msg,
-                response=response,
-                pagination=(
-                    command == "show_more"
-                ),
-            )
+        delivery_group_id = str(uuid4())
+
+        outbound_msg = self._build_outbound_message(
+            tenant_id=tenant_id,
+            session=session,
+            inbound_message=inbound_msg,
+            response=response,
         )
 
-        await (
-            conversation_manager
-            .save_message(
-                outbound_msg
-            )
+        outbound_msg.metadata = {
+            **(outbound_msg.metadata or {}),
+            "delivery_group_id": delivery_group_id,
+            "expected_provider_messages": (
+                self._expected_provider_message_count(
+                    response
+                )
+            ),
+        }
+
+        await conversation_manager.save_message(
+            outbound_msg
         )
 
         # =====================================================

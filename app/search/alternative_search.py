@@ -57,7 +57,7 @@ def fuzzy_match_products(
     if not products or not query:
         return []
 
-    names = [p.name for p in products]
+    names = [p.title for p in products]
     results = process.extract(
         query,
         names,
@@ -68,7 +68,7 @@ def fuzzy_match_products(
 
     # Map matched names back to products
     matched = []
-    name_to_product = {p.name: p for p in products}
+    name_to_product = {p.title: p for p in products}
     for matched_name, score, _ in results:
         product = name_to_product.get(matched_name)
         if product:

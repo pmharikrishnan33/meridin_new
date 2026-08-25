@@ -3,7 +3,14 @@
 import json
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ValidationError
 
@@ -13,26 +20,33 @@ from app.api.security import (
     resolve_tenant_credentials,
     verify_tenant_signature,
 )
+
 from app.core.config import settings
+
 from app.models.schemas import (
     IncomingWhatsAppWebhook,
     MessageType,
-    Tenant,
 )
+
 from app.services.message_service import (
     DuplicateWhatsAppMessage,
     message_service,
 )
+
 from app.services.whatsapp_inbound import (
     normalize_whatsapp_message,
 )
+
 from app.services.whatsapp_service import (
     whatsapp_sender,
 )
+
 from app.utils.logger import logger
 
 
-router = APIRouter(tags=["messages"])
+router = APIRouter(
+    tags=["messages"]
+)
 
 
 class ChatResponse(BaseModel):
@@ -43,40 +57,107 @@ class ChatResponse(BaseModel):
     response: Dict[str, Any]
 
 
-def _tenant_message_settings(tenant) -> Dict[str, Any]:
+def _tenant_message_settings(
+    tenant,
+) -> Dict[str, Any]:
     """
     Return only non-sensitive tenant settings needed by
     message handlers.
+
+    Never expose:
+    - access_token
+    - webhook secret
+    - verification token
+    - other credentials
     """
 
+    feature_flags = getattr(
+        tenant,
+        "feature_flags",
+        None,
+    )
+
+    if feature_flags is None:
+        feature_flags_data: Dict[str, Any] = {}
+
+    elif hasattr(
+        feature_flags,
+        "model_dump",
+    ):
+        feature_flags_data = (
+            feature_flags.model_dump()
+        )
+
+    elif isinstance(
+        feature_flags,
+        dict,
+    ):
+        feature_flags_data = dict(
+            feature_flags
+        )
+
+    else:
+        feature_flags_data = {}
+
     return {
-        "business_name": tenant.business_name,
-        "welcome_message": tenant.welcome_message,
-        "fallback_message": tenant.fallback_message,
-        "feature_flags": tenant.feature_flags.model_dump(),
+        "business_name": (
+            tenant.business_name
+        ),
+
+        "welcome_message": (
+            tenant.welcome_message
+        ),
+
+        "fallback_message": (
+            tenant.fallback_message
+        ),
+
+        "feature_flags": (
+            feature_flags_data
+        ),
     }
 
 
-def _to_chat_response(result) -> ChatResponse:
+def _to_chat_response(
+    result,
+) -> ChatResponse:
     """
-    Convert MessageService result into the webhook response format.
+    Convert MessageService result into the webhook
+    response format.
     """
 
     entities: Dict[str, Any] = {}
 
-    for entity in result.understanding.entities:
+    for entity in (
+        result.understanding.entities
+    ):
 
         entities.setdefault(
             entity.entity_type.value,
-            entity.normalized_value or entity.value,
+            (
+                entity.normalized_value
+                or entity.value
+            ),
         )
 
     return ChatResponse(
-        conversation_id=result.conversation_id,
-        intent=result.understanding.intent.value,
-        confidence=result.understanding.intent_confidence,
+        conversation_id=(
+            result.conversation_id
+        ),
+
+        intent=(
+            result.understanding.intent.value
+        ),
+
+        confidence=(
+            result.understanding.intent_confidence
+        ),
+
         entities=entities,
-        response=result.response.model_dump(),
+
+        response=(
+            result.response.model_dump()
+        ),
     )
 
 
@@ -86,17 +167,20 @@ async def verify_webhook(
         default=None,
         alias="hub.mode",
     ),
+
     verify_token: Optional[str] = Query(
         default=None,
         alias="hub.verify_token",
     ),
+
     challenge: Optional[str] = Query(
         default=None,
         alias="hub.challenge",
     ),
 ):
     """
-    Perform Meta's WhatsApp webhook verification handshake.
+    Perform Meta's WhatsApp webhook verification
+    handshake.
     """
 
     if not (
@@ -105,40 +189,54 @@ async def verify_webhook(
         and challenge is not None
     ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Webhook verification failed",
+            status_code=(
+                status.HTTP_403_FORBIDDEN
+            ),
+
+            detail=(
+                "Webhook verification failed"
+            ),
         )
 
-    # ---------------------------------------------------------
-    # 1. Shared environment verify token
-    # ---------------------------------------------------------
+    # =========================================================
+    # 1. SHARED ENVIRONMENT VERIFY TOKEN
+    # =========================================================
 
     if (
         settings.WHATSAPP_VERIFY_TOKEN
         and verify_token
         == settings.WHATSAPP_VERIFY_TOKEN
     ):
-        return PlainTextResponse(challenge)
+        return PlainTextResponse(
+            challenge
+        )
 
-    # ---------------------------------------------------------
-    # 2. Tenant-specific verify token
-    # ---------------------------------------------------------
+    # =========================================================
+    # 2. TENANT-SPECIFIC VERIFY TOKEN
+    # =========================================================
 
     from app.repositories.tenant_repository import (
         tenant_repository,
     )
 
     tenant = (
-        await tenant_repository.verify_verify_token(
+        await tenant_repository
+        .verify_verify_token(
             verify_token
         )
     )
 
     if tenant is not None:
-        return PlainTextResponse(challenge)
+
+        return PlainTextResponse(
+            challenge
+        )
 
     raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
+        status_code=(
+            status.HTTP_403_FORBIDDEN
+        ),
+
         detail=(
             "Webhook verification failed: "
             "verify token mismatch"
@@ -152,32 +250,29 @@ async def verify_webhook(
 )
 async def receive_whatsapp_webhook(
     request: Request,
+
     x_tenant_id: Optional[str] = Header(
         default=None,
         alias="x-tenant-id",
     ),
+
     x_whatsapp_phone_number_id: Optional[str] = Header(
         default=None,
         alias="x-whatsapp-phone-number-id",
     ),
+
     x_whatsapp_access_token: Optional[str] = Header(
         default=None,
         alias="x-whatsapp-access-token",
     ),
+
     x_hub_signature_256: Optional[str] = Header(
         default=None,
         alias="x-hub-signature-256",
     ),
 ) -> Dict[str, Any]:
     """
-    Accept WhatsApp webhook notifications and process
-    supported messages.
-
-    Supported inbound message types:
-
-    - text
-    - interactive button replies
-    - interactive list replies
+    Accept WhatsApp webhook notifications.
 
     Processing flow:
 
@@ -195,17 +290,19 @@ async def receive_whatsapp_webhook(
             ↓
         JSON validation
             ↓
+        tenant validation
+            ↓
         message normalization
             ↓
         MessageService
             ↓
-        save outbound message as pending
+        outbound message = pending
             ↓
         WhatsAppSender
             ↓
         Meta
             ↓
-        mark outbound message sent/failed
+        mark outbound = sent / failed
     """
 
     # =========================================================
@@ -214,7 +311,9 @@ async def receive_whatsapp_webhook(
 
     raw_body = await request.body()
 
-    check_body_size(raw_body)
+    check_body_size(
+        raw_body
+    )
 
     # =========================================================
     # 2. EXTRACT PHONE NUMBER ID
@@ -249,7 +348,7 @@ async def receive_whatsapp_webhook(
         else (
             metadata_phone_number_id
             or x_tenant_id
-            or "default"
+            or "unknown"
         )
     )
 
@@ -275,17 +374,24 @@ async def receive_whatsapp_webhook(
     # =========================================================
 
     try:
+
         payload = json.loads(
             raw_body
         )
 
-    except (ValueError, TypeError):
+    except (
+        ValueError,
+        TypeError,
+    ):
+
         raise HTTPException(
             status_code=(
                 status.HTTP_400_BAD_REQUEST
             ),
+
             detail=(
-                "Request body is not valid JSON."
+                "Request body is not "
+                "valid JSON."
             ),
         )
 
@@ -293,13 +399,15 @@ async def receive_whatsapp_webhook(
         payload,
         dict,
     ):
+
         raise HTTPException(
             status_code=(
                 status.HTTP_400_BAD_REQUEST
             ),
+
             detail=(
-                "Webhook payload must be "
-                "a JSON object."
+                "Webhook payload must "
+                "be a JSON object."
             ),
         )
 
@@ -308,6 +416,7 @@ async def receive_whatsapp_webhook(
     # =========================================================
 
     try:
+
         validated = (
             IncomingWhatsAppWebhook(
                 **payload
@@ -326,51 +435,134 @@ async def receive_whatsapp_webhook(
             status_code=(
                 status.HTTP_422_UNPROCESSABLE_ENTITY
             ),
+
             detail=(
                 "Malformed webhook payload."
             ),
         )
 
     # =========================================================
-    # 8. TENANT FALLBACK
+    # 8. TENANT VALIDATION
+    # =========================================================
+    #
+    # IMPORTANT:
+    #
+    # Never create a fake/default Tenant here.
+    #
+    # A WhatsApp webhook must belong to a registered
+    # tenant before any customer/message processing occurs.
     # =========================================================
 
     if tenant is None:
 
-        tenant_id = (
-            x_tenant_id
-            or metadata_phone_number_id
-            or "default"
+        logger.warning(
+            "Rejected webhook because no registered "
+            "tenant matches phone_number_id=%s "
+            "or tenant_id=%s.",
+            metadata_phone_number_id,
+            x_tenant_id,
         )
 
-        tenant = Tenant(
-            _id=str(tenant_id),
-
-            tenant_id=str(tenant_id),
-
-            business_name=settings.APP_NAME,
-
-            phone_number_id=(
-                resolved_phone_number_id
-                or metadata_phone_number_id
-                or ""
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
             ),
 
-            access_token=(
-                resolved_access_token
-                or ""
-            ),
-
-            webhook_verify_token=(
-                settings.WHATSAPP_VERIFY_TOKEN
+            detail=(
+                "Unknown WhatsApp tenant."
             ),
         )
 
     # =========================================================
-    # 9. PROCESS WEBHOOK ENTRIES
+    # 9. FINAL PHONE NUMBER VALIDATION
     # =========================================================
 
-    processed: list[Dict[str, Any]] = []
+    if (
+        resolved_phone_number_id
+        and tenant.phone_number_id
+        and str(
+            resolved_phone_number_id
+        )
+        != str(
+            tenant.phone_number_id
+        )
+    ):
+
+        logger.warning(
+            "Resolved phone number ID does not "
+            "belong to resolved tenant."
+        )
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_403_FORBIDDEN
+            ),
+
+            detail=(
+                "WhatsApp tenant credentials "
+                "do not match the webhook."
+            ),
+        )
+
+    # =========================================================
+    # 10. CREDENTIAL VALIDATION
+    # =========================================================
+
+    phone_number_id = (
+        resolved_phone_number_id
+        or tenant.phone_number_id
+    )
+
+    access_token = (
+        resolved_access_token
+        or tenant.access_token
+    )
+
+    if not phone_number_id:
+
+        logger.error(
+            "Tenant %s has no WhatsApp "
+            "phone_number_id.",
+            tenant.tenant_id,
+        )
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+
+            detail=(
+                "WhatsApp phone number "
+                "configuration is missing."
+            ),
+        )
+
+    if not access_token:
+
+        logger.error(
+            "Tenant %s has no WhatsApp "
+            "access token.",
+            tenant.tenant_id,
+        )
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+
+            detail=(
+                "WhatsApp access token "
+                "configuration is missing."
+            ),
+        )
+
+    # =========================================================
+    # 11. PROCESS WEBHOOK ENTRIES
+    # =========================================================
+
+    processed: list[
+        Dict[str, Any]
+    ] = []
 
     for entry in validated.entry:
 
@@ -378,35 +570,49 @@ async def receive_whatsapp_webhook(
 
             value = change.value
 
+            # =================================================
+            # EXTRACT VALUE DATA
+            # =================================================
+
             if isinstance(
                 value,
                 dict,
             ):
 
                 metadata = (
-                    value.get("metadata")
+                    value.get(
+                        "metadata"
+                    )
                     or {}
                 )
 
                 messages = (
-                    value.get("messages")
+                    value.get(
+                        "messages"
+                    )
                     or []
                 )
 
-                message_phone_number_id = (
-                    metadata.get(
-                        "phone_number_id"
+                if isinstance(
+                    metadata,
+                    dict,
+                ):
+
+                    message_phone_number_id = (
+                        metadata.get(
+                            "phone_number_id"
+                        )
                     )
-                    if isinstance(
-                        metadata,
-                        dict,
+
+                else:
+
+                    message_phone_number_id = (
+                        getattr(
+                            metadata,
+                            "phone_number_id",
+                            None,
+                        )
                     )
-                    else getattr(
-                        metadata,
-                        "phone_number_id",
-                        None,
-                    )
-                )
 
             else:
 
@@ -440,9 +646,18 @@ async def receive_whatsapp_webhook(
             # =================================================
 
             if (
-                tenant.phone_number_id
-                and message_phone_number_id
-                and str(
+                not message_phone_number_id
+            ):
+
+                logger.warning(
+                    "Ignoring webhook change "
+                    "without phone_number_id."
+                )
+
+                continue
+
+            if (
+                str(
                     message_phone_number_id
                 )
                 != str(
@@ -453,7 +668,11 @@ async def receive_whatsapp_webhook(
                 logger.warning(
                     "Rejected webhook change "
                     "with mismatched phone "
-                    "number metadata."
+                    "number metadata. "
+                    "tenant=%s expected=%s received=%s",
+                    tenant.tenant_id,
+                    tenant.phone_number_id,
+                    message_phone_number_id,
                 )
 
                 continue
@@ -498,6 +717,10 @@ async def receive_whatsapp_webhook(
 
                     continue
 
+                # ---------------------------------------------
+                # NORMALIZED FIELDS
+                # ---------------------------------------------
+
                 sender = normalized[
                     "user_id"
                 ]
@@ -512,9 +735,40 @@ async def receive_whatsapp_webhook(
                     ]
                 )
 
-                # =============================================
+                message_type = (
+                    normalized[
+                        "message_type"
+                    ]
+                )
+
+                # =================================================
+                # MESSAGE TYPE VALIDATION
+                # =================================================
+
+                try:
+
+                    parsed_message_type = (
+                        MessageType(
+                            message_type
+                        )
+                    )
+
+                except (
+                    ValueError,
+                    TypeError,
+                ):
+
+                    logger.warning(
+                        "Unsupported normalized "
+                        "message type: %s",
+                        message_type,
+                    )
+
+                    continue
+
+                # =================================================
                 # PROCESS MESSAGE
-                # =============================================
+                # =================================================
 
                 try:
 
@@ -540,10 +794,8 @@ async def receive_whatsapp_webhook(
                                 whatsapp_message_id
                             ),
 
-                            message_type=MessageType(
-                                normalized[
-                                    "message_type"
-                                ]
+                            message_type=(
+                                parsed_message_type
                             ),
 
                             inbound_metadata=(
@@ -577,9 +829,35 @@ async def receive_whatsapp_webhook(
 
                     continue
 
-                # =============================================
+                except Exception as exc:
+
+                    logger.exception(
+                        "Failed to process "
+                        "WhatsApp message "
+                        "%s for tenant %s.",
+                        whatsapp_message_id,
+                        tenant.tenant_id,
+                    )
+
+                    processed.append(
+                        {
+                            "status": (
+                                "processing_failed"
+                            ),
+
+                            "whatsapp_message_id": (
+                                whatsapp_message_id
+                            ),
+
+                            "error": str(exc),
+                        }
+                    )
+
+                    continue
+
+                # =================================================
                 # CONVERT RESPONSE
-                # =============================================
+                # =================================================
 
                 chat_response = (
                     _to_chat_response(
@@ -591,167 +869,176 @@ async def receive_whatsapp_webhook(
                     chat_response.model_dump()
                 )
 
-                # =============================================
-                # SEND TO WHATSAPP
-                # =============================================
-
-                phone_number_id = (
-                    resolved_phone_number_id
-                )
-
-                access_token = (
-                    resolved_access_token
-                )
+                # =================================================
+                # OUTBOUND MESSAGE
+                # =================================================
 
                 outbound_message_id = (
                     result.outbound_message_id
                 )
 
-                if (
-                    phone_number_id
-                    and access_token
-                    and outbound_message_id
-                ):
+                # =================================================
+                # SEND TO WHATSAPP
+                # =================================================
 
-                    try:
-
-                        send_result = (
-                            await (
-                                whatsapp_sender
-                                .send_bot_response(
-                                    phone_number_id=(
-                                        phone_number_id
-                                    ),
-
-                                    access_token=(
-                                        access_token
-                                    ),
-
-                                    to=str(
-                                        sender
-                                    ),
-
-                                    response=(
-                                        result.response
-                                    ),
-                                )
-                            )
-                        )
-
-                        # -------------------------------------
-                        # UPDATE DATABASE → SENT
-                        # -------------------------------------
-
-                        await (
-                            message_service
-                            .mark_outbound_sent(
-                                outbound_message_id=(
-                                    outbound_message_id
-                                ),
-
-                                whatsapp_message_id=(
-                                    send_result
-                                    .provider_message_id
-                                ),
-                            )
-                        )
-
-                        response_data[
-                            "delivery_status"
-                        ] = "sent"
-
-                        response_data[
-                            "whatsapp_message_id"
-                        ] = (
-                            send_result
-                            .provider_message_id
-                        )
-
-                    except Exception as exc:
-
-                        logger.exception(
-                            "Failed to send "
-                            "WhatsApp reply."
-                        )
-
-                        # -------------------------------------
-                        # UPDATE DATABASE → FAILED
-                        # -------------------------------------
-
-                        try:
-
-                            await (
-                                message_service
-                                .mark_outbound_failed(
-                                    outbound_message_id=(
-                                        outbound_message_id
-                                    ),
-
-                                    error=str(
-                                        exc
-                                    ),
-                                )
-                            )
-
-                        except Exception:
-
-                            logger.exception(
-                                "Failed to update "
-                                "outbound message "
-                                "delivery status."
-                            )
-
-                        response_data[
-                            "delivery_status"
-                        ] = "failed"
-
-                        response_data[
-                            "delivery_error"
-                        ] = str(exc)
-
-                elif outbound_message_id:
-
-                    # =========================================
-                    # NO WHATSAPP CREDENTIALS
-                    # =========================================
-
-                    await (
-                        message_service
-                        .mark_outbound_failed(
-                            outbound_message_id=(
-                                outbound_message_id
-                            ),
-
-                            error=(
-                                "WhatsApp credentials "
-                                "are not configured."
-                            ),
-                        )
-                    )
-
-                    response_data[
-                        "delivery_status"
-                    ] = "failed"
-
-                else:
+                if not outbound_message_id:
 
                     logger.warning(
-                        "No outbound message ID "
-                        "was returned by "
-                        "MessageService."
+                        "MessageService returned "
+                        "no outbound message ID "
+                        "for inbound message %s.",
+                        whatsapp_message_id,
                     )
 
                     response_data[
                         "delivery_status"
                     ] = "not_sent"
 
-                # =============================================
+                    processed.append(
+                        response_data
+                    )
+
+                    continue
+
+                try:
+
+                    send_result = (
+                        await (
+                            whatsapp_sender
+                            .send_bot_response(
+                                phone_number_id=(
+                                    phone_number_id
+                                ),
+
+                                access_token=(
+                                    access_token
+                                ),
+
+                                to=str(
+                                    sender
+                                ),
+
+                                response=(
+                                    result.response
+                                ),
+                            )
+                        )
+                    )
+
+                    # =================================================
+                    # VERIFY PROVIDER RESULT
+                    # =================================================
+
+                    if not send_result.success:
+
+                        provider_error = (
+                            send_result.error_message
+                            or
+                            "WhatsApp provider "
+                            "rejected the message."
+                        )
+
+                        raise RuntimeError(
+                            provider_error
+                        )
+
+                    provider_message_id = (
+                        send_result.provider_message_id
+                    )
+
+                    if not provider_message_id:
+
+                        raise RuntimeError(
+                            "WhatsApp API accepted "
+                            "the response but did "
+                            "not return a provider "
+                            "message ID."
+                        )
+
+                    # =================================================
+                    # MARK OUTBOUND SENT
+                    # =================================================
+
+                    await (
+                        message_service
+                        .mark_outbound_sent(
+                            outbound_message_id=(
+                                outbound_message_id
+                            ),
+
+                            whatsapp_message_id=(
+                                provider_message_id
+                            ),
+                        )
+                    )
+
+                    response_data[
+                        "delivery_status"
+                    ] = "sent"
+
+                    response_data[
+                        "whatsapp_message_id"
+                    ] = (
+                        provider_message_id
+                    )
+
+                except Exception as exc:
+
+                    logger.exception(
+                        "Failed to send "
+                        "WhatsApp reply "
+                        "for outbound message %s.",
+                        outbound_message_id,
+                    )
+
+                    # =================================================
+                    # MARK OUTBOUND FAILED
+                    # =================================================
+
+                    try:
+
+                        await (
+                            message_service
+                            .mark_outbound_failed(
+                                outbound_message_id=(
+                                    outbound_message_id
+                                ),
+
+                                error=str(
+                                    exc
+                                ),
+                            )
+                        )
+
+                    except Exception:
+
+                        logger.exception(
+                            "Failed to update "
+                            "outbound message "
+                            "delivery status "
+                            "for %s.",
+                            outbound_message_id,
+                        )
+
+                    response_data[
+                        "delivery_status"
+                    ] = "failed"
+
+                    response_data[
+                        "delivery_error"
+                    ] = str(exc)
+
+                # =================================================
                 # ADD RESULT
-                # =============================================
+                # =================================================
 
                 processed.append(
                     response_data
                 )
+
+    # =========================================================
+    # WEBHOOK ACKNOWLEDGEMENT
+    # =========================================================
 
     return {
         "status": "accepted",
@@ -795,6 +1082,12 @@ def _extract_metadata_phone_number_id(
         if not entries:
             return None
 
+        if not isinstance(
+            entries[0],
+            dict,
+        ):
+            return None
+
         changes = entries[0].get(
             "changes",
             [],
@@ -803,25 +1096,49 @@ def _extract_metadata_phone_number_id(
         if not changes:
             return None
 
+        if not isinstance(
+            changes[0],
+            dict,
+        ):
+            return None
+
         value = changes[0].get(
             "value",
             {},
         )
+
+        if not isinstance(
+            value,
+            dict,
+        ):
+            return None
 
         metadata = value.get(
             "metadata",
             {},
         )
 
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+            return None
+
         phone_id = metadata.get(
             "phone_number_id"
         )
-        return str(phone_id) if phone_id is not None else None
+
+        if phone_id is None:
+            return None
+
+        return str(
+            phone_id
+        )
 
     except (
         ValueError,
-        IndexError,
         TypeError,
+        IndexError,
         AttributeError,
     ):
 

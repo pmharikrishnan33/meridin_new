@@ -2,7 +2,7 @@
 Intent Router - routes understood messages to appropriate handlers.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 from app.utils.logger import logger
 from app.models.schemas import (

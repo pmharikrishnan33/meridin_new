@@ -23,7 +23,6 @@ This module centralises three concerns that every production webhook needs:
 
 import hashlib
 import hmac
-import os
 import time
 from collections import defaultdict
 from threading import Lock
@@ -201,13 +200,34 @@ class RateLimiter:
     def is_enabled(self) -> bool:
         return self._enabled
 
-    def _client_ip(self, request: Request) -> str:
-        """Extract the real client IP from the request, honouring X-Forwarded-For."""
-        forwarded_for = request.headers.get("x-forwarded-for")
-        if forwarded_for:
-            # Use the first hop in the chain
-            return forwarded_for.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+    def _client_ip(
+        self,
+        request: Request,
+    ) -> str:
+        """
+        Return the client address.
+
+        X-Forwarded-For is only trusted when the application
+        is explicitly configured to run behind a trusted proxy.
+        """
+
+        if settings.TRUST_PROXY_HEADERS:
+            forwarded_for = request.headers.get(
+                "x-forwarded-for"
+            )
+
+            if forwarded_for:
+                return (
+                    forwarded_for
+                    .split(",")[0]
+                    .strip()
+                )
+
+        return (
+            request.client.host
+            if request.client
+            else "unknown"
+        )
 
     def _cache_key(self, request: Request, tenant_id: Optional[str] = None) -> str:
         """Build a composite cache key scoped to IP + tenant."""
@@ -320,42 +340,83 @@ async def resolve_tenant_credentials(
     metadata_phone_number_id: Optional[str],
 ) -> Tuple[Optional[Tenant], str, str]:
     """
-    Resolve tenant-specific credentials from MongoDB.
+    Resolve a registered tenant from the WhatsApp
+    phone_number_id.
 
-    Parameters
-    ----------
-    phone_number_id
-        Value supplied via the ``X-Tenant-Id`` or ``X-WhatsApp-Phone-Number-Id``
-        header.
-    metadata_phone_number_id
-        Value found in the webhook payload's ``metadata.phone_number_id``
-        field.
-
-    Returns
-    -------
-    tuple
-        ``(tenant_or_none, resolved_phone_number_id, resolved_access_token)``
+    Unknown tenants are rejected by the webhook.
+    This function never silently falls back to a
+    global WhatsApp credential.
     """
-    # Header ID has precedence over metadata ID for test/routing overrides
-    lookup_id = phone_number_id or metadata_phone_number_id
 
-    tenant = None
-    if lookup_id:
-        tenant = await tenant_repository.find_by_phone_number_id(lookup_id)
-        if tenant is None:
-            tenant = await tenant_repository.find_by_tenant_id(lookup_id)
-
-    if tenant:
-        return (
-            tenant,
-            tenant.phone_number_id,
-            tenant.access_token,
-        )
-
-    logger.debug("No active tenant matched in DB; falling back to default settings.")
-    return (
-        None,
-        settings.WHATSAPP_PHONE_NUMBER_ID,
-        settings.WHATSAPP_ACCESS_TOKEN,
+    header_phone_id = (
+        phone_number_id.strip()
+        if phone_number_id
+        else None
     )
 
+    metadata_phone_id = (
+        metadata_phone_number_id.strip()
+        if metadata_phone_number_id
+        else None
+    )
+
+    # If both are present, they MUST agree.
+    if (
+        header_phone_id
+        and metadata_phone_id
+        and header_phone_id
+        != metadata_phone_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "WhatsApp phone number ID mismatch."
+            ),
+        )
+
+    lookup_id = (
+        metadata_phone_id
+        or header_phone_id
+    )
+
+    if not lookup_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "WhatsApp phone number ID "
+                "is required."
+            ),
+        )
+
+    tenant = await (
+        tenant_repository
+        .find_by_phone_number_id(
+            lookup_id
+        )
+    )
+
+    if tenant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unknown WhatsApp tenant.",
+        )
+
+    if not tenant.access_token:
+        logger.error(
+            "Tenant %s has no WhatsApp access token.",
+            tenant.tenant_id,
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "WhatsApp credentials are "
+                "not configured for this tenant."
+            ),
+        )
+
+    return (
+        tenant,
+        tenant.phone_number_id,
+        tenant.access_token,
+    )

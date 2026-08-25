@@ -737,25 +737,58 @@ class WhatsAppSender:
                 json=payload,
             )
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                error_code = None
+                error_message = str(exc)
+
+                try:
+                    error_data = response.json()
+                    error = error_data.get(
+                        "error",
+                        {}
+                    )
+
+                    if isinstance(error, dict):
+                        error_code = (
+                            str(error["code"])
+                            if error.get("code") is not None
+                            else None
+                        )
+
+                        error_message = (
+                            error.get("message")
+                            or error_message
+                        )
+                except Exception:
+                    pass
+
+                raise RuntimeError(
+                    f"WhatsApp API error"
+                    + (
+                        f" [{error_code}]"
+                        if error_code
+                        else ""
+                    )
+                    + f": {error_message}"
+                ) from exc
 
             data = response.json()
 
-            provider_message_id = (
-                self._extract_message_id(data)
+            message_id = self._extract_message_id(
+                data
             )
 
-            logger.info(
-                "WhatsApp message sent successfully: "
-                "message_id=%s",
-                provider_message_id,
-            )
+            if not message_id:
+                raise RuntimeError(
+                    "WhatsApp API returned HTTP success "
+                    "but no WhatsApp message ID."
+                )
 
             return WhatsAppSendResult(
                 success=True,
-                provider_message_id=(
-                    provider_message_id
-                ),
+                provider_message_id=message_id,
                 raw_response=data,
             )
 
