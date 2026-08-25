@@ -137,22 +137,6 @@ class IncomingMessage(BaseModel):
 # TENANT
 # ==========================================================
 
-class TenantFeatureFlags(BaseModel):
-    enable_ai_responses: bool = True
-    enable_product_recommendations: bool = True
-
-    # Future features — currently disabled/not implemented.
-    enable_order_tracking: bool = False
-    enable_returns: bool = False
-    enable_cancellation: bool = False
-
-    enable_human_handoff: bool = True
-    enable_analytics: bool = True
-
-    max_products_per_response: int = 5
-
-    auto_reply_outside_hours: bool = False
-
 class TenantSettings(BaseModel):
     """
     Nested tenant settings that are safe to keep under the ``settings``
@@ -221,8 +205,30 @@ class ProductVariant(BaseModel):
     sale_price: Optional[float] = None
     images: List[str] = Field(default_factory=list)
 
+class TenantFeatureFlags(BaseModel):
+    enable_ai_responses: bool = True
+    enable_product_recommendations: bool = True
+
+    enable_order_tracking: bool = False
+    enable_returns: bool = False
+    enable_cancellation: bool = False
+
+    enable_human_handoff: bool = True
+    enable_analytics: bool = True
+
+    # Controls whether vocabulary/synonym normalization is applied
+    # before ML intent/entity processing.
+    use_synonyms: bool = True
+
+    max_products_per_response: int = 5
+
+    auto_reply_outside_hours: bool = False
+
+
 class Product(BaseModel):
-    id: str
+    id: str = Field(alias="_id")
+    tenant_id: str
+
     title: str
     description: Optional[str] = None
 
@@ -232,39 +238,34 @@ class Product(BaseModel):
     type: Optional[str] = None
     brand: Optional[str] = None
 
-    color: List[str] = Field(
-        default_factory=list
-    )
-
-    size: List[str] = Field(
-        default_factory=list
-    )
+    color: List[str] = Field(default_factory=list)
+    size: List[str] = Field(default_factory=list)
 
     material: Optional[str] = None
     fit: Optional[str] = None
     gender: Optional[str] = None
     age_group: Optional[str] = None
 
-    tags: List[str] = Field(
-        default_factory=list
-    )
+    tags: List[str] = Field(default_factory=list)
 
     stock: int = 0
 
-    variants: List[Dict[str, Any]] = Field(
-        default_factory=list
-    )
+    # Product-level media used by WhatsApp responses.
+    media: List[str] = Field(default_factory=list)
+
+    variants: List[Dict[str, Any]] = Field(default_factory=list)
 
     is_featured: bool = False
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
+
     @property
     def name(self) -> str:
-        """
-        Backward-compatible alias.
-        """
         return self.title
 
 class ProductSearchFilters(BaseModel):

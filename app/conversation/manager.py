@@ -7,6 +7,7 @@ The in-memory session is only a short-lived cache.
 
 from datetime import datetime, timezone
 from typing import Dict, Optional, List
+from pymongo.errors import DuplicateKeyError
 from uuid import uuid4
 from app.database.collections import collections
 from app.database.mongodb import mongodb

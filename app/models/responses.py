@@ -138,19 +138,39 @@ def entities_to_dict(entities: List[ExtractedEntity]) -> Dict[str, str]:
     return result
 
 
-def product_to_response_product(product: Product) -> ResponseProduct:
-    """Convert a Product model to a ResponseProduct for bot responses."""
-    image = product.images[0] if product.images else None
+def product_to_response_product(
+    product: Product,
+) -> ResponseProduct:
+    image = (
+        product.media[0]
+        if product.media
+        else None
+    )
+
+    if not image:
+        for variant in product.variants:
+            if not isinstance(variant, dict):
+                continue
+
+            images = variant.get("images") or variant.get("media") or []
+
+            if images:
+                image = str(images[0])
+                break
 
     return ResponseProduct(
         product_id=product.id,
-        name=product.name,
-        price=product.base_price,
+        name=product.title,
+        price=product.price,
         sale_price=None,
-        currency=product.currency,
+        currency="INR",
         image=image,
         stock=product.stock,
-        sizes_available=sorted(product.size),
-        colors_available=sorted(product.color),
+        sizes_available=sorted(
+            set(product.size)
+        ),
+        colors_available=sorted(
+            set(product.color)
+        ),
         in_stock=product.stock > 0,
     )

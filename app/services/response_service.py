@@ -22,7 +22,7 @@ class ResponseService:
     Builds and formats bot responses for different output channels.
     """
 
-    MAX_TEXT_LENGTH = 1000  # WhatsApp text message limit
+    MAX_TEXT_LENGTH = 4096  # WhatsApp text message limit
 
     def format_response(
         self,
@@ -36,7 +36,6 @@ class ResponseService:
         - Ensures quick-replies have the required ``id`` field.
         """
         settings = tenant_settings or {}
-        currency = settings.get("currency", "INR")
 
         # Truncate text if needed
         if response.text and len(response.text) > self.MAX_TEXT_LENGTH:

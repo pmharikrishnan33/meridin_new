@@ -1,28 +1,41 @@
+import re
+
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.database.mongodb import mongodb
 
 
+_SAFE_TENANT_ID = re.compile(
+    r"^[A-Za-z0-9_-]{1,64}$"
+)
+
+
 class Collections:
-    """
-    Central MongoDB collection access.
-
-    Tenant-specific inventory is stored as:
-        inventory.<tenant_id>
-
-    Example:
-        inventory.meridin_clothing
-    """
 
     @property
     def clients(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["clients"]
 
-    def products(self, tenant_id: str) -> AsyncIOMotorCollection:
-        if not tenant_id:
-            raise ValueError("tenant_id is required")
+    def products(
+        self,
+        tenant_id: str,
+    ) -> AsyncIOMotorCollection:
 
-        return mongodb.get_database()[f"inventory.{tenant_id}"]
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if not _SAFE_TENANT_ID.fullmatch(
+            tenant_id
+        ):
+            raise ValueError(
+                "Invalid tenant_id format"
+            )
+
+        return mongodb.get_database()[
+            f"inventory.{tenant_id}"
+        ]
 
     @property
     def customers(self) -> AsyncIOMotorCollection:

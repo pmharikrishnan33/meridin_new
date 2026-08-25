@@ -15,7 +15,7 @@ This service:
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-
+from dataclasses import dataclass, field
 import httpx
 
 from app.core.config import settings
@@ -25,18 +25,18 @@ from app.utils.logger import logger
 
 @dataclass
 class WhatsAppSendResult:
-    """
-    Result of a single WhatsApp API send operation.
-    """
-
     success: bool
     provider_message_id: Optional[str] = None
+    provider_message_ids: List[str] = field(default_factory=list)
 
     error_code: Optional[str] = None
     error_message: Optional[str] = None
 
     raw_response: Optional[Dict[str, Any]] = None
 
+    @property
+    def sent_count(self) -> int:
+        return len(self.provider_message_ids)
 
 class WhatsAppSender:
     """
@@ -492,71 +492,90 @@ class WhatsAppSender:
         access_token: str,
         to: str,
         response: BotResponse,
-    ) -> Dict[str, Any]:
-        """
-        Convert an internal BotResponse into WhatsApp messages.
-
-        Returns a delivery summary.
-        """
+    ) -> WhatsAppSendResult:
 
         if not response.text and not response.products:
-            return {
-                "success": True,
-                "status": "skipped",
-                "sent_count": 0,
-                "message_ids": [],
-            }
+            return WhatsAppSendResult(
+                success=True,
+                provider_message_id=None,
+                provider_message_ids=[],
+            )
 
         message_ids: List[str] = []
 
-        # -----------------------------------------------------
-        # Product responses
-        # -----------------------------------------------------
+        try:
+            if (
+                response.response_type
+                in {"product_list", "product_card"}
+                and response.products
+            ):
+                products = response.products[:5]
 
-        if (
-            response.response_type
-            in {
-                "product_list",
-                "product_card",
-            }
-            and response.products
-        ):
+                for product in products:
+                    caption = self._build_product_caption(product)
 
-            max_products = 5
+                    if product.image:
+                        result = await self.send_image(
+                            phone_number_id=phone_number_id,
+                            access_token=access_token,
+                            to=to,
+                            image_url=product.image,
+                            caption=caption,
+                        )
+                    else:
+                        result = await self.send_text(
+                            phone_number_id=phone_number_id,
+                            access_token=access_token,
+                            to=to,
+                            text=caption,
+                        )
 
-            products = response.products[
-                :max_products
-            ]
+                    if not result.success:
+                        raise RuntimeError(
+                            result.error_message
+                            or "WhatsApp message delivery failed."
+                        )
 
-            for product in products:
+                    if result.provider_message_id:
+                        message_ids.append(
+                            result.provider_message_id
+                        )
 
-                caption = self._build_product_caption(
-                    product
-                )
+                if response.quick_replies:
+                    buttons = [
+                        {
+                            "id": (
+                                reply.get("value")
+                                or reply["label"]
+                            ),
+                            "title": reply["label"],
+                        }
+                        for reply in response.quick_replies[:3]
+                    ]
 
-                if product.image:
-                    result = await self.send_image(
+                    result = await self.send_buttons(
                         phone_number_id=phone_number_id,
                         access_token=access_token,
                         to=to,
-                        image_url=product.image,
-                        caption=caption,
-                    )
-                else:
-                    result = await self.send_text(
-                        phone_number_id=phone_number_id,
-                        access_token=access_token,
-                        to=to,
-                        text=caption,
+                        body_text=(
+                            response.text
+                            or "What would you like to do?"
+                        ),
+                        buttons=buttons,
                     )
 
-                if result.provider_message_id:
-                    message_ids.append(
-                        result.provider_message_id
-                    )
+                    if not result.success:
+                        raise RuntimeError(
+                            result.error_message
+                            or "WhatsApp quick reply delivery failed."
+                        )
 
-            # Quick replies after products.
-            if response.quick_replies:
+                    if result.provider_message_id:
+                        message_ids.append(
+                            result.provider_message_id
+                        )
+
+            elif response.quick_replies:
                 buttons = [
                     {
                         "id": (
@@ -565,7 +584,7 @@ class WhatsAppSender:
                         ),
                         "title": reply["label"],
                     }
-                    for reply in response.quick_replies
+                    for reply in response.quick_replies[:3]
                 ]
 
                 result = await self.send_buttons(
@@ -574,98 +593,67 @@ class WhatsAppSender:
                     to=to,
                     body_text=(
                         response.text
-                        or "What would you like to do?"
+                        or "Choose an option."
                     ),
                     buttons=buttons,
                 )
+
+                if not result.success:
+                    raise RuntimeError(
+                        result.error_message
+                        or "WhatsApp quick reply delivery failed."
+                    )
 
                 if result.provider_message_id:
                     message_ids.append(
                         result.provider_message_id
                     )
 
-                return {
-                    "success": True,
-                    "status": "sent",
-                    "sent_count": len(
-                        message_ids
-                    ),
-                    "message_ids": message_ids,
-                }
-
-            return {
-                "success": True,
-                "status": "sent",
-                "sent_count": len(
-                    message_ids
-                ),
-                "message_ids": message_ids,
-            }
-
-        # -----------------------------------------------------
-        # Quick replies without products
-        # -----------------------------------------------------
-
-        if response.quick_replies:
-
-            buttons = [
-                {
-                    "id": (
-                        reply.get("value")
-                        or reply["label"]
-                    ),
-                    "title": reply["label"],
-                }
-                for reply in response.quick_replies
-            ]
-
-            result = await self.send_buttons(
-                phone_number_id=phone_number_id,
-                access_token=access_token,
-                to=to,
-                body_text=response.text or "Choose an option.",
-                buttons=buttons,
-            )
-
-            if result.provider_message_id:
-                message_ids.append(
-                    result.provider_message_id
+            else:
+                result = await self.send_text(
+                    phone_number_id=phone_number_id,
+                    access_token=access_token,
+                    to=to,
+                    text=response.text or "",
                 )
 
-            return {
-                "success": True,
-                "status": "sent",
-                "sent_count": len(
-                    message_ids
+                if not result.success:
+                    raise RuntimeError(
+                        result.error_message
+                        or "WhatsApp message delivery failed."
+                    )
+
+                if result.provider_message_id:
+                    message_ids.append(
+                        result.provider_message_id
+                    )
+
+            return WhatsAppSendResult(
+                success=True,
+                provider_message_id=(
+                    message_ids[-1]
+                    if message_ids
+                    else None
                 ),
-                "message_ids": message_ids,
-            }
-
-        # -----------------------------------------------------
-        # Normal text response
-        # -----------------------------------------------------
-
-        result = await self.send_text(
-            phone_number_id=phone_number_id,
-            access_token=access_token,
-            to=to,
-            text=response.text or "",
-        )
-
-        if result.provider_message_id:
-            message_ids.append(
-                result.provider_message_id
+                provider_message_ids=message_ids,
             )
 
-        return {
-            "success": True,
-            "status": "sent",
-            "sent_count": len(
-                message_ids
-            ),
-            "message_ids": message_ids,
-        }
+        except Exception as exc:
+            logger.exception(
+                "WhatsApp response delivery failed: %s",
+                exc,
+            )
 
+            return WhatsAppSendResult(
+                success=False,
+                provider_message_id=(
+                    message_ids[-1]
+                    if message_ids
+                    else None
+                ),
+                provider_message_ids=message_ids,
+                error_message=str(exc),
+            )
     # ---------------------------------------------------------
     # Helpers
     # ---------------------------------------------------------

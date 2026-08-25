@@ -417,21 +417,21 @@ class ProductService:
     def product_to_response(
         product: Product,
     ) -> ResponseProduct:
-        """
-        Convert the actual inventory Product model
-        into a WhatsApp response product.
-        """
 
         sizes = sorted(
-            product.size
+            {
+                str(value)
+                for value in product.size
+                if value
+            }
         )
 
         colors = sorted(
-            product.color
-        )
-
-        in_stock = (
-            product.stock > 0
+            {
+                str(value)
+                for value in product.color
+                if value
+            }
         )
 
         image = (
@@ -439,6 +439,17 @@ class ProductService:
             if product.media
             else None
         )
+
+        if not image:
+            for variant in product.variants:
+                if not isinstance(variant, dict):
+                    continue
+
+                images = variant.get("images") or variant.get("media") or []
+
+                if images:
+                    image = str(images[0])
+                    break
 
         return ResponseProduct(
             product_id=product.id,
@@ -453,7 +464,7 @@ class ProductService:
             description=product.description,
             sizes_available=sizes,
             colors_available=colors,
-            in_stock=in_stock,
+            in_stock=product.stock > 0,
         )
 
 

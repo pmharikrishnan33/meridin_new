@@ -167,7 +167,28 @@ class EntityExtractor:
                     flush_current()
                     continue
 
-                confidence = float(max(probabilities[index])) if probabilities is not None else 1.0
+                predicted_label = str(label)
+
+                if probabilities is not None:
+                    classes = list(
+                        model_loader.entity_model.classes_
+                    )
+
+                    try:
+                        predicted_class_index = classes.index(
+                            predicted_label
+                        )
+                        confidence = float(
+                            probabilities[
+                                index
+                            ][
+                                predicted_class_index
+                            ]
+                        )
+                    except ValueError:
+                        confidence = 0.0
+                else:
+                    confidence = 1.0
 
                 # An I tag starts a new entity if no matching B tag preceded it.
                 if prefix == "B" or entity_type != current_type:

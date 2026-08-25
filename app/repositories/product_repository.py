@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
+from bson import ObjectId
+
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.models.schemas import Product, ProductSearchFilters
@@ -16,11 +18,106 @@ class ProductRepository:
 
     Database contract:
         inventory.<tenant_id>
+
+    Important rules:
+    - Every query is tenant-scoped.
+    - Product IDs may be stored as strings or MongoDB ObjectIds.
+    - Search filters are combined with AND semantics.
+    - Multiple OR-based conditions are placed inside $and so they
+      cannot overwrite one another.
     """
 
     @staticmethod
     def _normalize_text(value: str) -> str:
         return value.strip().lower()
+
+    @staticmethod
+    def _id_candidates(product_id: str) -> List[Any]:
+        """
+        Return MongoDB-compatible candidates for a product ID.
+
+        Supports both:
+        - string IDs
+        - ObjectId IDs
+        """
+        product_id = product_id.strip()
+
+        candidates: List[Any] = [product_id]
+
+        if ObjectId.is_valid(product_id):
+            object_id = ObjectId(product_id)
+
+            if object_id != product_id:
+                candidates.append(object_id)
+
+        return candidates
+
+    @staticmethod
+    def _build_text_condition(
+        field: str,
+        value: str,
+    ) -> Dict[str, Any]:
+        """
+        Build a case-insensitive regex condition.
+        """
+        return {
+            field: {
+                "$regex": re.escape(value.strip()),
+                "$options": "i",
+            }
+        }
+
+    @staticmethod
+    def _build_exact_text_condition(
+        field: str,
+        value: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Build a case-insensitive exact-match condition.
+        """
+        if not value or not value.strip():
+            return None
+
+        return {
+            field: {
+                "$regex": (
+                    "^"
+                    + re.escape(value.strip())
+                    + "$"
+                ),
+                "$options": "i",
+            }
+        }
+
+    @staticmethod
+    def _build_array_condition(
+        field: str,
+        value: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Build a case-insensitive match for an array of strings.
+
+        Example:
+            color = ["Black", "White"]
+
+        Query:
+            {"color": {"$elemMatch": {"$regex": "^black$", ...}}}
+        """
+        if not value or not value.strip():
+            return None
+
+        return {
+            field: {
+                "$elemMatch": {
+                    "$regex": (
+                        "^"
+                        + re.escape(value.strip())
+                        + "$"
+                    ),
+                    "$options": "i",
+                }
+            }
+        }
 
     async def find_by_id(
         self,
@@ -36,27 +133,19 @@ class ProductRepository:
 
         product_id = product_id.strip()
 
-        document = await collections.products(tenant_id).find_one(
+        if not product_id:
+            return None
+
+        document = await collections.products(
+            tenant_id
+        ).find_one(
             {
-                "_id": product_id,
                 "tenant_id": tenant_id,
+                "_id": {
+                    "$in": self._id_candidates(product_id)
+                },
             }
         )
-
-        # Support ObjectId databases if your existing inventory uses ObjectId.
-        if document is None:
-            try:
-                from bson import ObjectId
-
-                if ObjectId.is_valid(product_id):
-                    document = await collections.products(tenant_id).find_one(
-                        {
-                            "_id": ObjectId(product_id),
-                            "tenant_id": tenant_id,
-                        }
-                    )
-            except Exception:
-                pass
 
         if document is None:
             return None
@@ -65,6 +154,7 @@ class ProductRepository:
             return Product(
                 **normalize_mongo_doc(document)
             )
+
         except Exception:
             logger.exception(
                 "Invalid product document: %s",
@@ -84,9 +174,16 @@ class ProductRepository:
         if not mongodb.is_connected:
             return None
 
-        escaped_title = re.escape(title.strip())
+        title = title.strip()
 
-        document = await collections.products(tenant_id).find_one(
+        if not title:
+            return None
+
+        escaped_title = re.escape(title)
+
+        document = await collections.products(
+            tenant_id
+        ).find_one(
             {
                 "tenant_id": tenant_id,
                 "title": {
@@ -103,6 +200,7 @@ class ProductRepository:
             return Product(
                 **normalize_mongo_doc(document)
             )
+
         except Exception:
             logger.exception(
                 "Invalid product document: %s",
@@ -126,18 +224,28 @@ class ProductRepository:
             dict.fromkeys(
                 product_id.strip()
                 for product_id in product_ids
-                if product_id and product_id.strip()
+                if isinstance(product_id, str)
+                and product_id.strip()
             )
         )
 
         if not unique_ids:
             return []
 
-        cursor = collections.products(tenant_id).find(
+        mongo_ids: List[Any] = []
+
+        for product_id in unique_ids:
+            mongo_ids.extend(
+                self._id_candidates(product_id)
+            )
+
+        cursor = collections.products(
+            tenant_id
+        ).find(
             {
                 "tenant_id": tenant_id,
                 "_id": {
-                    "$in": unique_ids
+                    "$in": mongo_ids
                 },
             }
         )
@@ -150,7 +258,9 @@ class ProductRepository:
                     **normalize_mongo_doc(document)
                 )
 
-                products_by_id[product.id] = product
+                products_by_id[
+                    product.id
+                ] = product
 
             except Exception:
                 logger.exception(
@@ -158,6 +268,7 @@ class ProductRepository:
                     document.get("_id"),
                 )
 
+        # Preserve the exact order requested by the caller.
         return [
             products_by_id[product_id]
             for product_id in unique_ids
@@ -171,155 +282,342 @@ class ProductRepository:
     ) -> List[Product]:
 
         if not tenant_id:
-            raise ValueError("tenant_id is required")
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if filters is None:
+            raise ValueError(
+                "filters are required"
+            )
 
         if not mongodb.is_connected:
             logger.warning(
-                "Product search skipped because MongoDB is unavailable."
+                "Product search skipped because "
+                "MongoDB is unavailable."
             )
             return []
+
+        # --------------------------------------------------
+        # BASE TENANT CONDITION
+        # --------------------------------------------------
 
         query: Dict[str, Any] = {
             "tenant_id": tenant_id,
         }
+
+        # Every independent filter goes into this list.
+        #
+        # This is important because multiple filters may
+        # themselves contain $or conditions.
+        #
+        # Example:
+        #
+        # query["$and"] = [
+        #     {"$or": [...]},       # text search
+        #     {"$or": [...]},       # stock
+        #     {"category": ...},
+        #     {"color": ...},
+        # ]
+        #
+        # This prevents one $or from overwriting another.
+        conditions: List[Dict[str, Any]] = []
 
         # --------------------------------------------------
         # TEXT SEARCH
         # --------------------------------------------------
 
         if filters.query:
-            safe_query = re.escape(
-                filters.query.strip()
-            )
+            search_text = filters.query.strip()
 
-            query["$or"] = [
-                {
-                    "title": {
-                        "$regex": safe_query,
-                        "$options": "i",
+            if search_text:
+                safe_query = re.escape(
+                    search_text
+                )
+
+                conditions.append(
+                    {
+                        "$or": [
+                            {
+                                "title": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "description": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "category": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "type": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "brand": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "material": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                            {
+                                "tags": {
+                                    "$regex": safe_query,
+                                    "$options": "i",
+                                }
+                            },
+                        ]
                     }
-                },
-                {
-                    "description": {
-                        "$regex": safe_query,
-                        "$options": "i",
-                    }
-                },
-                {
-                    "category": {
-                        "$regex": safe_query,
-                        "$options": "i",
-                    }
-                },
-                {
-                    "type": {
-                        "$regex": safe_query,
-                        "$options": "i",
-                    }
-                },
-                {
-                    "brand": {
-                        "$regex": safe_query,
-                        "$options": "i",
-                    }
-                },
-                {
-                    "material": {
-                        "$regex": safe_query,
-                        "$options": "i",
-                    }
-                },
-            ]
+                )
 
         # --------------------------------------------------
         # EXACT / CASE-INSENSITIVE FILTERS
         # --------------------------------------------------
 
-        def text_filter(field: str, value: Optional[str]) -> None:
-            if value:
-                query[field] = {
-                    "$regex": (
-                        "^"
-                        + re.escape(value.strip())
-                        + "$"
-                    ),
-                    "$options": "i",
-                }
+        exact_filters = {
+            "category": filters.category,
+            "type": filters.type,
+            "brand": filters.brand,
+            "material": filters.material,
+            "fit": filters.fit,
+            "gender": filters.gender,
+            "age_group": filters.age_group,
+        }
 
-        text_filter("category", filters.category)
-        text_filter("type", filters.type)
-        text_filter("brand", filters.brand)
-        text_filter("material", filters.material)
-        text_filter("fit", filters.fit)
-        text_filter("gender", filters.gender)
-        text_filter("age_group", filters.age_group)
+        for field, value in exact_filters.items():
+            condition = (
+                self._build_exact_text_condition(
+                    field,
+                    value,
+                )
+            )
+
+            if condition:
+                conditions.append(condition)
 
         # --------------------------------------------------
         # ARRAY FILTERS
         # --------------------------------------------------
 
+        color_condition = (
+            self._build_array_condition(
+                "color",
+                filters.color,
+            )
+        )
+
+        if color_condition:
+            conditions.append(
+                color_condition
+            )
+
+        size_condition = (
+            self._build_array_condition(
+                "size",
+                filters.size,
+            )
+        )
+
+        if size_condition:
+            conditions.append(
+                size_condition
+            )
+
+        # --------------------------------------------------
+        # VARIANT COLOR / SIZE
+        #
+        # Some inventory documents may store color and
+        # size only inside variants.
+        #
+        # If a product has top-level values, those match.
+        # If not, matching variants also qualify.
+        # --------------------------------------------------
+
         if filters.color:
-            query["color"] = {
-                "$elemMatch": {
-                    "$regex": re.escape(filters.color.strip()),
-                    "$options": "i",
-                }
-            }
+            color_value = filters.color.strip()
+
+            if color_value:
+                conditions.append(
+                    {
+                        "$or": [
+                            {
+                                "color": {
+                                    "$elemMatch": {
+                                        "$regex": (
+                                            "^"
+                                            + re.escape(
+                                                color_value
+                                            )
+                                            + "$"
+                                        ),
+                                        "$options": "i",
+                                    }
+                                }
+                            },
+                            {
+                                "variants": {
+                                    "$elemMatch": {
+                                        "color": {
+                                            "$regex": (
+                                                "^"
+                                                + re.escape(
+                                                    color_value
+                                                )
+                                                + "$"
+                                            ),
+                                            "$options": "i",
+                                        }
+                                    }
+                                }
+                            },
+                        ]
+                    }
+                )
+
+                # Remove the previous top-level-only
+                # color condition because the combined
+                # top-level/variant condition replaces it.
+                if color_condition:
+                    conditions.remove(
+                        color_condition
+                    )
 
         if filters.size:
-            query["size"] = {
-                "$elemMatch": {
-                    "$regex": re.escape(filters.size.strip()),
-                    "$options": "i",
-                }
-            }
+            size_value = filters.size.strip()
+
+            if size_value:
+                conditions.append(
+                    {
+                        "$or": [
+                            {
+                                "size": {
+                                    "$elemMatch": {
+                                        "$regex": (
+                                            "^"
+                                            + re.escape(
+                                                size_value
+                                            )
+                                            + "$"
+                                        ),
+                                        "$options": "i",
+                                    }
+                                }
+                            },
+                            {
+                                "variants": {
+                                    "$elemMatch": {
+                                        "size": {
+                                            "$regex": (
+                                                "^"
+                                                + re.escape(
+                                                    size_value
+                                                )
+                                                + "$"
+                                            ),
+                                            "$options": "i",
+                                        }
+                                    }
+                                }
+                            },
+                        ]
+                    }
+                )
+
+                if size_condition:
+                    conditions.remove(
+                        size_condition
+                    )
 
         # --------------------------------------------------
         # TAGS
         # --------------------------------------------------
 
         if filters.tags:
-            query["tags"] = {
-                "$all": filters.tags
-            }
+            normalized_tags = [
+                tag.strip()
+                for tag in filters.tags
+                if isinstance(tag, str)
+                and tag.strip()
+            ]
+
+            if normalized_tags:
+                conditions.append(
+                    {
+                        "tags": {
+                            "$all": normalized_tags
+                        }
+                    }
+                )
 
         # --------------------------------------------------
         # PRICE
         # --------------------------------------------------
 
+        price_condition: Dict[str, Any] = {}
+
         if filters.min_price is not None:
-            query.setdefault(
-                "price",
-                {}
-            )["$gte"] = filters.min_price
+            price_condition["$gte"] = (
+                filters.min_price
+            )
 
         if filters.max_price is not None:
-            query.setdefault(
-                "price",
-                {}
-            )["$lte"] = filters.max_price
+            price_condition["$lte"] = (
+                filters.max_price
+            )
+
+        if price_condition:
+            conditions.append(
+                {
+                    "price": price_condition
+                }
+            )
 
         # --------------------------------------------------
         # STOCK
         # --------------------------------------------------
 
         if filters.in_stock_only:
-            query["$or"] = [
+            conditions.append(
                 {
-                    "stock": {
-                        "$gt": 0
-                    }
-                },
-                {
-                    "variants": {
-                        "$elemMatch": {
+                    "$or": [
+                        {
                             "stock": {
                                 "$gt": 0
                             }
-                        }
-                    }
-                },
-            ]
+                        },
+                        {
+                            "variants": {
+                                "$elemMatch": {
+                                    "stock": {
+                                        "$gt": 0
+                                    }
+                                }
+                            }
+                        },
+                    ]
+                }
+            )
+
+        # --------------------------------------------------
+        # APPLY ALL CONDITIONS
+        # --------------------------------------------------
+
+        if conditions:
+            query["$and"] = conditions
 
         # --------------------------------------------------
         # SORT
@@ -331,13 +629,16 @@ class ProductRepository:
 
         sort_map = {
             "price_asc": [
-                ("price", 1)
+                ("price", 1),
+                ("_id", 1),
             ],
             "price_desc": [
-                ("price", -1)
+                ("price", -1),
+                ("_id", 1),
             ],
             "newest": [
-                ("created_at", -1)
+                ("created_at", -1),
+                ("_id", 1),
             ],
         }
 
@@ -346,7 +647,9 @@ class ProductRepository:
         )
 
         if sort_spec:
-            cursor = cursor.sort(sort_spec)
+            cursor = cursor.sort(
+                sort_spec
+            )
 
         # --------------------------------------------------
         # PAGINATION
@@ -354,37 +657,49 @@ class ProductRepository:
 
         offset = max(
             0,
-            filters.offset,
+            int(filters.offset),
         )
 
         limit = max(
             1,
-            min(filters.limit, 100),
+            min(
+                int(filters.limit),
+                100,
+            ),
         )
 
-        cursor = cursor.skip(offset).limit(limit)
+        cursor = (
+            cursor
+            .skip(offset)
+            .limit(limit)
+        )
+
+        # --------------------------------------------------
+        # RESULT CONVERSION
+        # --------------------------------------------------
 
         products: List[Product] = []
 
         async for document in cursor:
-
             try:
-                products.append(
-                    Product(
-                        **normalize_mongo_doc(
-                            document
-                        )
+                product = Product(
+                    **normalize_mongo_doc(
+                        document
                     )
                 )
 
+                products.append(product)
+
             except Exception:
                 logger.exception(
-                    "Invalid product document skipped: %s",
+                    "Invalid product document "
+                    "skipped: %s",
                     document.get("_id"),
                 )
 
         logger.info(
-            "Product search returned %s results for tenant %s",
+            "Product search returned %s results "
+            "for tenant %s",
             len(products),
             tenant_id,
         )

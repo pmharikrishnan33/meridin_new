@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     DEBUG: bool = False
-    WHATSAPP_GRAPH_API_VERSION: str = "v18.0"
+    WHATSAPP_GRAPH_API_VERSION: str = "v23.0"
 
     @field_validator("DEBUG", mode="before")
     @classmethod

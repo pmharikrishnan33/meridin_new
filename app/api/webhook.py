@@ -260,12 +260,7 @@ async def receive_whatsapp_webhook(
         default=None,
         alias="x-whatsapp-phone-number-id",
     ),
-
-    x_whatsapp_access_token: Optional[str] = Header(
-        default=None,
-        alias="x-whatsapp-access-token",
-    ),
-
+    
     x_hub_signature_256: Optional[str] = Header(
         default=None,
         alias="x-hub-signature-256",
@@ -839,21 +834,12 @@ async def receive_whatsapp_webhook(
                         tenant.tenant_id,
                     )
 
-                    processed.append(
-                        {
-                            "status": (
-                                "processing_failed"
-                            ),
-
-                            "whatsapp_message_id": (
-                                whatsapp_message_id
-                            ),
-
-                            "error": str(exc),
-                        }
-                    )
-
-                    continue
+                    # Do not silently acknowledge processing failures.
+                    # Meta can retry the webhook when a 5xx response is returned.
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Webhook message processing failed.",
+                    ) from exc
 
                 # =================================================
                 # CONVERT RESPONSE

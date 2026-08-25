@@ -63,8 +63,18 @@ class ConversationSession:
         }
 
         self.message_history.append(msg)
+
+        # Keep ConversationContext's private history synchronized with
+        # the session history so AI fallback and other context consumers
+        # can access the same conversation history.
+        self.context._message_history = self.message_history
+
         self.context.message_count += 1
         self.last_updated = datetime.now(timezone.utc)
+
+        if len(self.message_history) > 20:
+            self.message_history = self.message_history[-20:]
+            self.context._message_history = self.message_history
 
         # Keep only last 20 messages in memory
         if len(self.message_history) > 20:
@@ -326,7 +336,16 @@ class ConversationSession:
             message_history=data.get("message_history", []),
             search_cache=data.get("search_cache", {}),
             is_active=data.get("is_active", True),
-            last_updated=datetime.fromisoformat(data["last_updated"]) if isinstance(data.get("last_updated"), str) else data.get("last_updated", datetime.now(timezone.utc))
+            last_updated=(
+                datetime.fromisoformat(data["last_updated"])
+                if isinstance(data.get("last_updated"), str)
+                else data.get(
+                    "last_updated",
+                    datetime.now(timezone.utc),
+                )
+            ),
         )
+
+        session.context._message_history = session.message_history
 
         return session

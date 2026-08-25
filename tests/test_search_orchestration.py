@@ -3,9 +3,6 @@ import unittest
 from app.conversation.session import ConversationSession
 from app.models.schemas import (
     ConversationContext,
-    ConversationStatus,
-    MessageDirection,
-    MessageType,
     ProductSearchFilters,
     ResponseProduct,
     EntityType,
