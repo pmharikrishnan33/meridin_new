@@ -1,51 +1,19 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ==========================================================
+# ============================================================
 # ENUMS
-# ==========================================================
-
-class IntentType(str, Enum):
-    GREETING = "greeting"
-    PRODUCT_SEARCH = "product_search"
-    PRODUCT_INQUIRY = "product_inquiry"
-    AVAILABILITY = "availability"
-    PAGINATION = "pagination"
-    ORDER_STATUS = "order_status"
-    CANCEL_ORDER = "cancel_order"
-    RETURN_REQUEST = "return_request"
-    COMPLAINT = "complaint"
-    THANKS = "thanks"
-    UNKNOWN = "unknown"
-
-
-class EntityType(str, Enum):
-    PRODUCT = "product"
-    COLOR = "color"
-    SIZE = "size"
-    FIT = "fit"
-    PRICE = "price"
-    BRAND = "brand"
-    CATEGORY = "category"
-    ORDER_ID = "order_id"
-    DATE = "date"
-    DISCOUNT = "discount"
-    GENDER = "gender"
-    MATERIAL = "material"
-    NECK = "neck"
-    OCCASION = "occasion"
-    PATTERN = "pattern"
-    SEASON = "season"
-    SLEEVE = "sleeve"
-    STYLE = "style"
+# ============================================================
 
 
 class MessageDirection(str, Enum):
@@ -56,105 +24,100 @@ class MessageDirection(str, Enum):
 class MessageType(str, Enum):
     TEXT = "text"
     IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    DOCUMENT = "document"
     INTERACTIVE = "interactive"
+    BUTTON = "button"
     LOCATION = "location"
     CONTACT = "contact"
-    AUDIO = "audio"
-    VIDEO = "video"
-    DOCUMENT = "document"
-    TEMPLATE = "template"
+    UNKNOWN = "unknown"
 
 
-class ConversationStatus(str, Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-    ESCALATED = "escalated"
-    BOT_HANDOFF = "bot_handoff"
+class IntentType(str, Enum):
+    GREETING = "greeting"
+    PRODUCT_SEARCH = "product_search"
+    PRODUCT_DETAILS = "product_details"
+    AVAILABILITY = "availability"
+    PRICE_INQUIRY = "price_inquiry"
+    ORDER_STATUS = "order_status"
+    RETURN = "return"
+    CANCELLATION = "cancellation"
+    HUMAN_HANDOFF = "human_handoff"
+    PAGINATION = "pagination"
+    UNKNOWN = "unknown"
 
 
-class OrderStatus(str, Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    PROCESSING = "processing"
-    SHIPPED = "shipped"
-    DELIVERED = "delivered"
-    CANCELLED = "cancelled"
-    RETURNED = "returned"
-    REFUNDED = "refunded"
+class EntityType(str, Enum):
+    PRODUCT = "product"
+    CATEGORY = "category"
+    BRAND = "brand"
+    COLOR = "color"
+    MATERIAL = "material"
+    SIZE = "size"
+    PRICE = "price"
+    PRICE_MIN = "price_min"
+    PRICE_MAX = "price_max"
+    FIT = "fit"
+    GENDER = "gender"
+    AGE_GROUP = "age_group"
+    TYPE = "type"
+    TAG = "tag"
+    UNKNOWN = "unknown"
 
 
-# ==========================================================
-# INCOMING WHATSAPP
-# ==========================================================
-
-class WhatsAppContact(BaseModel):
-    profile: Optional[Dict[str, str]] = None
-    wa_id: str
-
-
-class WhatsAppMessage(BaseModel):
-    from_: str = Field(alias="from")
-    id: str
-    timestamp: str
-    type: str
-    text: Optional[Dict[str, str]] = None
-    image: Optional[Dict[str, Any]] = None
-    interactive: Optional[Dict[str, Any]] = None
-    location: Optional[Dict[str, Any]] = None
-    contacts: Optional[List[Dict[str, Any]]] = None
-
-
-class WhatsAppChange(BaseModel):
-    field: str
-    value: Dict[str, Any]
-
-
-class WhatsAppEntry(BaseModel):
-    id: str
-    changes: List[WhatsAppChange]
-
-
-class IncomingWhatsAppWebhook(BaseModel):
-    object: str
-    entry: List[WhatsAppEntry]
-
-
-class IncomingMessage(BaseModel):
-    user_id: str
-    tenant_id: str
-    text: str
-    message_type: MessageType = MessageType.TEXT
-    media_id: Optional[str] = None
-    media_url: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=_now_utc)
-    raw_payload: Dict[str, Any] = Field(default_factory=dict)
-
-
-# ==========================================================
+# ============================================================
 # TENANT
-# ==========================================================
+# ============================================================
+
 
 class TenantSettings(BaseModel):
+    """
+    Nested tenant settings stored under the tenant's settings object.
+    """
+
     webhook_secret: Optional[str] = None
 
 
 class TenantFeatureFlags(BaseModel):
+    """
+    Tenant-specific feature configuration.
+    """
+
     enable_ai_responses: bool = True
     enable_product_recommendations: bool = True
+
     enable_order_tracking: bool = False
     enable_returns: bool = False
     enable_cancellation: bool = False
+
     enable_human_handoff: bool = True
     enable_analytics: bool = True
+
     use_synonyms: bool = True
-    max_products_per_response: int = 3
+
+    max_products_per_response: int = 5
+
     auto_reply_outside_hours: bool = False
+
+    @field_validator("max_products_per_response")
+    @classmethod
+    def validate_max_products_per_response(
+        cls,
+        value: int,
+    ) -> int:
+        return max(1, min(value, 20))
 
 
 class Tenant(BaseModel):
+    """
+    Tenant/client model stored in the MongoDB clients collection.
+    """
+
     id: str = Field(alias="_id")
+
     tenant_id: str
+
     business_name: str
 
     welcome_message: Optional[str] = None
@@ -187,134 +150,97 @@ class Tenant(BaseModel):
     )
 
 
-# ==========================================================
+# ============================================================
 # PRODUCT
-# ==========================================================
+# ============================================================
+
 
 class ProductVariant(BaseModel):
-    size: str
-    color: str
-    fit: Optional[str] = None
-    sku: str
+    """
+    A purchasable product variant.
+
+    A variant may represent a size/color combination and its
+    corresponding stock.
+    """
+
+    id: Optional[str] = None
+
+    sku: Optional[str] = None
+
+    size: Optional[str] = None
+
+    color: Optional[str] = None
+
     stock: int = 0
-    price: float
-    sale_price: Optional[float] = None
-    images: List[str] = Field(default_factory=list)
+
+    price: Optional[float] = None
+
+    model_config = ConfigDict(
+        extra="allow"
+    )
+
+    @field_validator("stock")
+    @classmethod
+    def validate_stock(
+        cls,
+        value: int,
+    ) -> int:
+        return max(0, value)
 
 
 class Product(BaseModel):
+    """
+    Clothing product stored inside a tenant-specific inventory
+    collection.
+    """
+
     id: str = Field(alias="_id")
+
     tenant_id: str
 
     title: str
+
     description: Optional[str] = None
+
+    category: Optional[str] = None
+
+    type: Optional[str] = None
+
+    brand: Optional[str] = None
+
+    material: Optional[str] = None
+
+    fit: Optional[str] = None
+
+    gender: Optional[str] = None
+
+    age_group: Optional[str] = None
+
+    color: List[str] = Field(
+        default_factory=list
+    )
+
+    size: List[str] = Field(
+        default_factory=list
+    )
+
+    tags: List[str] = Field(
+        default_factory=list
+    )
 
     price: float = 0.0
 
-    category: Optional[str] = None
-    type: Optional[str] = None
-    brand: Optional[str] = None
-
-    color: List[str] = Field(default_factory=list)
-    size: List[str] = Field(default_factory=list)
-
-    material: Optional[str] = None
-    fit: Optional[str] = None
-    gender: Optional[str] = None
-    age_group: Optional[str] = None
-
-    tags: List[str] = Field(default_factory=list)
-
     stock: int = 0
 
-    media: List[str] = Field(default_factory=list)
-
-    variants: List[Dict[str, Any]] = Field(
+    variants: List[ProductVariant] = Field(
         default_factory=list
     )
 
-    is_featured: bool = False
-
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-    model_config = ConfigDict(
-        populate_by_name=True
-    )
-
-    @property
-    def name(self) -> str:
-        return self.title
-
-
-class ProductSearchFilters(BaseModel):
-    query: Optional[str] = None
-    category: Optional[str] = None
-    type: Optional[str] = None
-    brand: Optional[str] = None
-    material: Optional[str] = None
-    fit: Optional[str] = None
-    gender: Optional[str] = None
-    color: Optional[str] = None
-    size: Optional[str] = None
-
-    tags: List[str] = Field(
+    images: List[str] = Field(
         default_factory=list
     )
 
-    min_price: Optional[float] = None
-    max_price: Optional[float] = None
-
-    in_stock_only: bool = True
-
-    age_group: Optional[str] = None
-
-    limit: int = 10
-    offset: int = 0
-
-    sort_by: str = "relevance"
-
-    model_config = ConfigDict(
-        extra="forbid"
-    )
-
-
-class ProductSearchResult(BaseModel):
-    product: Product
-    score: float
-    matched_attributes: List[str] = Field(
-        default_factory=list
-    )
-
-
-# ==========================================================
-# CUSTOMER
-# ==========================================================
-
-class Customer(BaseModel):
-    id: Optional[str] = Field(
-        default=None,
-        alias="_id"
-    )
-
-    tenant_id: str
-    phone_number: str
-    wa_id: str
-
-    name: Optional[str] = None
-    email: Optional[str] = None
-
-    language: str = "en"
-
-    tags: List[str] = Field(
-        default_factory=list
-    )
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    is_blocked: bool = False
+    image_url: Optional[str] = None
 
     created_at: datetime = Field(
         default_factory=_now_utc
@@ -324,42 +250,245 @@ class Customer(BaseModel):
         default_factory=_now_utc
     )
 
-    last_interaction_at: Optional[datetime] = None
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="allow",
+    )
+
+    @field_validator("stock")
+    @classmethod
+    def validate_stock(
+        cls,
+        value: int,
+    ) -> int:
+        return max(0, value)
+
+    @field_validator("price")
+    @classmethod
+    def validate_price(
+        cls,
+        value: float,
+    ) -> float:
+        return max(0.0, value)
+
+
+class ProductSearchFilters(BaseModel):
+    """
+    Filters used by the product repository/service.
+    """
+
+    query: Optional[str] = None
+
+    category: Optional[str] = None
+
+    type: Optional[str] = None
+
+    brand: Optional[str] = None
+
+    material: Optional[str] = None
+
+    fit: Optional[str] = None
+
+    gender: Optional[str] = None
+
+    age_group: Optional[str] = None
+
+    color: Optional[str] = None
+
+    size: Optional[str] = None
+
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
+    min_price: Optional[float] = None
+
+    max_price: Optional[float] = None
+
+    in_stock_only: bool = False
+
+    sort_by: Optional[str] = None
+
+    offset: int = 0
+
+    limit: int = 10
 
     model_config = ConfigDict(
-        populate_by_name=True
+        extra="allow"
+    )
+
+    @field_validator("offset")
+    @classmethod
+    def validate_offset(
+        cls,
+        value: int,
+    ) -> int:
+        return max(0, value)
+
+    @field_validator("limit")
+    @classmethod
+    def validate_limit(
+        cls,
+        value: int,
+    ) -> int:
+        return max(1, min(value, 100))
+
+    @field_validator("min_price", "max_price")
+    @classmethod
+    def validate_price(
+        cls,
+        value: Optional[float],
+    ) -> Optional[float]:
+        if value is None:
+            return None
+
+        return max(0.0, value)
+
+
+# ============================================================
+# ML ENTITIES
+# ============================================================
+
+
+class ExtractedEntity(BaseModel):
+    entity_type: EntityType
+
+    value: str
+
+    confidence: float = 1.0
+
+    normalized_value: Optional[str] = None
+
+    model_config = ConfigDict(
+        extra="allow"
     )
 
 
-# ==========================================================
-# CONVERSATION
-# ==========================================================
+class MessageUnderstanding(BaseModel):
+    original_text: str
+
+    normalized_text: str
+
+    intent: IntentType
+
+    intent_confidence: float
+
+    entities: List[ExtractedEntity] = Field(
+        default_factory=list
+    )
+
+    model_config = ConfigDict(
+        extra="allow"
+    )
+
+
+# ============================================================
+# BOT RESPONSE
+# ============================================================
+
+
+class ProductResponse(BaseModel):
+    """
+    Product representation returned to the WhatsApp response layer.
+    """
+
+    product_id: str
+
+    title: str
+
+    description: Optional[str] = None
+
+    price: Optional[float] = None
+
+    images: List[str] = Field(
+        default_factory=list
+    )
+
+    image_url: Optional[str] = None
+
+    sizes: List[str] = Field(
+        default_factory=list
+    )
+
+    colors: List[str] = Field(
+        default_factory=list
+    )
+
+    type: Optional[str] = None
+
+    category: Optional[str] = None
+
+    brand: Optional[str] = None
+
+    material: Optional[str] = None
+
+    fit: Optional[str] = None
+
+    gender: Optional[str] = None
+
+    stock: int = 0
+
+    variants: List[ProductVariant] = Field(
+        default_factory=list
+    )
+
+    score: Optional[float] = None
+
+    model_config = ConfigDict(
+        extra="allow"
+    )
+
+
+class BotResponse(BaseModel):
+    """
+    Response produced by an intent handler.
+
+    The WhatsApp sender is responsible for converting this object
+    into one or more provider-specific messages.
+    """
+
+    response_type: str = "text"
+
+    text: Optional[str] = None
+
+    products: List[ProductResponse] = Field(
+        default_factory=list
+    )
+
+    quick_replies: List[Dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    model_config = ConfigDict(
+        extra="allow"
+    )
+
+
+# ============================================================
+# CONVERSATION CONTEXT
+# ============================================================
+
 
 class ConversationContext(BaseModel):
     """
-    Persistent conversation state.
-
-    pending_search_filters is the important state used when
-    the bot asks a follow-up question such as:
-
-        "What size are you looking for?"
-
-    Example:
-
-        awaiting_entity = SIZE
-
-        pending_search_filters = {
-            "category": "shirt",
-            "color": "black"
-        }
-
-    When the customer replies "M", the message service adds
-    size=M and ProductSearchHandler executes the complete search.
+    Persistent conversation state used by the product-search workflow.
     """
 
-    current_intent: Optional[IntentType] = None
     current_product: Optional[str] = None
+
     current_category: Optional[str] = None
+
+    current_brand: Optional[str] = None
+
+    current_color: Optional[str] = None
+
+    current_size: Optional[str] = None
+
+    current_query: Optional[str] = None
 
     last_search_filters: Dict[str, Any] = Field(
         default_factory=dict
@@ -369,28 +498,12 @@ class ConversationContext(BaseModel):
         default_factory=list
     )
 
-    last_order_id: Optional[str] = None
-
-    awaiting_entity: Optional[EntityType] = None
-
-    pending_search_filters: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    awaiting_confirmation: bool = False
-
-    confirmation_context: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    language: str = "en"
-
-    message_count: int = 0
-
-    # Inventory search state
     active_search_key: Optional[str] = None
+
     active_search_offset: int = 0
+
     active_search_total: int = 0
+
     active_search_query: Optional[str] = None
 
     active_search_filters: Dict[str, Any] = Field(
@@ -402,378 +515,105 @@ class ConversationContext(BaseModel):
     )
 
     active_search_page: int = 1
-    active_search_page_size: int = 3
 
-    active_store_name: Optional[str] = None
+    awaiting_entity: Optional[str] = None
 
-    _message_history: Optional[
-        List[Dict[str, Any]]
-    ] = PrivateAttr(default=None)
-
-
-class Conversation(BaseModel):
-    id: Optional[str] = Field(
-        default=None,
-        alias="_id"
-    )
-
-    tenant_id: str
-    customer_id: str
-
-    status: ConversationStatus = (
-        ConversationStatus.ACTIVE
-    )
-
-    context: ConversationContext = Field(
-        default_factory=ConversationContext
-    )
-
-    assigned_agent_id: Optional[str] = None
-
-    tags: List[str] = Field(
-        default_factory=list
-    )
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    created_at: datetime = Field(
-        default_factory=_now_utc
-    )
-
-    updated_at: datetime = Field(
-        default_factory=_now_utc
-    )
-
-    closed_at: Optional[datetime] = None
+    awaiting_confirmation: bool = False
 
     model_config = ConfigDict(
-        populate_by_name=True
+        extra="allow"
     )
 
 
-# ==========================================================
+# ============================================================
 # MESSAGE
-# ==========================================================
+# ============================================================
+
 
 class Message(BaseModel):
-    id: Optional[str] = Field(
-        default=None,
-        alias="_id"
-    )
+    """
+    Persisted inbound or outbound message.
+    """
+
+    id: str
 
     tenant_id: str
+
     conversation_id: str
+
     customer_id: str
 
     whatsapp_message_id: Optional[str] = None
 
     direction: MessageDirection
-    message_type: MessageType
 
-    text: Optional[str] = None
+    message_type: MessageType = MessageType.TEXT
 
-    media_url: Optional[str] = None
-    media_id: Optional[str] = None
-    media_mime_type: Optional[str] = None
+    text: str = ""
 
     intent: Optional[IntentType] = None
+
     intent_confidence: Optional[float] = None
 
     entities: Dict[str, Any] = Field(
         default_factory=dict
     )
 
-    response_to_message_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
 
     is_from_bot: bool = False
 
     bot_response_type: Optional[str] = None
 
-    delivery_status: Optional[str] = None
+    response_to_message_id: Optional[str] = None
+
+    delivery_status: str = "pending"
 
     delivery_error: Optional[str] = None
 
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
     created_at: datetime = Field(
         default_factory=_now_utc
     )
 
-    sent_at: Optional[datetime] = None
-    failed_at: Optional[datetime] = None
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
 
     model_config = ConfigDict(
-        populate_by_name=True
+        extra="allow"
     )
 
 
-# ==========================================================
-# ORDER
-# ==========================================================
-
-class OrderItem(BaseModel):
-    product_id: str
-    variant_sku: str
-    name: str
-    size: str
-    color: str
-    fit: Optional[str] = None
-    quantity: int
-    unit_price: float
-    total_price: float
+# ============================================================
+# CUSTOMER
+# ============================================================
 
 
-class ShippingAddress(BaseModel):
-    name: str
-    phone: str
-    address_line1: str
-    address_line2: Optional[str] = None
-    city: str
-    state: str
-    postal_code: str
-    country: str = "India"
+class Customer(BaseModel):
+    """
+    WhatsApp customer belonging to exactly one tenant.
+    """
 
-
-class Order(BaseModel):
     id: str = Field(alias="_id")
 
     tenant_id: str
-    customer_id: str
 
-    order_number: str
+    phone_number: str
 
-    status: OrderStatus = OrderStatus.PENDING
+    wa_id: Optional[str] = None
 
-    items: List[OrderItem] = Field(
-        default_factory=list
-    )
+    name: Optional[str] = None
 
-    subtotal: float = 0.0
-    tax: float = 0.0
-    shipping: float = 0.0
-    discount: float = 0.0
-    total: float = 0.0
-
-    currency: str = "INR"
-
-    shipping_address: Optional[
-        ShippingAddress
-    ] = None
-
-    payment_method: Optional[str] = None
-    payment_status: str = "pending"
-    payment_id: Optional[str] = None
-
-    tracking_number: Optional[str] = None
-    carrier: Optional[str] = None
-
-    notes: Optional[str] = None
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    created_at: datetime = Field(
-        default_factory=_now_utc
-    )
-
-    updated_at: datetime = Field(
-        default_factory=_now_utc
-    )
-
-    confirmed_at: Optional[datetime] = None
-    shipped_at: Optional[datetime] = None
-    delivered_at: Optional[datetime] = None
-    cancelled_at: Optional[datetime] = None
-
-    model_config = ConfigDict(
-        populate_by_name=True
-    )
-
-
-# ==========================================================
-# UNDERSTANDING
-# ==========================================================
-
-class ExtractedEntity(BaseModel):
-    entity_type: EntityType
-    value: str
-    confidence: float
-
-    start_pos: int = 0
-    end_pos: int = 0
-
-    normalized_value: Optional[str] = None
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-
-class MessageUnderstanding(BaseModel):
-    original_text: str
-    normalized_text: str
-
-    intent: IntentType
-    intent_confidence: float
-
-    entities: List[ExtractedEntity] = Field(
-        default_factory=list
-    )
-
-    sentiment: Optional[str] = None
-
-    language: str = "en"
-
-    needs_clarification: bool = False
-
-    clarification_question: Optional[str] = None
-
-
-# ==========================================================
-# RESPONSE
-# ==========================================================
-
-class ResponseProduct(BaseModel):
-    """
-    Complete product representation used by WhatsApp.
-
-    This intentionally contains all information required for
-    a product result:
-
-        image
-        title
-        type
-        sizes
-        colors
-        stock
-        price
-    """
-
-    product_id: str
-
-    name: str
-
-    price: float
-
-    sale_price: Optional[float] = None
-
-    currency: str = "INR"
-
-    image: Optional[str] = None
-
-    stock: int = 0
-
-    category: Optional[str] = None
-
-    product_type: Optional[str] = None
-
-    description: Optional[str] = None
-
-    sizes_available: List[str] = Field(
-        default_factory=list
-    )
-
-    colors_available: List[str] = Field(
-        default_factory=list
-    )
-
-    in_stock: bool = True
-
-
-class BotResponse(BaseModel):
-    response_type: str
-
-    text: Optional[str] = None
-
-    products: List[ResponseProduct] = Field(
-        default_factory=list
-    )
-
-    quick_replies: List[Dict[str, str]] = Field(
-        default_factory=list
-    )
-
-    template_name: Optional[str] = None
-
-    template_params: List[str] = Field(
-        default_factory=list
-    )
-
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-
-# ==========================================================
-# ANALYTICS
-# ==========================================================
-
-class AnalyticsEvent(BaseModel):
-    id: Optional[str] = Field(
-        default=None,
-        alias="_id"
-    )
-
-    tenant_id: str
-
-    customer_id: Optional[str] = None
-
-    conversation_id: Optional[str] = None
-
-    event_type: str
-
-    event_data: Dict[str, Any] = Field(
-        default_factory=dict
-    )
-
-    timestamp: datetime = Field(
-        default_factory=_now_utc
-    )
-
-    model_config = ConfigDict(
-        populate_by_name=True
-    )
-
-
-# ==========================================================
-# TEMPLATE
-# ==========================================================
-
-class Template(BaseModel):
-    id: Optional[str] = Field(
-        default=None,
-        alias="_id"
-    )
-
-    tenant_id: str
-
-    name: str
-
-    language: str = "en"
-
-    category: str = "UTILITY"
-
-    response_type: str = "text"
-
-    body_text: Optional[str] = None
-
-    quick_replies: List[Dict[str, str]] = Field(
-        default_factory=list
-    )
-
-    footer_text: Optional[str] = None
-
-    variables: List[str] = Field(
-        default_factory=list
-    )
+    profile_name: Optional[str] = None
 
     is_active: bool = True
 
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     created_at: datetime = Field(
         default_factory=_now_utc
     )
@@ -783,5 +623,193 @@ class Template(BaseModel):
     )
 
     model_config = ConfigDict(
-        populate_by_name=True
+        populate_by_name=True,
+        extra="allow",
+    )
+
+
+# ============================================================
+# CONVERSATION
+# ============================================================
+
+
+class Conversation(BaseModel):
+    """
+    Persisted conversation between one tenant and one customer.
+    """
+
+    id: str = Field(alias="_id")
+
+    tenant_id: str
+
+    customer_id: str
+
+    customer_phone: Optional[str] = None
+
+    status: str = "active"
+
+    context: ConversationContext = Field(
+        default_factory=ConversationContext
+    )
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="allow",
+    )
+
+
+# ============================================================
+# ORDER
+# ============================================================
+
+
+class Order(BaseModel):
+    """
+    Minimal tenant-scoped order model.
+    """
+
+    id: str = Field(alias="_id")
+
+    tenant_id: str
+
+    order_number: str
+
+    customer_id: Optional[str] = None
+
+    status: str = "pending"
+
+    total: float = 0.0
+
+    items: List[Dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="allow",
+    )
+
+
+# ============================================================
+# TEMPLATE
+# ============================================================
+
+
+class MessageTemplate(BaseModel):
+    """
+    Tenant-specific WhatsApp template.
+    """
+
+    id: str = Field(alias="_id")
+
+    tenant_id: str
+
+    name: str
+
+    language: str = "en"
+
+    content: Optional[str] = None
+
+    is_active: bool = True
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="allow",
+    )
+
+
+# ============================================================
+# API / WEBHOOK SCHEMAS
+# ============================================================
+
+
+class WhatsAppIncomingMessage(BaseModel):
+    """
+    Normalized inbound WhatsApp message passed from the webhook layer
+    into the message service.
+    """
+
+    tenant_id: str
+
+    user_id: str
+
+    text: str
+
+    whatsapp_message_id: Optional[str] = None
+
+    message_type: MessageType = MessageType.TEXT
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+
+class DeliveryStatusUpdate(BaseModel):
+    """
+    Normalized outbound delivery update.
+    """
+
+    tenant_id: Optional[str] = None
+
+    outbound_message_id: str
+
+    whatsapp_message_id: Optional[str] = None
+
+    status: str
+
+    error: Optional[str] = None
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+
+# ============================================================
+# HEALTH
+# ============================================================
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+    database: Optional[str] = None
+
+    models_loaded: Optional[bool] = None
+
+    version: Optional[str] = None
+
+    model_config = ConfigDict(
+        extra="allow"
     )
