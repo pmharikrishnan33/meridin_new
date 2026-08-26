@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
+
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 
@@ -83,7 +84,7 @@ class OrderStatus(str, Enum):
 
 
 # ==========================================================
-# INCOMING MESSAGE (WhatsApp Webhook)
+# INCOMING WHATSAPP
 # ==========================================================
 
 class WhatsAppContact(BaseModel):
@@ -119,9 +120,6 @@ class IncomingWhatsAppWebhook(BaseModel):
 
 
 class IncomingMessage(BaseModel):
-    """
-    Normalized incoming message after webhook parsing.
-    """
     user_id: str
     tenant_id: str
     text: str
@@ -138,54 +136,30 @@ class IncomingMessage(BaseModel):
 # ==========================================================
 
 class TenantSettings(BaseModel):
-    """
-    Nested tenant settings that are safe to keep under the ``settings``
-    object. Only the webhook secret is modeled here to avoid duplicating
-    the primary tenant credential fields at two different levels.
-    """
     webhook_secret: Optional[str] = None
 
 
 class TenantFeatureFlags(BaseModel):
     enable_ai_responses: bool = True
     enable_product_recommendations: bool = True
-
     enable_order_tracking: bool = False
     enable_returns: bool = False
     enable_cancellation: bool = False
-
     enable_human_handoff: bool = True
     enable_analytics: bool = True
-
-    # Controls whether vocabulary/synonym normalization is applied
-    # before ML intent/entity processing.
     use_synonyms: bool = True
-
     max_products_per_response: int = 3
-
     auto_reply_outside_hours: bool = False
 
 
-
 class Tenant(BaseModel):
-    """
-    Tenant/client model - stored in the MongoDB `clients` collection.
-    """
-
     id: str = Field(alias="_id")
-
-    # Actual database field
     tenant_id: str
-
     business_name: str
 
-    # Tenant-authored response text stored directly on the current clients
-    # documents.  These are optional because existing clients may rely on
-    # templates instead.
     welcome_message: Optional[str] = None
     fallback_message: Optional[str] = None
 
-    # WhatsApp credentials
     phone_number_id: str
     access_token: str
     webhook_verify_token: str
@@ -212,6 +186,7 @@ class Tenant(BaseModel):
         populate_by_name=True
     )
 
+
 # ==========================================================
 # PRODUCT
 # ==========================================================
@@ -225,6 +200,7 @@ class ProductVariant(BaseModel):
     price: float
     sale_price: Optional[float] = None
     images: List[str] = Field(default_factory=list)
+
 
 class Product(BaseModel):
     id: str = Field(alias="_id")
@@ -251,10 +227,11 @@ class Product(BaseModel):
 
     stock: int = 0
 
-    # Product-level media used by WhatsApp responses.
     media: List[str] = Field(default_factory=list)
 
-    variants: List[Dict[str, Any]] = Field(default_factory=list)
+    variants: List[Dict[str, Any]] = Field(
+        default_factory=list
+    )
 
     is_featured: bool = False
 
@@ -269,24 +246,16 @@ class Product(BaseModel):
     def name(self) -> str:
         return self.title
 
+
 class ProductSearchFilters(BaseModel):
-
     query: Optional[str] = None
-
     category: Optional[str] = None
-
     type: Optional[str] = None
-
     brand: Optional[str] = None
-
     material: Optional[str] = None
-
     fit: Optional[str] = None
-
     gender: Optional[str] = None
-
     color: Optional[str] = None
-
     size: Optional[str] = None
 
     tags: List[str] = Field(
@@ -294,7 +263,6 @@ class ProductSearchFilters(BaseModel):
     )
 
     min_price: Optional[float] = None
-
     max_price: Optional[float] = None
 
     in_stock_only: bool = True
@@ -302,7 +270,6 @@ class ProductSearchFilters(BaseModel):
     age_group: Optional[str] = None
 
     limit: int = 10
-
     offset: int = 0
 
     sort_by: str = "relevance"
@@ -313,12 +280,11 @@ class ProductSearchFilters(BaseModel):
 
 
 class ProductSearchResult(BaseModel):
-    """
-    Product search result with scoring.
-    """
     product: Product
     score: float
-    matched_attributes: List[str] = Field(default_factory=list)
+    matched_attributes: List[str] = Field(
+        default_factory=list
+    )
 
 
 # ==========================================================
@@ -326,24 +292,43 @@ class ProductSearchResult(BaseModel):
 # ==========================================================
 
 class Customer(BaseModel):
-    """
-    Customer model - stored in MongoDB.
-    """
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[str] = Field(
+        default=None,
+        alias="_id"
+    )
+
     tenant_id: str
     phone_number: str
     wa_id: str
+
     name: Optional[str] = None
     email: Optional[str] = None
+
     language: str = "en"
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     is_blocked: bool = False
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
     last_interaction_at: Optional[datetime] = None
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 # ==========================================================
@@ -352,56 +337,120 @@ class Customer(BaseModel):
 
 class ConversationContext(BaseModel):
     """
-    Current conversation context - maintained in memory and persisted.
+    Persistent conversation state.
+
+    pending_search_filters is the important state used when
+    the bot asks a follow-up question such as:
+
+        "What size are you looking for?"
+
+    Example:
+
+        awaiting_entity = SIZE
+
+        pending_search_filters = {
+            "category": "shirt",
+            "color": "black"
+        }
+
+    When the customer replies "M", the message service adds
+    size=M and ProductSearchHandler executes the complete search.
     """
+
     current_intent: Optional[IntentType] = None
-    current_product: Optional[str] = None  # product_id
+    current_product: Optional[str] = None
     current_category: Optional[str] = None
-    last_search_filters: Dict[str, Any] = Field(default_factory=dict)
-    last_search_results: List[str] = Field(default_factory=list)  # product_ids
+
+    last_search_filters: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    last_search_results: List[str] = Field(
+        default_factory=list
+    )
+
     last_order_id: Optional[str] = None
+
     awaiting_entity: Optional[EntityType] = None
+
+    pending_search_filters: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     awaiting_confirmation: bool = False
-    confirmation_context: Dict[str, Any] = Field(default_factory=dict)
+
+    confirmation_context: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     language: str = "en"
+
     message_count: int = 0
 
-    # -- Inventory search state -------------------------------------------
-    # Tracks the most recent AI-ranked search so that "Next" / navigation
-    # can paginate the cached ranked list without re-querying the database.
+    # Inventory search state
     active_search_key: Optional[str] = None
     active_search_offset: int = 0
     active_search_total: int = 0
     active_search_query: Optional[str] = None
-    active_search_filters: Dict[str, Any] = Field(default_factory=dict)
-    active_search_results: List[str] = Field(default_factory=list)
-    active_search_page: int = 1
-    active_search_page_size: int = 10
 
-    # -- Inventory store -------------------------------------------
-    # The store_name used to resolve the ``inventory.<store_name>`` collection
-    # on follow-up messages (e.g. "show more", pagination).
+    active_search_filters: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    active_search_results: List[str] = Field(
+        default_factory=list
+    )
+
+    active_search_page: int = 1
+    active_search_page_size: int = 3
+
     active_store_name: Optional[str] = None
-    _message_history: Optional[List[Dict[str, Any]]] = PrivateAttr(default=None)
+
+    _message_history: Optional[
+        List[Dict[str, Any]]
+    ] = PrivateAttr(default=None)
 
 
 class Conversation(BaseModel):
-    """
-    Conversation model - stored in MongoDB.
-    """
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[str] = Field(
+        default=None,
+        alias="_id"
+    )
+
     tenant_id: str
     customer_id: str
-    status: ConversationStatus = ConversationStatus.ACTIVE
-    context: ConversationContext = Field(default_factory=ConversationContext)
+
+    status: ConversationStatus = (
+        ConversationStatus.ACTIVE
+    )
+
+    context: ConversationContext = Field(
+        default_factory=ConversationContext
+    )
+
     assigned_agent_id: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
+
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
     closed_at: Optional[datetime] = None
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 # ==========================================================
@@ -409,19 +458,15 @@ class Conversation(BaseModel):
 # ==========================================================
 
 class Message(BaseModel):
-    """
-    Message model - stored in MongoDB.
-    """
-
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[str] = Field(
+        default=None,
+        alias="_id"
+    )
 
     tenant_id: str
     conversation_id: str
     customer_id: str
 
-    # WhatsApp provider message ID.
-    # For inbound messages this is Meta's incoming message ID.
-    # For outbound messages this is Meta's response message ID.
     whatsapp_message_id: Optional[str] = None
 
     direction: MessageDirection
@@ -446,9 +491,6 @@ class Message(BaseModel):
 
     bot_response_type: Optional[str] = None
 
-    # Delivery lifecycle:
-    # pending -> sending -> sent
-    # pending -> sending -> failed
     delivery_status: Optional[str] = None
 
     delivery_error: Optional[str] = None
@@ -462,12 +504,12 @@ class Message(BaseModel):
     )
 
     sent_at: Optional[datetime] = None
-
     failed_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         populate_by_name=True
     )
+
 
 # ==========================================================
 # ORDER
@@ -497,68 +539,98 @@ class ShippingAddress(BaseModel):
 
 
 class Order(BaseModel):
-    """
-    Order model - stored in MongoDB.
-    """
     id: str = Field(alias="_id")
+
     tenant_id: str
     customer_id: str
+
     order_number: str
+
     status: OrderStatus = OrderStatus.PENDING
-    items: List[OrderItem] = Field(default_factory=list)
+
+    items: List[OrderItem] = Field(
+        default_factory=list
+    )
+
     subtotal: float = 0.0
     tax: float = 0.0
     shipping: float = 0.0
     discount: float = 0.0
     total: float = 0.0
+
     currency: str = "INR"
-    shipping_address: Optional[ShippingAddress] = None
+
+    shipping_address: Optional[
+        ShippingAddress
+    ] = None
+
     payment_method: Optional[str] = None
     payment_status: str = "pending"
     payment_id: Optional[str] = None
+
     tracking_number: Optional[str] = None
     carrier: Optional[str] = None
+
     notes: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
     confirmed_at: Optional[datetime] = None
     shipped_at: Optional[datetime] = None
     delivered_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 # ==========================================================
-# UNDERSTANDING (ML OUTPUT)
+# UNDERSTANDING
 # ==========================================================
 
 class ExtractedEntity(BaseModel):
-    """
-    Single extracted entity from user message.
-    """
     entity_type: EntityType
     value: str
     confidence: float
+
     start_pos: int = 0
     end_pos: int = 0
+
     normalized_value: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
 
 
 class MessageUnderstanding(BaseModel):
-    """
-    Complete understanding of a user message after ML processing.
-    """
     original_text: str
     normalized_text: str
+
     intent: IntentType
     intent_confidence: float
-    entities: List[ExtractedEntity] = Field(default_factory=list)
-    sentiment: Optional[str] = None  # positive, negative, neutral
+
+    entities: List[ExtractedEntity] = Field(
+        default_factory=list
+    )
+
+    sentiment: Optional[str] = None
+
     language: str = "en"
+
     needs_clarification: bool = False
+
     clarification_question: Optional[str] = None
 
 
@@ -568,34 +640,73 @@ class MessageUnderstanding(BaseModel):
 
 class ResponseProduct(BaseModel):
     """
-    Product summary for response.
+    Complete product representation used by WhatsApp.
+
+    This intentionally contains all information required for
+    a product result:
+
+        image
+        title
+        type
+        sizes
+        colors
+        stock
+        price
     """
+
     product_id: str
+
     name: str
+
     price: float
+
     sale_price: Optional[float] = None
+
     currency: str = "INR"
+
     image: Optional[str] = None
+
     stock: int = 0
+
     category: Optional[str] = None
+
     product_type: Optional[str] = None
+
     description: Optional[str] = None
-    sizes_available: List[str] = Field(default_factory=list)
-    colors_available: List[str] = Field(default_factory=list)
+
+    sizes_available: List[str] = Field(
+        default_factory=list
+    )
+
+    colors_available: List[str] = Field(
+        default_factory=list
+    )
+
     in_stock: bool = True
 
 
 class BotResponse(BaseModel):
-    """
-    Structured bot response ready for WhatsApp formatting.
-    """
-    response_type: str  # text, product_list, product_card, order_status, quick_reply, template
+    response_type: str
+
     text: Optional[str] = None
-    products: List[ResponseProduct] = Field(default_factory=list)
-    quick_replies: List[Dict[str, str]] = Field(default_factory=list)
+
+    products: List[ResponseProduct] = Field(
+        default_factory=list
+    )
+
+    quick_replies: List[Dict[str, str]] = Field(
+        default_factory=list
+    )
+
     template_name: Optional[str] = None
-    template_params: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    template_params: List[str] = Field(
+        default_factory=list
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict
+    )
 
 
 # ==========================================================
@@ -603,18 +714,30 @@ class BotResponse(BaseModel):
 # ==========================================================
 
 class AnalyticsEvent(BaseModel):
-    """
-    Analytics event - stored in MongoDB.
-    """
-    id: Optional[str] = Field(default=None, alias="_id")
-    tenant_id: str
-    customer_id: Optional[str] = None
-    conversation_id: Optional[str] = None
-    event_type: str  # message_received, intent_detected, product_viewed, order_placed, etc.
-    event_data: Dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=_now_utc)
+    id: Optional[str] = Field(
+        default=None,
+        alias="_id"
+    )
 
-    model_config = ConfigDict(populate_by_name=True)
+    tenant_id: str
+
+    customer_id: Optional[str] = None
+
+    conversation_id: Optional[str] = None
+
+    event_type: str
+
+    event_data: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    timestamp: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 # ==========================================================
@@ -622,24 +745,43 @@ class AnalyticsEvent(BaseModel):
 # ==========================================================
 
 class Template(BaseModel):
-    """
-    Message template — stored in MongoDB, scoped per tenant.
+    id: Optional[str] = Field(
+        default=None,
+        alias="_id"
+    )
 
-    Used by handlers (GreetingHandler, ThanksHandler, FallbackHandler) to
-    build responses without hardcoding text.
-    """
-    id: Optional[str] = Field(default=None, alias="_id")
     tenant_id: str
-    name: str                # e.g. "greeting", "thanks", "fallback"
-    language: str = "en"
-    category: str = "UTILITY"  # MARKETING or UTILITY (WhatsApp category)
-    response_type: str = "text"  # text, product_list, order_status, template, ai
-    body_text: Optional[str] = None
-    quick_replies: List[Dict[str, str]] = Field(default_factory=list)
-    footer_text: Optional[str] = None
-    variables: List[str] = Field(default_factory=list)
-    is_active: bool = True
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
 
-    model_config = ConfigDict(populate_by_name=True)
+    name: str
+
+    language: str = "en"
+
+    category: str = "UTILITY"
+
+    response_type: str = "text"
+
+    body_text: Optional[str] = None
+
+    quick_replies: List[Dict[str, str]] = Field(
+        default_factory=list
+    )
+
+    footer_text: Optional[str] = None
+
+    variables: List[str] = Field(
+        default_factory=list
+    )
+
+    is_active: bool = True
+
+    created_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    updated_at: datetime = Field(
+        default_factory=_now_utc
+    )
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )

@@ -4,46 +4,33 @@ Message service.
 Responsible for:
 
 - message understanding
-- command detection
 - conversation/session management
-- inbound message persistence
+- inbound persistence
 - intent routing
-- outbound message persistence
-- WhatsApp message idempotency
-- outbound delivery status updates
+- outbound persistence
+- WhatsApp idempotency
+- outbound delivery state
 
 Important:
 
-This service does NOT send messages to WhatsApp.
-
-The workflow is:
-
-    MessageService
-        ↓
-    create outbound message
-        ↓
-    delivery_status = pending
-        ↓
-    webhook.py / WhatsAppSender
-        ↓
-    Meta WhatsApp API
-        ↓
-    MessageService.mark_outbound_sent()
-        OR
-    MessageService.mark_outbound_failed()
+This service does not send messages to WhatsApp.
 """
 
+from __future__ import annotations
+
+import re
 from dataclasses import dataclass
 from typing import Any, Dict
-from uuid import uuid4
-from pymongo.errors import DuplicateKeyError
 
-from app.conversation.session import (
-    ConversationSession,
-)
+from pymongo.errors import DuplicateKeyError
+from uuid import uuid4
 
 from app.conversation.manager import (
     conversation_manager,
+)
+
+from app.conversation.session import (
+    ConversationSession,
 )
 
 from app.ml.entity_extractor import (
@@ -73,8 +60,6 @@ from app.routing.intent_router import (
     intent_router,
 )
 
-from app.services.product_service import product_service
-
 
 DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
     "welcome_message": (
@@ -94,9 +79,7 @@ DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
         "enable_cancellation": False,
         "enable_human_handoff": True,
         "enable_analytics": True,
-
-        # Product search itself uses the WhatsApp
-        # response limit enforced by the sender.
+        "use_synonyms": True,
         "max_products_per_response": 3,
     },
 }
@@ -104,11 +87,6 @@ DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
 
 @dataclass
 class ProcessedMessage:
-    """
-    Result returned after processing one inbound
-    WhatsApp message.
-    """
-
     conversation_id: str
 
     understanding: MessageUnderstanding
@@ -119,10 +97,6 @@ class ProcessedMessage:
 
 
 class DuplicateWhatsAppMessage(Exception):
-    """
-    Raised when Meta sends the same WhatsApp
-    message more than once.
-    """
 
     def __init__(
         self,
@@ -134,51 +108,28 @@ class DuplicateWhatsAppMessage(Exception):
         )
 
         super().__init__(
-            "WhatsApp message already "
-            "processed: "
+            "WhatsApp message already processed: "
             f"{whatsapp_message_id}"
         )
 
 
 class MessageService:
-    """
-    Coordinates:
 
-        normalization
-            ↓
-        command detection
-            ↓
-        ML understanding
-            ↓
-        conversation state
-            ↓
-        intent routing
-            ↓
-        response persistence
-            ↓
-        delivery status update
+    # =========================================================
+    # PROVIDER MESSAGE COUNT
+    # =========================================================
 
-    MessageService does NOT communicate directly
-    with Meta WhatsApp API.
-    """
     @staticmethod
     def _expected_provider_message_count(
         response: BotResponse,
     ) -> int:
-        """
-        Calculate how many WhatsApp provider messages
-        are expected for one BotResponse.
-        """
 
         count = 0
 
-        if (
-            response.response_type
-            in {
-                "product_list",
-                "product_card",
-            }
-        ):
+        if response.response_type in {
+            "product_list",
+            "product_card",
+        }:
             count += len(
                 response.products[:3]
             )
@@ -191,38 +142,25 @@ class MessageService:
 
         return count
 
+    # =========================================================
+    # INIT
+    # =========================================================
 
     def __init__(self) -> None:
 
-        self._conversation_keys: (
-            Dict[
-                tuple[str, str],
-                str,
-            ]
-        ) = {}
+        self._conversation_keys: Dict[
+            tuple[str, str],
+            str,
+        ] = {}
 
     # =========================================================
-    # COMMAND EXTRACTION
+    # COMMAND
     # =========================================================
 
     @staticmethod
     def extract_command(
         text: str,
     ) -> str | None:
-        """
-        Extract an internal command from a normalized
-        WhatsApp interactive reply.
-
-        Example:
-
-            __COMMAND__:show_more
-
-        becomes:
-
-            show_more
-
-        Normal customer messages return None.
-        """
 
         if not text:
             return None
@@ -232,34 +170,31 @@ class MessageService:
         if not text.startswith(prefix):
             return None
 
-        command = text[len(prefix):].strip()
+        command = (
+            text[len(prefix):]
+            .strip()
+        )
 
         return command or None
 
     # =========================================================
-    # MESSAGE UNDERSTANDING
+    # ML UNDERSTANDING
     # =========================================================
 
-    async def understand(
+    def understand(
         self,
         text: str,
         *,
         use_synonyms: bool = True,
     ) -> MessageUnderstanding:
-        """
-        Understand one customer message.
-
-        ML inference is explicitly executed outside the FastAPI
-        event-loop thread.
-        """
 
         if not text or not text.strip():
             raise ValueError(
                 "Message text must not be empty."
             )
 
-        preprocessed = preprocessor.process(
-            text
+        preprocessed = (
+            preprocessor.process(text)
         )
 
         ml_text = (
@@ -269,13 +204,13 @@ class MessageService:
         )
 
         prediction = (
-            await intent_classifier.predict_async(
+            intent_classifier.predict(
                 ml_text
             )
         )
 
         extraction = (
-            await entity_extractor.extract_async(
+            entity_extractor.extract(
                 ml_text,
                 intent=prediction.intent.value,
             )
@@ -285,11 +220,10 @@ class MessageService:
             original_text=text,
             normalized_text=ml_text,
             intent=prediction.intent,
-            intent_confidence=(
-                prediction.confidence
-            ),
+            intent_confidence=prediction.confidence,
             entities=extraction.entities,
         )
+
     # =========================================================
     # SESSION
     # =========================================================
@@ -299,12 +233,6 @@ class MessageService:
         tenant_id: str,
         user_id: str,
     ) -> ConversationSession:
-        """
-        Get or create a conversation session.
-
-        MongoDB-backed ConversationManager is the
-        persistent source of truth.
-        """
 
         key = (
             tenant_id,
@@ -312,7 +240,9 @@ class MessageService:
         )
 
         conversation_id = (
-            self._conversation_keys.get(key)
+            self._conversation_keys.get(
+                key
+            )
         )
 
         if conversation_id:
@@ -326,12 +256,8 @@ class MessageService:
             if existing:
                 return existing
 
-        # -----------------------------------------------------
-        # CUSTOMER
-        # -----------------------------------------------------
-
-        customer = (
-            await conversation_manager
+        customer = await (
+            conversation_manager
             .get_or_create_customer(
                 tenant_id=tenant_id,
                 phone_number=user_id,
@@ -339,12 +265,8 @@ class MessageService:
             )
         )
 
-        # -----------------------------------------------------
-        # CONVERSATION
-        # -----------------------------------------------------
-
-        session = (
-            await conversation_manager
+        session = await (
+            conversation_manager
             .get_or_create_conversation(
                 tenant_id=tenant_id,
                 customer_id=customer.id,
@@ -359,16 +281,13 @@ class MessageService:
         return session
 
     # =========================================================
-    # TENANT SETTINGS
+    # SETTINGS
     # =========================================================
 
     @staticmethod
     def _merge_tenant_settings(
         tenant_settings: Dict[str, Any] | None,
     ) -> Dict[str, Any]:
-        """
-        Merge tenant settings with safe defaults.
-        """
 
         tenant_settings = (
             tenant_settings or {}
@@ -376,14 +295,11 @@ class MessageService:
 
         return {
             **DEFAULT_TENANT_SETTINGS,
-
             **tenant_settings,
-
             "feature_flags": {
                 **DEFAULT_TENANT_SETTINGS[
                     "feature_flags"
                 ],
-
                 **tenant_settings.get(
                     "feature_flags",
                     {},
@@ -392,7 +308,67 @@ class MessageService:
         }
 
     # =========================================================
-    # OUTBOUND DELIVERY STATUS
+    # PENDING ENTITY HANDLING
+    # =========================================================
+
+    @staticmethod
+    def _normalize_pending_value(
+        text: str,
+        entity_type: EntityType,
+    ) -> str:
+
+        value = text.strip()
+
+        if entity_type == EntityType.SIZE:
+            return value.upper()
+
+        return value.lower()
+
+    @staticmethod
+    def _looks_like_size(
+        text: str,
+    ) -> bool:
+
+        value = (
+            text.strip()
+            .upper()
+        )
+
+        return bool(
+            re.fullmatch(
+                r"(XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|\d{1,3})",
+                value,
+            )
+        )
+
+    def _build_pending_understanding(
+        self,
+        text: str,
+        entity_type: EntityType,
+    ) -> MessageUnderstanding:
+
+        value = self._normalize_pending_value(
+            text,
+            entity_type,
+        )
+
+        return MessageUnderstanding(
+            original_text=text,
+            normalized_text=value,
+            intent=IntentType.PRODUCT_SEARCH,
+            intent_confidence=1.0,
+            entities=[
+                ExtractedEntity(
+                    entity_type=entity_type,
+                    value=value,
+                    normalized_value=value,
+                    confidence=1.0,
+                )
+            ],
+        )
+
+    # =========================================================
+    # DELIVERY
     # =========================================================
 
     async def mark_outbound_sent(
@@ -400,24 +376,6 @@ class MessageService:
         outbound_message_id: str,
         whatsapp_message_id: str | None = None,
     ) -> None:
-        """
-        Mark an outbound message as successfully sent.
-
-        This method must be called AFTER Meta accepts
-        the outbound WhatsApp message.
-
-        Example workflow:
-
-            MessageService.process()
-                ↓
-            pending
-                ↓
-            WhatsAppSender.send_bot_response()
-                ↓
-            Meta success
-                ↓
-            mark_outbound_sent()
-        """
 
         if not outbound_message_id:
             raise ValueError(
@@ -440,13 +398,6 @@ class MessageService:
         outbound_message_id: str,
         error: str,
     ) -> None:
-        """
-        Mark an outbound message as failed.
-
-        This method must be called when the WhatsApp
-        provider rejects the message or the send
-        operation raises an exception.
-        """
 
         if not outbound_message_id:
             raise ValueError(
@@ -454,7 +405,9 @@ class MessageService:
             )
 
         if not error:
-            error = "Unknown WhatsApp delivery error"
+            error = (
+                "Unknown WhatsApp delivery error"
+            )
 
         await (
             conversation_manager
@@ -477,17 +430,19 @@ class MessageService:
         text: str,
         tenant_settings: Dict[str, Any] | None = None,
         whatsapp_message_id: str | None = None,
-        message_type: MessageType = (
-            MessageType.TEXT
-        ),
+        message_type: MessageType = MessageType.TEXT,
         inbound_metadata: Dict[str, Any] | None = None,
     ) -> ProcessedMessage:
-        """
-        Process one inbound WhatsApp message.
 
-        A WhatsApp message is processed exactly once
-        when its WhatsApp message ID is available.
-        """
+        if not tenant_id:
+            raise ValueError(
+                "tenant_id is required"
+            )
+
+        if not user_id:
+            raise ValueError(
+                "user_id is required"
+            )
 
         if not text or not text.strip():
             raise ValueError(
@@ -500,8 +455,8 @@ class MessageService:
 
         if whatsapp_message_id:
 
-            existing = (
-                await conversation_manager
+            existing = await (
+                conversation_manager
                 .get_message_by_whatsapp_id(
                     tenant_id=tenant_id,
                     whatsapp_message_id=(
@@ -542,167 +497,14 @@ class MessageService:
             )
 
         # =====================================================
-        # NORMAL TEXT → ML
+        # SESSION MUST BE LOADED BEFORE ML
         # =====================================================
 
-        settings = self._merge_tenant_settings(
-            tenant_settings
-        )
-
-        use_synonyms = bool(
-            settings.get(
-                "feature_flags",
-                {}
-            ).get(
-                "use_synonyms",
-                True,
-            )
-        )
-
-        understanding = await self.understand(
-            text,
-            use_synonyms=use_synonyms,
-        )
-
-        # =====================================================
-        # SESSION
-        # =====================================================
-
-        session = (
-            await self._get_or_create_session(
+        session = await (
+            self._get_or_create_session(
                 tenant_id,
                 user_id,
             )
-        )
-
-        # =====================================================
-        # REPLY CONTEXT
-        # =====================================================
-
-        reply_product = (
-            session.resolve_reply_context(
-                text
-            )
-        )
-
-        if reply_product:
-
-            understanding.entities.append(
-                ExtractedEntity(
-                    entity_type=(
-                        EntityType.PRODUCT
-                    ),
-                    value=reply_product,
-                    confidence=1.0,
-                    normalized_value=(
-                        reply_product
-                    ),
-                )
-            )
-
-        # =====================================================
-        # INBOUND MESSAGE
-        # =====================================================
-
-        inbound_msg = Message(
-            id=str(uuid4()),
-
-            tenant_id=tenant_id,
-
-            conversation_id=(
-                session.conversation_id
-            ),
-
-            customer_id=(
-                session.customer_id
-            ),
-
-            whatsapp_message_id=(
-                whatsapp_message_id
-            ),
-
-            direction=(
-                MessageDirection.INBOUND
-            ),
-
-            message_type=message_type,
-
-            text=text,
-
-            intent=(
-                understanding.intent
-            ),
-
-            intent_confidence=(
-                understanding.intent_confidence
-            ),
-
-            entities={
-                entity.entity_type.value:
-                    (
-                        entity.normalized_value
-                        or entity.value
-                    )
-                for entity
-                in understanding.entities
-            },
-
-            metadata=(
-                inbound_metadata or {}
-            ),
-        )
-
-        try:
-            await conversation_manager.save_message(
-                inbound_msg
-            )
-
-        except DuplicateKeyError:
-
-            if whatsapp_message_id:
-                raise DuplicateWhatsAppMessage(
-                    whatsapp_message_id
-                )
-
-            raise
-
-        # =====================================================
-        # SESSION INBOUND
-        # =====================================================
-
-        session.add_message(
-            message_id=inbound_msg.id,
-
-            direction=(
-                MessageDirection.INBOUND
-            ),
-
-            text=text,
-
-            intent=(
-                understanding.intent
-            ),
-
-            intent_confidence=(
-                understanding.intent_confidence
-            ),
-
-            entities=(
-                understanding.entities
-            ),
-
-            metadata=(
-                {
-                    "reply_context_product":
-                        reply_product
-                }
-                if reply_product
-                else None
-            ),
-        )
-
-        session.update_context_from_understanding(
-            understanding
         )
 
         # =====================================================
@@ -715,12 +517,211 @@ class MessageService:
             )
         )
 
+        use_synonyms = bool(
+            settings.get(
+                "feature_flags",
+                {},
+            ).get(
+                "use_synonyms",
+                True,
+            )
+        )
+
+        # =====================================================
+        # PENDING FOLLOW-UP
+        # =====================================================
+
+        awaiting_entity = (
+            session.context.awaiting_entity
+        )
+
+        pending_filters = dict(
+            session.context.pending_search_filters
+            or {}
+        )
+
+        if (
+            awaiting_entity
+            and pending_filters
+        ):
+
+            if (
+                awaiting_entity
+                == EntityType.SIZE
+                and self._looks_like_size(text)
+            ):
+
+                understanding = (
+                    self._build_pending_understanding(
+                        text,
+                        EntityType.SIZE,
+                    )
+                )
+
+            elif awaiting_entity == EntityType.COLOR:
+
+                understanding = (
+                    self._build_pending_understanding(
+                        text,
+                        EntityType.COLOR,
+                    )
+                )
+
+            elif awaiting_entity == EntityType.CATEGORY:
+
+                understanding = (
+                    self._build_pending_understanding(
+                        text,
+                        EntityType.CATEGORY,
+                    )
+                )
+
+            else:
+
+                understanding = self.understand(
+                    text,
+                    use_synonyms=use_synonyms,
+                )
+
+        else:
+
+            understanding = self.understand(
+                text,
+                use_synonyms=use_synonyms,
+            )
+
+        # =====================================================
+        # REPLY PRODUCT CONTEXT
+        # =====================================================
+
+        reply_product = (
+            session.resolve_reply_context(
+                text
+            )
+        )
+
+        if reply_product:
+
+            understanding.entities.append(
+                ExtractedEntity(
+                    entity_type=EntityType.PRODUCT,
+                    value=reply_product,
+                    normalized_value=reply_product,
+                    confidence=1.0,
+                )
+            )
+
+        # =====================================================
+        # INBOUND MESSAGE
+        # =====================================================
+
+        inbound_msg = Message(
+            id=str(uuid4()),
+            tenant_id=tenant_id,
+            conversation_id=(
+                session.conversation_id
+            ),
+            customer_id=(
+                session.customer_id
+            ),
+            whatsapp_message_id=(
+                whatsapp_message_id
+            ),
+            direction=(
+                MessageDirection.INBOUND
+            ),
+            message_type=message_type,
+            text=text,
+            intent=understanding.intent,
+            intent_confidence=(
+                understanding.intent_confidence
+            ),
+            entities={
+                entity.entity_type.value: (
+                    entity.normalized_value
+                    or entity.value
+                )
+                for entity
+                in understanding.entities
+            },
+            metadata=(
+                inbound_metadata or {}
+            ),
+        )
+
+        try:
+
+            await (
+                conversation_manager
+                .save_message(
+                    inbound_msg
+                )
+            )
+
+        except DuplicateKeyError:
+
+            if whatsapp_message_id:
+
+                raise DuplicateWhatsAppMessage(
+                    whatsapp_message_id
+                )
+
+            raise
+
+        # =====================================================
+        # SESSION MESSAGE
+        # =====================================================
+
+        session.add_message(
+            message_id=inbound_msg.id,
+            direction=(
+                MessageDirection.INBOUND
+            ),
+            text=text,
+            intent=understanding.intent,
+            intent_confidence=(
+                understanding.intent_confidence
+            ),
+            entities=(
+                understanding.entities
+            ),
+            metadata=(
+                {
+                    "reply_context_product":
+                        reply_product
+                }
+                if reply_product
+                else None
+            ),
+        )
+
+        # =====================================================
+        # IMPORTANT:
+        #
+        # When a pending search exists, ProductSearchHandler
+        # needs to see that state before it clears it.
+        #
+        # Therefore we do NOT allow the generic context updater
+        # to overwrite the pending-search workflow first.
+        # =====================================================
+
+        if not (
+            awaiting_entity
+            and pending_filters
+            and understanding.intent
+            == IntentType.PRODUCT_SEARCH
+        ):
+
+            session.update_context_from_understanding(
+                understanding
+            )
+
         # =====================================================
         # ROUTING
         # =====================================================
 
-        response = (
-            await intent_router.route(
+        response = await (
+            intent_router.route(
                 understanding=understanding,
                 tenant_id=tenant_id,
                 tenant_settings=settings,
@@ -731,20 +732,30 @@ class MessageService:
         )
 
         # =====================================================
-        # OUTBOUND MESSAGE
+        # OUTBOUND
         # =====================================================
 
-        outbound_msg = self._build_outbound_message(
-            tenant_id=tenant_id,
-            session=session,
-            inbound_message=inbound_msg,
-            response=response,
+        outbound_msg = (
+            self._build_outbound_message(
+                tenant_id=tenant_id,
+                session=session,
+                inbound_message=inbound_msg,
+                response=response,
+            )
         )
 
-        outbound_msg.metadata.update({
-            "delivery_group_id": str(uuid4()),
-            "expected_provider_messages": self._expected_provider_message_count(response),
-        })
+        outbound_msg.metadata.update(
+            {
+                "delivery_group_id": str(
+                    uuid4()
+                ),
+                "expected_provider_messages": (
+                    self._expected_provider_message_count(
+                        response
+                    )
+                ),
+            }
+        )
 
         await (
             conversation_manager
@@ -759,27 +770,28 @@ class MessageService:
 
         session.add_message(
             message_id=outbound_msg.id,
-
             direction=(
                 MessageDirection.OUTBOUND
             ),
-
             text=response.text or "",
-
             is_from_bot=True,
-
             bot_response_type=(
                 response.response_type
             ),
-
             metadata={
-                "outbound_message_id": outbound_msg.id,
+                "outbound_message_id":
+                    outbound_msg.id,
                 "product_ids": [
                     product.product_id
-                    for product in response.products
+                    for product
+                    in response.products
                 ],
-                "response_type": response.response_type,
-                "delivery_group_id": outbound_msg.metadata.get("delivery_group_id"),
+                "response_type":
+                    response.response_type,
+                "delivery_group_id":
+                    outbound_msg.metadata.get(
+                        "delivery_group_id"
+                    ),
             },
         )
 
@@ -790,28 +802,19 @@ class MessageService:
             )
         )
 
-        # =====================================================
-        # RESULT
-        # =====================================================
-
         return ProcessedMessage(
             conversation_id=(
                 session.conversation_id
             ),
-
-            understanding=(
-                understanding
-            ),
-
+            understanding=understanding,
             response=response,
-
             outbound_message_id=(
                 outbound_msg.id
             ),
         )
 
     # =========================================================
-    # OUTBOUND MESSAGE BUILDER
+    # OUTBOUND MESSAGE
     # =========================================================
 
     @staticmethod
@@ -823,63 +826,41 @@ class MessageService:
         response: BotResponse,
         pagination: bool = False,
     ) -> Message:
-        """
-        Build an outbound Message document.
-
-        Delivery starts as 'pending'.
-
-        It MUST be changed to 'sent' or 'failed'
-        after WhatsApp delivery is attempted.
-        """
 
         return Message(
             id=str(uuid4()),
-
             tenant_id=tenant_id,
-
             conversation_id=(
                 session.conversation_id
             ),
-
             customer_id=(
                 session.customer_id
             ),
-
             direction=(
                 MessageDirection.OUTBOUND
             ),
-
             message_type=(
                 MessageType.TEXT
             ),
-
             text=response.text or "",
-
             is_from_bot=True,
-
             bot_response_type=(
                 response.response_type
             ),
-
             response_to_message_id=(
                 inbound_message.id
             ),
-
             delivery_status="pending",
-
             metadata={
                 "response_type":
                     response.response_type,
-
                 "product_ids": [
                     product.product_id
                     for product
                     in response.products
                 ],
-
                 "source_message_id":
                     inbound_message.id,
-
                 "pagination":
                     pagination,
             },
@@ -900,18 +881,6 @@ class MessageService:
         message_type: MessageType,
         inbound_metadata: Dict[str, Any] | None,
     ) -> ProcessedMessage:
-        """
-        Process internal commands generated by
-        WhatsApp interactive replies.
-
-        Supported commands:
-
-            search_again
-            show_more
-
-        Unknown commands are handled safely and do not
-        reach the pagination router.
-        """
 
         if not tenant_id:
             raise ValueError(
@@ -923,36 +892,31 @@ class MessageService:
                 "user_id is required"
             )
 
-        if not command or not command.strip():
-            raise ValueError(
-                "command is required"
-            )
-
-        command = command.strip().lower()
-
-        # =====================================================
-        # SESSION
-        # =====================================================
-
-        session = await self._get_or_create_session(
-            tenant_id,
-            user_id,
+        command = (
+            command.strip().lower()
         )
 
-        # =====================================================
-        # COMMAND VALIDATION / ROUTING
-        # =====================================================
+        session = await (
+            self._get_or_create_session(
+                tenant_id,
+                user_id,
+            )
+        )
+
+        settings = (
+            self._merge_tenant_settings(
+                tenant_settings
+            )
+        )
 
         if command == "search_again":
-
-            # -------------------------------------------------
-            # SEARCH AGAIN
-            # -------------------------------------------------
 
             understanding = MessageUnderstanding(
                 original_text=command,
                 normalized_text=command,
-                intent=IntentType.PRODUCT_SEARCH,
+                intent=(
+                    IntentType.PRODUCT_SEARCH
+                ),
                 intent_confidence=1.0,
                 entities=[],
             )
@@ -960,35 +924,38 @@ class MessageService:
             response = BotResponse(
                 response_type="text",
                 text=(
-                    "Sure. Tell me what product, category, "
-                    "colour, size, or price range you are "
-                    "looking for."
+                    "Sure. Tell me what product, "
+                    "category, colour, size, or "
+                    "price range you are looking for."
                 ),
                 products=[],
                 quick_replies=[],
                 metadata={
                     "command": "search_again",
                     "reset_search": True,
-                    "success": True,
                 },
             )
 
-            # Clear pending conversation state.
-            session.clear_awaiting_entity()
-            session.clear_awaiting_confirmation()
+            session.context.awaiting_entity = None
 
-            # Clear previous search state.
-            session.context.current_product = None
-            session.context.current_category = None
+            session.context.pending_search_filters = {}
+
             session.context.last_search_filters = {}
+
             session.context.last_search_results = []
 
             session.context.active_search_key = None
+
             session.context.active_search_offset = 0
+
             session.context.active_search_total = 0
+
             session.context.active_search_query = None
+
             session.context.active_search_filters = {}
+
             session.context.active_search_results = []
+
             session.context.active_search_page = 1
 
         elif command == "show_more":
@@ -996,310 +963,188 @@ class MessageService:
             understanding = MessageUnderstanding(
                 original_text=command,
                 normalized_text=command,
-                intent=IntentType.PAGINATION,
+                intent=(
+                    IntentType.PAGINATION
+                ),
                 intent_confidence=1.0,
                 entities=[],
             )
 
-            settings = self._merge_tenant_settings(tenant_settings)
-
-            response = await intent_router.route(
-                understanding=understanding,
-                tenant_id=tenant_id,
-                tenant_settings=settings,
-                conversation_id=session.conversation_id,
-            )
-
-        elif command in {"product_details", "view_all_sizes", "similar_products"}:
-
-            current_product = session.context.current_product
-
-            if not current_product:
-                understanding = MessageUnderstanding(
-                    original_text=command,
-                    normalized_text=command,
-                    intent=IntentType.PRODUCT_INQUIRY,
-                    intent_confidence=1.0,
-                    entities=[],
-                )
-                response = BotResponse(
-                    response_type="text",
-                    text="Please select a product first.",
-                    products=[],
-                    quick_replies=[
-                        {"label": "Search Again", "value": "__COMMAND__:search_again"}
-                    ],
-                    metadata={"command": command, "success": False},
-                )
-            elif command == "product_details":
-                understanding = MessageUnderstanding(
-                    original_text=command,
-                    normalized_text=command,
-                    intent=IntentType.PRODUCT_INQUIRY,
-                    intent_confidence=1.0,
-                    entities=[
-                        ExtractedEntity(
-                            entity_type=EntityType.PRODUCT,
-                            value=current_product,
-                            confidence=1.0,
-                            normalized_value=current_product,
-                        )
-                    ],
-                )
-                settings = self._merge_tenant_settings(tenant_settings)
-                response = await intent_router.route(
+            response = await (
+                intent_router.route(
                     understanding=understanding,
                     tenant_id=tenant_id,
                     tenant_settings=settings,
-                    conversation_id=session.conversation_id,
-                )
-            elif command == "view_all_sizes":
-                understanding = MessageUnderstanding(
-                    original_text=command,
-                    normalized_text=command,
-                    intent=IntentType.AVAILABILITY,
-                    intent_confidence=1.0,
-                    entities=[
-                        ExtractedEntity(
-                            entity_type=EntityType.PRODUCT,
-                            value=current_product,
-                            confidence=1.0,
-                            normalized_value=current_product,
-                        )
-                    ],
-                )
-                availability = await product_service.check_availability(
-                    tenant_id=tenant_id,
-                    product_id=current_product,
-                )
-                sizes = availability.get("available_sizes", [])
-                product_name = availability.get("product_name", current_product)
-                response = BotResponse(
-                    response_type="text",
-                    text=(
-                        f"Available sizes for {product_name}: " + ", ".join(sizes)
-                        if sizes else f"No sizes are currently in stock for {product_name}."
+                    conversation_id=(
+                        session.conversation_id
                     ),
-                    products=[],
-                    quick_replies=[
-                        {"label": "View Product", "value": "__COMMAND__:product_details"},
-                        {"label": "Search Again", "value": "__COMMAND__:search_again"},
-                    ],
-                    metadata={"command": command, "product_id": current_product},
                 )
-            else:
-                product = await product_service.get_product_by_reference(
-                    tenant_id=tenant_id,
-                    reference=current_product,
-                )
-                if not product:
-                    response = BotResponse(
-                        response_type="text",
-                        text="I couldn't find similar products right now.",
-                        products=[],
-                        quick_replies=[{"label": "Search Again", "value": "__COMMAND__:search_again"}],
-                        metadata={"command": command, "success": False},
-                    )
-                else:
-                    from app.models.schemas import ProductSearchFilters
-                    filters = ProductSearchFilters(
-                        category=product.category,
-                        type=product.type,
-                        brand=product.brand,
-                        limit=5,
-                        offset=0,
-                    )
-                    similar = await product_service.search_products(
-                        tenant_id=tenant_id,
-                        filters=filters,
-                    )
-                    similar = [item for item in similar if item.id != product.id][:5]
-                    response = BotResponse(
-                        response_type="product_list" if similar else "text",
-                        text=(
-                            "Here are some similar products:"
-                            if similar
-                            else "I couldn't find similar products right now."
-                        ),
-                        products=[
-                            product_service.product_to_response(item)
-                            for item in similar
-                        ],
-                        quick_replies=[{"label": "Search Again", "value": "__COMMAND__:search_again"}],
-                        metadata={"command": command, "source_product_id": product.id},
-                    )
-                    if similar:
-                        session.context.current_product = similar[0].id
+            )
 
         else:
 
             understanding = MessageUnderstanding(
                 original_text=command,
                 normalized_text=command,
-                intent=IntentType.UNKNOWN,
+                intent=(
+                    IntentType.PAGINATION
+                ),
                 intent_confidence=1.0,
                 entities=[],
             )
 
             response = BotResponse(
                 response_type="text",
-                text="I couldn't process that selection. Please try again.",
+                text=(
+                    "I couldn't process that "
+                    "selection. Please try again."
+                ),
                 products=[],
-                quick_replies=[
-                    {"label": "Search Again", "value": "__COMMAND__:search_again"}
-                ],
+                quick_replies=[],
                 metadata={
                     "command": command,
                     "success": False,
-                    "unsupported_command": True,
                 },
             )
 
-        # =====================================================
-        # SAVE INBOUND COMMAND
-        # =====================================================
-
         inbound_msg = Message(
             id=str(uuid4()),
-
             tenant_id=tenant_id,
-
-            conversation_id=session.conversation_id,
-
-            customer_id=session.customer_id,
-
-            whatsapp_message_id=whatsapp_message_id,
-
-            direction=MessageDirection.INBOUND,
-
+            conversation_id=(
+                session.conversation_id
+            ),
+            customer_id=(
+                session.customer_id
+            ),
+            whatsapp_message_id=(
+                whatsapp_message_id
+            ),
+            direction=(
+                MessageDirection.INBOUND
+            ),
             message_type=message_type,
-
             text=command,
-
             intent=understanding.intent,
-
             intent_confidence=(
                 understanding.intent_confidence
             ),
-
             entities={},
-
-            metadata=inbound_metadata or {},
+            metadata=(
+                inbound_metadata or {}
+            ),
         )
 
         try:
 
-            await conversation_manager.save_message(
-                inbound_msg
+            await (
+                conversation_manager
+                .save_message(
+                    inbound_msg
+                )
             )
 
         except DuplicateKeyError:
 
             if whatsapp_message_id:
+
                 raise DuplicateWhatsAppMessage(
                     whatsapp_message_id
                 )
 
             raise
 
-        # =====================================================
-        # SESSION INBOUND
-        # =====================================================
-
         session.add_message(
             message_id=inbound_msg.id,
-
-            direction=MessageDirection.INBOUND,
-
+            direction=(
+                MessageDirection.INBOUND
+            ),
             text=command,
-
             intent=understanding.intent,
-
             intent_confidence=(
                 understanding.intent_confidence
             ),
-
             entities=[],
-
-            metadata=inbound_metadata or {},
-        )
-
-        # =====================================================
-        # SAVE OUTBOUND
-        # =====================================================
-
-        delivery_group_id = str(uuid4())
-
-        outbound_msg = self._build_outbound_message(
-            tenant_id=tenant_id,
-            session=session,
-            inbound_message=inbound_msg,
-            response=response,
-        )
-
-        outbound_msg.metadata = {
-            **(outbound_msg.metadata or {}),
-
-            "delivery_group_id": (
-                delivery_group_id
+            metadata=(
+                inbound_metadata or {}
             ),
-
-            "expected_provider_messages": (
-                self._expected_provider_message_count(
-                    response
-                )
-            ),
-
-            "command": command,
-        }
-
-        await conversation_manager.save_message(
-            outbound_msg
         )
 
-        # =====================================================
-        # SESSION OUTBOUND
-        # =====================================================
+        outbound_msg = (
+            self._build_outbound_message(
+                tenant_id=tenant_id,
+                session=session,
+                inbound_message=inbound_msg,
+                response=response,
+                pagination=(
+                    command == "show_more"
+                ),
+            )
+        )
+
+        outbound_msg.metadata.update(
+            {
+                "delivery_group_id": str(
+                    uuid4()
+                ),
+                "expected_provider_messages": (
+                    self._expected_provider_message_count(
+                        response
+                    )
+                ),
+                "command": command,
+            }
+        )
+
+        await (
+            conversation_manager
+            .save_message(
+                outbound_msg
+            )
+        )
 
         session.add_message(
             message_id=outbound_msg.id,
-            direction=MessageDirection.OUTBOUND,
+            direction=(
+                MessageDirection.OUTBOUND
+            ),
             text=response.text or "",
             is_from_bot=True,
-            bot_response_type=response.response_type,
+            bot_response_type=(
+                response.response_type
+            ),
             metadata={
-                "outbound_message_id": outbound_msg.id,
+                "outbound_message_id":
+                    outbound_msg.id,
                 "product_ids": [
                     product.product_id
-                    for product in response.products
+                    for product
+                    in response.products
                 ],
-                "response_type": response.response_type,
-                "pagination": bool(
-                    response.metadata.get("pagination", False)
+                "response_type":
+                    response.response_type,
+                "pagination": (
+                    command == "show_more"
                 ),
             },
         )
 
-        # =====================================================
-        # SAVE SESSION
-        # =====================================================
-
-        await conversation_manager.save_session(
-            session
+        await (
+            conversation_manager
+            .save_session(
+                session
+            )
         )
-
-        # =====================================================
-        # RESULT
-        # =====================================================
 
         return ProcessedMessage(
-            conversation_id=session.conversation_id,
-
+            conversation_id=(
+                session.conversation_id
+            ),
             understanding=understanding,
-
             response=response,
-
-            outbound_message_id=outbound_msg.id,
+            outbound_message_id=(
+                outbound_msg.id
+            ),
         )
+
 
 message_service = MessageService()

@@ -1,49 +1,70 @@
 """
 WhatsApp outbound messaging service.
 
-Responsible only for sending outbound messages through
-the Meta WhatsApp Cloud API.
+Responsible only for communication with Meta's
+WhatsApp Cloud API.
 
-Business logic should NOT live here.
+Product/business logic is handled before this layer.
 
-This service:
-- builds WhatsApp payloads
-- sends them to Meta
-- returns delivery information
-- raises exceptions when Meta delivery fails
+For product responses this service sends:
+
+    image
+    +
+    product caption containing:
+
+        title
+        type
+        sizes
+        stock
+        color
+        price
 """
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
 import httpx
 
 from app.core.config import settings
-from app.models.schemas import BotResponse, ResponseProduct
+from app.models.schemas import (
+    BotResponse,
+    ResponseProduct,
+)
 from app.utils.logger import logger
 
 
 @dataclass
 class WhatsAppSendResult:
     success: bool
-    provider_message_id: Optional[str] = None
-    provider_message_ids: List[str] = field(default_factory=list)
+
+    provider_message_id: Optional[
+        str
+    ] = None
+
+    provider_message_ids: List[
+        str
+    ] = field(default_factory=list)
 
     error_code: Optional[str] = None
-    error_message: Optional[str] = None
 
-    raw_response: Optional[Dict[str, Any]] = None
+    error_message: Optional[
+        str
+    ] = None
+
+    raw_response: Optional[
+        Dict[str, Any]
+    ] = None
 
     @property
     def sent_count(self) -> int:
-        return len(self.provider_message_ids)
+        return len(
+            self.provider_message_ids
+        )
+
 
 class WhatsAppSender:
-    """
-    Sends outbound messages to WhatsApp through Meta.
-
-    Tenant-specific credentials are supplied per request.
-    """
 
     GRAPH_API_BASE = (
         "https://graph.facebook.com/"
@@ -54,35 +75,42 @@ class WhatsAppSender:
         self,
         timeout: float = 30.0,
     ) -> None:
+
         self._timeout = timeout
+
         self._client: Optional[
             httpx.AsyncClient
         ] = None
 
-    # ---------------------------------------------------------
-    # HTTP client
-    # ---------------------------------------------------------
+    # =========================================================
+    # HTTP CLIENT
+    # =========================================================
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(
+        self,
+    ) -> httpx.AsyncClient:
+
         if self._client is None:
-            self._client = httpx.AsyncClient(
-                timeout=self._timeout
+
+            self._client = (
+                httpx.AsyncClient(
+                    timeout=self._timeout
+                )
             )
 
         return self._client
 
     async def aclose(self) -> None:
-        """
-        Close the HTTP client.
-        """
 
         if self._client is not None:
+
             await self._client.aclose()
+
             self._client = None
 
-    # ---------------------------------------------------------
-    # Validation
-    # ---------------------------------------------------------
+    # =========================================================
+    # VALIDATION
+    # =========================================================
 
     @staticmethod
     def _validate_credentials(
@@ -115,7 +143,9 @@ class WhatsAppSender:
             "Authorization": (
                 f"Bearer {access_token}"
             ),
-            "Content-Type": "application/json",
+            "Content-Type": (
+                "application/json"
+            ),
         }
 
     @staticmethod
@@ -123,29 +153,41 @@ class WhatsAppSender:
         data: Dict[str, Any],
     ) -> Optional[str]:
 
-        messages = data.get("messages")
+        messages = data.get(
+            "messages"
+        )
 
-        if not isinstance(messages, list):
+        if not isinstance(
+            messages,
+            list,
+        ):
             return None
 
         if not messages:
             return None
 
-        first_message = messages[0]
+        first = messages[0]
 
-        if not isinstance(first_message, dict):
+        if not isinstance(
+            first,
+            dict,
+        ):
             return None
 
-        message_id = first_message.get("id")
+        message_id = first.get(
+            "id"
+        )
 
         if message_id:
-            return str(message_id)
+            return str(
+                message_id
+            )
 
         return None
 
-    # ---------------------------------------------------------
-    # Basic message types
-    # ---------------------------------------------------------
+    # =========================================================
+    # TEXT
+    # =========================================================
 
     async def send_text(
         self,
@@ -155,9 +197,6 @@ class WhatsAppSender:
         text: str,
         preview_url: bool = False,
     ) -> WhatsAppSendResult:
-        """
-        Send a plain WhatsApp text message.
-        """
 
         self._validate_credentials(
             phone_number_id,
@@ -165,7 +204,7 @@ class WhatsAppSender:
             to,
         )
 
-        if not text or not text.strip():
+        if not text:
             raise ValueError(
                 "text is required"
             )
@@ -180,8 +219,8 @@ class WhatsAppSender:
             "to": to,
             "type": "text",
             "text": {
-                "preview_url": preview_url,
                 "body": text[:4096],
+                "preview_url": preview_url,
             },
         }
 
@@ -191,54 +230,9 @@ class WhatsAppSender:
             payload=payload,
         )
 
-    async def send_reaction(
-        self,
-        phone_number_id: str,
-        access_token: str,
-        to: str,
-        message_id: str,
-        emoji: str,
-    ) -> WhatsAppSendResult:
-        """
-        Send a reaction to an existing WhatsApp message.
-        """
-
-        self._validate_credentials(
-            phone_number_id,
-            access_token,
-            to,
-        )
-
-        if not message_id:
-            raise ValueError(
-                "message_id is required"
-            )
-
-        if not emoji:
-            raise ValueError(
-                "emoji is required"
-            )
-
-        url = (
-            f"{self.GRAPH_API_BASE}/"
-            f"{phone_number_id}/messages"
-        )
-
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": to,
-            "type": "reaction",
-            "reaction": {
-                "message_id": message_id,
-                "emoji": emoji,
-            },
-        }
-
-        return await self._send(
-            url=url,
-            access_token=access_token,
-            payload=payload,
-        )
+    # =========================================================
+    # IMAGE
+    # =========================================================
 
     async def send_image(
         self,
@@ -248,11 +242,6 @@ class WhatsAppSender:
         image_url: str,
         caption: Optional[str] = None,
     ) -> WhatsAppSendResult:
-        """
-        Send an image message.
-
-        The image must be publicly accessible by Meta.
-        """
 
         self._validate_credentials(
             phone_number_id,
@@ -270,18 +259,23 @@ class WhatsAppSender:
             f"{phone_number_id}/messages"
         )
 
-        image_payload: Dict[str, Any] = {
+        image_data: Dict[
+            str,
+            Any,
+        ] = {
             "link": image_url,
         }
 
         if caption:
-            image_payload["caption"] = caption[:1024]
+            image_data["caption"] = (
+                caption[:1024]
+            )
 
         payload = {
             "messaging_product": "whatsapp",
             "to": to,
             "type": "image",
-            "image": image_payload,
+            "image": image_data,
         }
 
         return await self._send(
@@ -290,9 +284,9 @@ class WhatsAppSender:
             payload=payload,
         )
 
-    # ---------------------------------------------------------
-    # Interactive messages
-    # ---------------------------------------------------------
+    # =========================================================
+    # BUTTONS
+    # =========================================================
 
     async def send_buttons(
         self,
@@ -300,19 +294,10 @@ class WhatsAppSender:
         access_token: str,
         to: str,
         body_text: str,
-        buttons: List[Dict[str, str]],
+        buttons: List[
+            Dict[str, str]
+        ],
     ) -> WhatsAppSendResult:
-        """
-        Send WhatsApp reply buttons.
-
-        buttons:
-            [
-                {
-                    "id": "show_more",
-                    "title": "Show more"
-                }
-            ]
-        """
 
         self._validate_credentials(
             phone_number_id,
@@ -332,19 +317,24 @@ class WhatsAppSender:
 
         if len(buttons) > 3:
             raise ValueError(
-                "WhatsApp reply buttons support "
-                "a maximum of 3 buttons"
+                "WhatsApp allows at most 3 buttons"
             )
 
         formatted_buttons = []
 
-        for button in buttons:
+        for index, button in enumerate(
+            buttons
+        ):
+
             button_id = (
                 button.get("id")
-                or button.get("title")
+                or button.get("value")
+                or f"button_{index}"
             )
 
-            title = button.get("title")
+            title = button.get(
+                "title"
+            )
 
             if not title:
                 raise ValueError(
@@ -355,7 +345,9 @@ class WhatsAppSender:
                 {
                     "type": "reply",
                     "reply": {
-                        "id": button_id,
+                        "id": str(
+                            button_id
+                        )[:256],
                         "title": title[:20],
                     },
                 }
@@ -387,6 +379,10 @@ class WhatsAppSender:
             payload=payload,
         )
 
+    # =========================================================
+    # LIST
+    # =========================================================
+
     async def send_list(
         self,
         phone_number_id: str,
@@ -394,12 +390,13 @@ class WhatsAppSender:
         to: str,
         body_text: str,
         button_text: str,
-        rows: List[Dict[str, str]],
-        section_title: Optional[str] = None,
+        rows: List[
+            Dict[str, str]
+        ],
+        section_title: Optional[
+            str
+        ] = None,
     ) -> WhatsAppSendResult:
-        """
-        Send a WhatsApp list message.
-        """
 
         self._validate_credentials(
             phone_number_id,
@@ -420,20 +417,28 @@ class WhatsAppSender:
         formatted_rows = []
 
         for row in rows:
+
             row_id = (
                 row.get("id")
                 or row.get("title")
             )
 
-            title = row.get("title")
+            title = row.get(
+                "title"
+            )
 
             if not title:
                 raise ValueError(
                     "row title is required"
                 )
 
-            item: Dict[str, Any] = {
-                "id": row_id,
+            item: Dict[
+                str,
+                Any,
+            ] = {
+                "id": str(
+                    row_id
+                )[:200],
                 "title": title[:24],
             }
 
@@ -446,14 +451,21 @@ class WhatsAppSender:
                     description[:72]
                 )
 
-            formatted_rows.append(item)
+            formatted_rows.append(
+                item
+            )
 
-        section: Dict[str, Any] = {
-            "rows": formatted_rows,
+        section: Dict[
+            str,
+            Any,
+        ] = {
+            "rows": formatted_rows
         }
 
         if section_title:
-            section["title"] = section_title[:24]
+            section["title"] = (
+                section_title[:24]
+            )
 
         url = (
             f"{self.GRAPH_API_BASE}/"
@@ -471,7 +483,9 @@ class WhatsAppSender:
                 },
                 "action": {
                     "button": button_text[:20],
-                    "sections": [section],
+                    "sections": [
+                        section
+                    ],
                 },
             },
         }
@@ -482,9 +496,75 @@ class WhatsAppSender:
             payload=payload,
         )
 
-    # ---------------------------------------------------------
-    # Bot response handling
-    # ---------------------------------------------------------
+    # =========================================================
+    # PRODUCT CAPTION
+    # =========================================================
+
+    @staticmethod
+    def _build_product_caption(
+        product: ResponseProduct,
+    ) -> str:
+
+        lines = [
+            product.name,
+        ]
+
+        if product.product_type:
+            lines.append(
+                f"Type: {product.product_type}"
+            )
+
+        if product.category:
+            lines.append(
+                f"Category: {product.category}"
+            )
+
+        if product.colors_available:
+            lines.append(
+                "Color: "
+                + ", ".join(
+                    product.colors_available
+                )
+            )
+
+        if product.sizes_available:
+            lines.append(
+                "Sizes: "
+                + ", ".join(
+                    product.sizes_available
+                )
+            )
+
+        lines.append(
+            f"Stock: {product.stock}"
+        )
+
+        if (
+            product.sale_price is not None
+            and product.sale_price
+            < product.price
+        ):
+            lines.append(
+                f"Price: ₹"
+                f"{product.sale_price:,.0f}"
+            )
+            lines.append(
+                f"MRP: ₹"
+                f"{product.price:,.0f}"
+            )
+        else:
+            lines.append(
+                f"Price: ₹"
+                f"{product.price:,.0f}"
+            )
+
+        return "\n".join(
+            lines
+        )[:1024]
+
+    # =========================================================
+    # BOT RESPONSE
+    # =========================================================
 
     async def send_bot_response(
         self,
@@ -501,131 +581,215 @@ class WhatsAppSender:
                 provider_message_ids=[],
             )
 
-        message_ids: List[str] = []
+        message_ids: List[
+            str
+        ] = []
 
         try:
+
+            # =================================================
+            # PRODUCT RESPONSE
+            # =================================================
+
             if (
                 response.response_type
-                in {"product_list", "product_card"}
+                in {
+                    "product_list",
+                    "product_card",
+                }
                 and response.products
             ):
-                products = response.products[:3]
 
-                for index, product in enumerate(products):
-                    caption = self._build_product_caption(product)
-                    if index == 0 and response.text:
-                        caption = f"{response.text.strip()}\n\n{caption}"
+                products = (
+                    response.products[:3]
+                )
+
+                # Send each product as an image
+                # with its complete product caption.
+                for product in products:
 
                     if product.image:
-                        result = await self.send_image(
-                            phone_number_id=phone_number_id,
-                            access_token=access_token,
-                            to=to,
-                            image_url=product.image,
-                            caption=caption,
+
+                        result = (
+                            await self.send_image(
+                                phone_number_id=(
+                                    phone_number_id
+                                ),
+                                access_token=(
+                                    access_token
+                                ),
+                                to=to,
+                                image_url=(
+                                    product.image
+                                ),
+                                caption=(
+                                    self._build_product_caption(
+                                        product
+                                    )
+                                ),
+                            )
                         )
+
                     else:
-                        result = await self.send_text(
-                            phone_number_id=phone_number_id,
-                            access_token=access_token,
-                            to=to,
-                            text=caption,
+
+                        result = (
+                            await self.send_text(
+                                phone_number_id=(
+                                    phone_number_id
+                                ),
+                                access_token=(
+                                    access_token
+                                ),
+                                to=to,
+                                text=(
+                                    self._build_product_caption(
+                                        product
+                                    )
+                                ),
+                            )
                         )
 
                     if not result.success:
+
                         raise RuntimeError(
                             result.error_message
-                            or "WhatsApp message delivery failed."
+                            or
+                            "WhatsApp product delivery failed."
                         )
 
-                    if result.provider_message_id:
+                    if (
+                        result.provider_message_id
+                    ):
                         message_ids.append(
                             result.provider_message_id
                         )
 
-                if response.quick_replies:
-                    buttons = [
+                # Send introductory text only if
+                # there was no product text sent separately.
+                if response.text:
+
+                    result = (
+                        await self.send_text(
+                            phone_number_id=(
+                                phone_number_id
+                            ),
+                            access_token=(
+                                access_token
+                            ),
+                            to=to,
+                            text=response.text,
+                        )
+                    )
+
+                    if not result.success:
+
+                        raise RuntimeError(
+                            result.error_message
+                            or
+                            "WhatsApp text delivery failed."
+                        )
+
+                    if (
+                        result.provider_message_id
+                    ):
+                        message_ids.append(
+                            result.provider_message_id
+                        )
+
+            # =================================================
+            # QUICK REPLIES
+            # =================================================
+
+            elif response.quick_replies:
+
+                buttons = []
+
+                for reply in (
+                    response.quick_replies[:3]
+                ):
+
+                    buttons.append(
                         {
                             "id": (
-                                reply.get("value")
-                                or reply["label"]
+                                reply.get(
+                                    "value"
+                                )
+                                or reply.get(
+                                    "label"
+                                )
                             ),
-                            "title": reply["label"],
+                            "title": (
+                                reply.get(
+                                    "label"
+                                )
+                                or "Choose"
+                            ),
                         }
-                        for reply in response.quick_replies[:3]
-                    ]
+                    )
 
-                    result = await self.send_buttons(
-                        phone_number_id=phone_number_id,
-                        access_token=access_token,
+                result = await (
+                    self.send_buttons(
+                        phone_number_id=(
+                            phone_number_id
+                        ),
+                        access_token=(
+                            access_token
+                        ),
                         to=to,
                         body_text=(
                             response.text
-                            or "What would you like to do?"
+                            or
+                            "Choose an option."
                         ),
                         buttons=buttons,
                     )
-
-                    if not result.success:
-                        raise RuntimeError(
-                            result.error_message
-                            or "WhatsApp quick reply delivery failed."
-                        )
-
-                    if result.provider_message_id:
-                        message_ids.append(
-                            result.provider_message_id
-                        )
-
-            elif response.quick_replies:
-                buttons = [
-                    {
-                        "id": (
-                            reply.get("value")
-                            or reply["label"]
-                        ),
-                        "title": reply["label"],
-                    }
-                    for reply in response.quick_replies[:3]
-                ]
-
-                result = await self.send_buttons(
-                    phone_number_id=phone_number_id,
-                    access_token=access_token,
-                    to=to,
-                    body_text=(
-                        response.text
-                        or "Choose an option."
-                    ),
-                    buttons=buttons,
                 )
 
                 if not result.success:
+
                     raise RuntimeError(
                         result.error_message
-                        or "WhatsApp quick reply delivery failed."
+                        or
+                        "WhatsApp quick reply delivery failed."
                     )
 
-                if result.provider_message_id:
+                if (
+                    result.provider_message_id
+                ):
                     message_ids.append(
                         result.provider_message_id
                     )
 
-            else:
-                result = await self.send_text(
-                    phone_number_id=phone_number_id,
-                    access_token=access_token,
-                    to=to,
-                    text=response.text or "",
+            # =================================================
+            # NORMAL TEXT
+            # =================================================
+
+            elif response.text:
+
+                result = await (
+                    self.send_text(
+                        phone_number_id=(
+                            phone_number_id
+                        ),
+                        access_token=(
+                            access_token
+                        ),
+                        to=to,
+                        text=response.text,
+                    )
                 )
 
                 if not result.success:
+
                     raise RuntimeError(
                         result.error_message
-                        or "WhatsApp message delivery failed."
+                        or
+                        "WhatsApp message delivery failed."
                     )
 
-                if result.provider_message_id:
+                if (
+                    result.provider_message_id
+                ):
                     message_ids.append(
                         result.provider_message_id
                     )
@@ -637,10 +801,13 @@ class WhatsAppSender:
                     if message_ids
                     else None
                 ),
-                provider_message_ids=message_ids,
+                provider_message_ids=(
+                    message_ids
+                ),
             )
 
         except Exception as exc:
+
             logger.exception(
                 "WhatsApp response delivery failed: %s",
                 exc,
@@ -653,54 +820,17 @@ class WhatsAppSender:
                     if message_ids
                     else None
                 ),
-                provider_message_ids=message_ids,
-                error_message=str(exc),
-            )
-    # ---------------------------------------------------------
-    # Helpers
-    # ---------------------------------------------------------
-
-    @staticmethod
-    def _build_product_caption(
-        product: ResponseProduct,
-    ) -> str:
-
-        lines = [
-            product.name,
-            f"Price: ₹{product.price:,.0f}",
-        ]
-
-        if product.stock is not None:
-            lines.append(
-                f"Stock: {product.stock}"
+                provider_message_ids=(
+                    message_ids
+                ),
+                error_message=str(
+                    exc
+                ),
             )
 
-        if product.colors_available:
-            lines.append(
-                "Colors: "
-                + ", ".join(
-                    product.colors_available
-                )
-            )
-
-        if product.sizes_available:
-            lines.append(
-                "Sizes: "
-                + ", ".join(
-                    product.sizes_available
-                )
-            )
-
-        if product.description:
-            lines.append(
-                product.description[:200]
-            )
-
-        return "\n".join(lines)
-
-    # ---------------------------------------------------------
-    # Core HTTP operation
-    # ---------------------------------------------------------
+    # =========================================================
+    # CORE HTTP
+    # =========================================================
 
     async def _send(
         self,
@@ -708,95 +838,118 @@ class WhatsAppSender:
         access_token: str,
         payload: Dict[str, Any],
     ) -> WhatsAppSendResult:
-        """
-        POST a message to Meta's Graph API.
-
-        Important:
-        Any Meta/API failure raises an exception.
-        We never silently convert a failed send into success.
-        """
 
         client = self._get_client()
 
         try:
+
             response = await client.post(
                 url,
-                headers=self._build_headers(
-                    access_token
+                headers=(
+                    self._build_headers(
+                        access_token
+                    )
                 ),
                 json=payload,
             )
 
-            try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                error_code = None
-                error_message = str(exc)
-
-                try:
-                    error_data = response.json()
-                    error = error_data.get(
-                        "error",
-                        {}
-                    )
-
-                    if isinstance(error, dict):
-                        error_code = (
-                            str(error["code"])
-                            if error.get("code") is not None
-                            else None
-                        )
-
-                        error_message = (
-                            error.get("message")
-                            or error_message
-                        )
-                except Exception:
-                    pass
-
-                raise RuntimeError(
-                    f"WhatsApp API error"
-                    + (
-                        f" [{error_code}]"
-                        if error_code
-                        else ""
-                    )
-                    + f": {error_message}"
-                ) from exc
+            response.raise_for_status()
 
             data = response.json()
 
-            message_id = self._extract_message_id(
-                data
+            message_id = (
+                self._extract_message_id(
+                    data
+                )
             )
 
             if not message_id:
+
                 raise RuntimeError(
-                    "WhatsApp API returned HTTP success "
-                    "but no WhatsApp message ID."
+                    "WhatsApp API returned HTTP "
+                    "success but no WhatsApp message ID."
                 )
 
             return WhatsAppSendResult(
                 success=True,
-                provider_message_id=message_id,
+                provider_message_id=(
+                    message_id
+                ),
+                provider_message_ids=[
+                    message_id
+                ],
                 raw_response=data,
             )
 
         except httpx.HTTPStatusError as exc:
-            logger.error(
-                "WhatsApp API request failed: status=%s",
-                exc.response.status_code,
+
+            error_code = None
+            error_message = str(
+                exc
             )
 
-            raise
+            try:
+
+                error_data = (
+                    exc.response.json()
+                )
+
+                error = error_data.get(
+                    "error",
+                    {},
+                )
+
+                if isinstance(
+                    error,
+                    dict,
+                ):
+
+                    if error.get(
+                        "code"
+                    ) is not None:
+
+                        error_code = str(
+                            error["code"]
+                        )
+
+                    error_message = (
+                        error.get(
+                            "message"
+                        )
+                        or error_message
+                    )
+
+            except Exception:
+                pass
+
+            logger.error(
+                "WhatsApp API request failed: "
+                "status=%s code=%s message=%s",
+                exc.response.status_code,
+                error_code,
+                error_message,
+            )
+
+            raise RuntimeError(
+                "WhatsApp API error"
+                + (
+                    f" [{error_code}]"
+                    if error_code
+                    else ""
+                )
+                + f": {error_message}"
+            ) from exc
 
         except httpx.RequestError as exc:
+
             logger.error(
                 "WhatsApp request failed: %s",
                 exc,
             )
 
-            raise
+            raise RuntimeError(
+                f"WhatsApp network error: {exc}"
+            ) from exc
 
 
 whatsapp_sender = WhatsAppSender()
