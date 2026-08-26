@@ -252,7 +252,7 @@ class ProductSearchHandler(BaseHandler):
                 quick_replies=[
                     {
                         "label": "Search Again",
-                        "value": "search_again",
+                        "value": "__COMMAND__:search_again",
                     },
                 ],
                 metadata={
@@ -382,7 +382,7 @@ class ProductSearchHandler(BaseHandler):
             quick_replies = [
                 {
                     "label": "Show more",
-                    "value": "show_more",
+                    "value": "__COMMAND__:show_more",
                 }
             ]
 

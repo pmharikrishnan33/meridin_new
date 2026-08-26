@@ -626,7 +626,7 @@ class AvailabilityHandler(BaseHandler):
             1,
             min(
                 configured_limit,
-                20,
+                3,
             ),
         )
 

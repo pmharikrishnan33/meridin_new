@@ -509,10 +509,12 @@ class WhatsAppSender:
                 in {"product_list", "product_card"}
                 and response.products
             ):
-                products = response.products[:5]
+                products = response.products[:3]
 
-                for product in products:
+                for index, product in enumerate(products):
                     caption = self._build_product_caption(product)
+                    if index == 0 and response.text:
+                        caption = f"{response.text.strip()}\n\n{caption}"
 
                     if product.image:
                         result = await self.send_image(

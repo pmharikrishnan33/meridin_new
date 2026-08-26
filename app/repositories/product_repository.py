@@ -449,98 +449,106 @@ class ProductRepository:
 
         if filters.color:
             color_value = filters.color.strip()
-
-            if color_value:
-                conditions.append(
-                    {
-                        "$or": [
-                            {
-                                "color": {
-                                    "$elemMatch": {
-                                        "$regex": (
-                                            "^"
-                                            + re.escape(
-                                                color_value
-                                            )
-                                            + "$"
-                                        ),
-                                        "$options": "i",
-                                    }
-                                }
-                            },
-                            {
-                                "variants": {
-                                    "$elemMatch": {
-                                        "color": {
-                                            "$regex": (
-                                                "^"
-                                                + re.escape(
-                                                    color_value
-                                                )
-                                                + "$"
-                                            ),
-                                            "$options": "i",
-                                        }
-                                    }
-                                }
-                            },
-                        ]
-                    }
-                )
-
-                # Remove the previous top-level-only
-                # color condition because the combined
-                # top-level/variant condition replaces it.
-                if color_condition:
-                    conditions.remove(
-                        color_condition
-                    )
+        else:
+            color_value = ""
 
         if filters.size:
             size_value = filters.size.strip()
+        else:
+            size_value = ""
 
-            if size_value:
-                conditions.append(
-                    {
-                        "$or": [
-                            {
-                                "size": {
-                                    "$elemMatch": {
-                                        "$regex": (
-                                            "^"
-                                            + re.escape(
-                                                size_value
-                                            )
-                                            + "$"
-                                        ),
-                                        "$options": "i",
-                                    }
-                                }
-                            },
-                            {
-                                "variants": {
-                                    "$elemMatch": {
-                                        "size": {
-                                            "$regex": (
-                                                "^"
-                                                + re.escape(
-                                                    size_value
-                                                )
-                                                + "$"
-                                            ),
-                                            "$options": "i",
-                                        }
-                                    }
-                                }
-                            },
-                        ]
+        if color_value and size_value:
+            combined_variant = {
+                "variants": {
+                    "$elemMatch": {
+                        "color": {
+                            "$regex": "^" + re.escape(color_value) + "$",
+                            "$options": "i",
+                        },
+                        "size": {
+                            "$regex": "^" + re.escape(size_value) + "$",
+                            "$options": "i",
+                        },
                     }
-                )
+                }
+            }
+            top_level_pair = {
+                "$and": [
+                    {
+                        "color": {
+                            "$elemMatch": {
+                                "$regex": "^" + re.escape(color_value) + "$",
+                                "$options": "i",
+                            }
+                        }
+                    },
+                    {
+                        "size": {
+                            "$elemMatch": {
+                                "$regex": "^" + re.escape(size_value) + "$",
+                                "$options": "i",
+                            }
+                        }
+                    },
+                ]
+            }
+            if color_condition:
+                conditions.remove(color_condition)
+            if size_condition:
+                conditions.remove(size_condition)
+            conditions.append({"$or": [top_level_pair, combined_variant]})
 
-                if size_condition:
-                    conditions.remove(
-                        size_condition
-                    )
+        elif color_value:
+            conditions.append({
+                "$or": [
+                    {
+                        "color": {
+                            "$elemMatch": {
+                                "$regex": "^" + re.escape(color_value) + "$",
+                                "$options": "i",
+                            }
+                        }
+                    },
+                    {
+                        "variants": {
+                            "$elemMatch": {
+                                "color": {
+                                    "$regex": "^" + re.escape(color_value) + "$",
+                                    "$options": "i",
+                                }
+                            }
+                        }
+                    },
+                ]
+            })
+            if color_condition:
+                conditions.remove(color_condition)
+
+        elif size_value:
+            conditions.append({
+                "$or": [
+                    {
+                        "size": {
+                            "$elemMatch": {
+                                "$regex": "^" + re.escape(size_value) + "$",
+                                "$options": "i",
+                            }
+                        }
+                    },
+                    {
+                        "variants": {
+                            "$elemMatch": {
+                                "size": {
+                                    "$regex": "^" + re.escape(size_value) + "$",
+                                    "$options": "i",
+                                }
+                            }
+                        }
+                    },
+                ]
+            })
+            if size_condition:
+                conditions.remove(size_condition)
 
         # --------------------------------------------------
         # TAGS

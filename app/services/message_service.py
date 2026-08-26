@@ -73,6 +73,8 @@ from app.routing.intent_router import (
     intent_router,
 )
 
+from app.services.product_service import product_service
+
 
 DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
     "welcome_message": (
@@ -95,7 +97,7 @@ DEFAULT_TENANT_SETTINGS: Dict[str, Any] = {
 
         # Product search itself uses the WhatsApp
         # response limit enforced by the sender.
-        "max_products_per_response": 5,
+        "max_products_per_response": 3,
     },
 }
 
@@ -178,7 +180,7 @@ class MessageService:
             }
         ):
             count += len(
-                response.products[:5]
+                response.products[:3]
             )
 
         elif response.text:
@@ -725,6 +727,11 @@ class MessageService:
             response=response,
         )
 
+        outbound_msg.metadata.update({
+            "delivery_group_id": str(uuid4()),
+            "expected_provider_messages": self._expected_provider_message_count(response),
+        })
+
         await (
             conversation_manager
             .save_message(
@@ -752,8 +759,13 @@ class MessageService:
             ),
 
             metadata={
-                "outbound_message_id":
-                    outbound_msg.id,
+                "outbound_message_id": outbound_msg.id,
+                "product_ids": [
+                    product.product_id
+                    for product in response.products
+                ],
+                "response_type": response.response_type,
+                "delivery_group_id": outbound_msg.metadata.get("delivery_group_id"),
             },
         )
 
@@ -952,6 +964,8 @@ class MessageService:
             session.clear_awaiting_confirmation()
 
             # Clear previous search state.
+            session.context.current_product = None
+            session.context.current_category = None
             session.context.last_search_filters = {}
             session.context.last_search_results = []
 
@@ -965,10 +979,6 @@ class MessageService:
 
         elif command == "show_more":
 
-            # -------------------------------------------------
-            # PAGINATION
-            # -------------------------------------------------
-
             understanding = MessageUnderstanding(
                 original_text=command,
                 normalized_text=command,
@@ -977,9 +987,7 @@ class MessageService:
                 entities=[],
             )
 
-            settings = self._merge_tenant_settings(
-                tenant_settings
-            )
+            settings = self._merge_tenant_settings(tenant_settings)
 
             response = await intent_router.route(
                 understanding=understanding,
@@ -988,28 +996,144 @@ class MessageService:
                 conversation_id=session.conversation_id,
             )
 
-        else:
+        elif command in {"product_details", "view_all_sizes", "similar_products"}:
 
-            # -------------------------------------------------
-            # UNKNOWN COMMAND
-            # -------------------------------------------------
+            current_product = session.context.current_product
+
+            if not current_product:
+                understanding = MessageUnderstanding(
+                    original_text=command,
+                    normalized_text=command,
+                    intent=IntentType.PRODUCT_INQUIRY,
+                    intent_confidence=1.0,
+                    entities=[],
+                )
+                response = BotResponse(
+                    response_type="text",
+                    text="Please select a product first.",
+                    products=[],
+                    quick_replies=[
+                        {"label": "Search Again", "value": "__COMMAND__:search_again"}
+                    ],
+                    metadata={"command": command, "success": False},
+                )
+            elif command == "product_details":
+                understanding = MessageUnderstanding(
+                    original_text=command,
+                    normalized_text=command,
+                    intent=IntentType.PRODUCT_INQUIRY,
+                    intent_confidence=1.0,
+                    entities=[
+                        ExtractedEntity(
+                            entity_type=EntityType.PRODUCT,
+                            value=current_product,
+                            confidence=1.0,
+                            normalized_value=current_product,
+                        )
+                    ],
+                )
+                settings = self._merge_tenant_settings(tenant_settings)
+                response = await intent_router.route(
+                    understanding=understanding,
+                    tenant_id=tenant_id,
+                    tenant_settings=settings,
+                    conversation_id=session.conversation_id,
+                )
+            elif command == "view_all_sizes":
+                understanding = MessageUnderstanding(
+                    original_text=command,
+                    normalized_text=command,
+                    intent=IntentType.AVAILABILITY,
+                    intent_confidence=1.0,
+                    entities=[
+                        ExtractedEntity(
+                            entity_type=EntityType.PRODUCT,
+                            value=current_product,
+                            confidence=1.0,
+                            normalized_value=current_product,
+                        )
+                    ],
+                )
+                availability = await product_service.check_availability(
+                    tenant_id=tenant_id,
+                    product_id=current_product,
+                )
+                sizes = availability.get("available_sizes", [])
+                product_name = availability.get("product_name", current_product)
+                response = BotResponse(
+                    response_type="text",
+                    text=(
+                        f"Available sizes for {product_name}: " + ", ".join(sizes)
+                        if sizes else f"No sizes are currently in stock for {product_name}."
+                    ),
+                    products=[],
+                    quick_replies=[
+                        {"label": "View Product", "value": "__COMMAND__:product_details"},
+                        {"label": "Search Again", "value": "__COMMAND__:search_again"},
+                    ],
+                    metadata={"command": command, "product_id": current_product},
+                )
+            else:
+                product = await product_service.get_product_by_reference(
+                    tenant_id=tenant_id,
+                    reference=current_product,
+                )
+                if not product:
+                    response = BotResponse(
+                        response_type="text",
+                        text="I couldn't find similar products right now.",
+                        products=[],
+                        quick_replies=[{"label": "Search Again", "value": "__COMMAND__:search_again"}],
+                        metadata={"command": command, "success": False},
+                    )
+                else:
+                    from app.models.schemas import ProductSearchFilters
+                    filters = ProductSearchFilters(
+                        category=product.category,
+                        type=product.type,
+                        brand=product.brand,
+                        limit=5,
+                        offset=0,
+                    )
+                    similar = await product_service.search_products(
+                        tenant_id=tenant_id,
+                        filters=filters,
+                    )
+                    similar = [item for item in similar if item.id != product.id][:5]
+                    response = BotResponse(
+                        response_type="product_list" if similar else "text",
+                        text=(
+                            "Here are some similar products:"
+                            if similar
+                            else "I couldn't find similar products right now."
+                        ),
+                        products=[
+                            product_service.product_to_response(item)
+                            for item in similar
+                        ],
+                        quick_replies=[{"label": "Search Again", "value": "__COMMAND__:search_again"}],
+                        metadata={"command": command, "source_product_id": product.id},
+                    )
+                    if similar:
+                        session.context.current_product = similar[0].id
+
+        else:
 
             understanding = MessageUnderstanding(
                 original_text=command,
                 normalized_text=command,
-                intent=IntentType.PAGINATION,
+                intent=IntentType.UNKNOWN,
                 intent_confidence=1.0,
                 entities=[],
             )
 
             response = BotResponse(
                 response_type="text",
-                text=(
-                    "I couldn't process that selection. "
-                    "Please try again."
-                ),
+                text="I couldn't process that selection. Please try again.",
                 products=[],
-                quick_replies=[],
+                quick_replies=[
+                    {"label": "Search Again", "value": "__COMMAND__:search_again"}
+                ],
                 metadata={
                     "command": command,
                     "success": False,

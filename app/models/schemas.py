@@ -146,6 +146,27 @@ class TenantSettings(BaseModel):
     webhook_secret: Optional[str] = None
 
 
+class TenantFeatureFlags(BaseModel):
+    enable_ai_responses: bool = True
+    enable_product_recommendations: bool = True
+
+    enable_order_tracking: bool = False
+    enable_returns: bool = False
+    enable_cancellation: bool = False
+
+    enable_human_handoff: bool = True
+    enable_analytics: bool = True
+
+    # Controls whether vocabulary/synonym normalization is applied
+    # before ML intent/entity processing.
+    use_synonyms: bool = True
+
+    max_products_per_response: int = 3
+
+    auto_reply_outside_hours: bool = False
+
+
+
 class Tenant(BaseModel):
     """
     Tenant/client model - stored in the MongoDB `clients` collection.
@@ -204,26 +225,6 @@ class ProductVariant(BaseModel):
     price: float
     sale_price: Optional[float] = None
     images: List[str] = Field(default_factory=list)
-
-class TenantFeatureFlags(BaseModel):
-    enable_ai_responses: bool = True
-    enable_product_recommendations: bool = True
-
-    enable_order_tracking: bool = False
-    enable_returns: bool = False
-    enable_cancellation: bool = False
-
-    enable_human_handoff: bool = True
-    enable_analytics: bool = True
-
-    # Controls whether vocabulary/synonym normalization is applied
-    # before ML intent/entity processing.
-    use_synonyms: bool = True
-
-    max_products_per_response: int = 5
-
-    auto_reply_outside_hours: bool = False
-
 
 class Product(BaseModel):
     id: str = Field(alias="_id")

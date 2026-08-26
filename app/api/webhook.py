@@ -33,6 +33,9 @@ from app.services.message_service import (
     message_service,
 )
 
+from app.conversation.manager import conversation_manager
+from app.database.collections import collections
+
 from app.services.whatsapp_inbound import (
     normalize_whatsapp_message,
 )
@@ -588,6 +591,13 @@ async def receive_whatsapp_webhook(
                     or []
                 )
 
+                statuses = (
+                    value.get(
+                        "statuses"
+                    )
+                    or []
+                )
+
                 if isinstance(
                     metadata,
                     dict,
@@ -625,6 +635,8 @@ async def receive_whatsapp_webhook(
                     )
                     or []
                 )
+
+                statuses = []
 
                 message_phone_number_id = (
                     getattr(
@@ -675,6 +687,69 @@ async def receive_whatsapp_webhook(
             resolved_tenant_id = (
                 tenant.tenant_id
             )
+
+            # =================================================
+            # PROCESS OUTBOUND DELIVERY STATUSES
+            # =================================================
+
+            for delivery in statuses:
+                if not isinstance(delivery, dict):
+                    continue
+
+                provider_message_id = delivery.get("id")
+                delivery_status = str(delivery.get("status", "")).strip().lower()
+
+                if not provider_message_id or delivery_status not in {"sent", "delivered", "read", "failed"}:
+                    continue
+
+                outbound = await conversation_manager.get_message_by_whatsapp_id(
+                    tenant_id=tenant.tenant_id,
+                    whatsapp_message_id=str(provider_message_id),
+                )
+
+                # A single logical BotResponse may generate multiple Meta
+                # messages (for example, one image per product plus a button
+                # message). Only the first provider ID is stored in the
+                # unique whatsapp_message_id field; the complete list is kept
+                # in metadata for delivery callbacks for the remaining IDs.
+                if outbound is None:
+                    outbound_document = await collections.messages.find_one(
+                        {
+                            "tenant_id": tenant.tenant_id,
+                            "metadata.provider_message_ids": str(provider_message_id),
+                        }
+                    )
+                    if outbound_document:
+                        from app.models.schemas import Message
+                        outbound = Message(**outbound_document)
+
+                if outbound is None:
+                    logger.info(
+                        "Received delivery status for unknown outbound WhatsApp message: %s",
+                        provider_message_id,
+                    )
+                    continue
+
+                error_text = None
+                if delivery_status == "failed":
+                    errors = delivery.get("errors") or []
+                    if errors and isinstance(errors[0], dict):
+                        error_text = errors[0].get("message") or errors[0].get("title") or str(errors[0])
+                    else:
+                        error_text = "WhatsApp delivery failed."
+
+                await conversation_manager.update_message_delivery(
+                    outbound.id,
+                    status=delivery_status,
+                    whatsapp_message_id=str(provider_message_id),
+                    error=error_text,
+                )
+
+                processed.append({
+                    "status": "delivery_update",
+                    "delivery_status": delivery_status,
+                    "whatsapp_message_id": str(provider_message_id),
+                })
 
             # =================================================
             # PROCESS MESSAGES
@@ -931,6 +1006,11 @@ async def receive_whatsapp_webhook(
                     provider_message_id = (
                         send_result.provider_message_id
                     )
+                    provider_message_ids = list(
+                        send_result.provider_message_ids or []
+                    )
+                    if not provider_message_id and provider_message_ids:
+                        provider_message_id = provider_message_ids[-1]
 
                     if not provider_message_id:
 
@@ -958,6 +1038,25 @@ async def receive_whatsapp_webhook(
                         )
                     )
 
+                    provider_message_ids = provider_message_ids or [provider_message_id]
+
+                    # Persist every provider ID so subsequent Meta delivery
+                    # callbacks can resolve the same logical outbound message.
+                    await collections.messages.update_one(
+                        {
+                            "_id": outbound_message_id,
+                            "tenant_id": tenant.tenant_id,
+                        },
+                        {
+                            "$set": {
+                                "metadata.provider_message_ids": provider_message_ids,
+                                "metadata.provider_message_count": len(provider_message_ids),
+                            }
+                        },
+                    )
+
+                    response_data["whatsapp_message_ids"] = provider_message_ids
+
                     response_data[
                         "delivery_status"
                     ] = "sent"
@@ -976,6 +1075,28 @@ async def receive_whatsapp_webhook(
                         "for outbound message %s.",
                         outbound_message_id,
                     )
+
+                    # Preserve any provider IDs returned before a later
+                    # product/button send failed. Those messages may still
+                    # generate delivery/read callbacks from Meta.
+                    partial_provider_ids = list(
+                        getattr(send_result, "provider_message_ids", [])
+                        if "send_result" in locals()
+                        else []
+                    )
+                    if partial_provider_ids:
+                        await collections.messages.update_one(
+                            {
+                                "_id": outbound_message_id,
+                                "tenant_id": tenant.tenant_id,
+                            },
+                            {
+                                "$set": {
+                                    "metadata.provider_message_ids": partial_provider_ids,
+                                    "metadata.provider_message_count": len(partial_provider_ids),
+                                }
+                            },
+                        )
 
                     # =================================================
                     # MARK OUTBOUND FAILED

@@ -181,14 +181,6 @@ async def _ensure_message_indexes() -> None:
         name="outbound_delivery_lookup",
     )
 
-    await _create_index(
-        collections.messages,
-        [
-            ("tenant_id", 1),
-            ("whatsapp_message_id", 1),
-        ],
-        name="whatsapp_message_lookup",
-    )
 
 
 async def _ensure_client_indexes() -> None:
@@ -334,6 +326,16 @@ async def _ensure_inventory_indexes_for_tenant(
             ("stock", 1),
         ],
         name="product_stock_lookup",
+    )
+
+    await _create_index(
+        collection,
+        [
+            ("variants.size", 1),
+            ("variants.color", 1),
+            ("variants.stock", 1),
+        ],
+        name="product_variant_availability_lookup",
     )
 
     # ---------------------------------------------------------
