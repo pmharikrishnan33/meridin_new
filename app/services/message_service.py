@@ -240,19 +240,27 @@ class MessageService:
     # MESSAGE UNDERSTANDING
     # =========================================================
 
-    def understand(
+    async def understand(
         self,
         text: str,
         *,
         use_synonyms: bool = True,
     ) -> MessageUnderstanding:
+        """
+        Understand one customer message.
+
+        ML inference is explicitly executed outside the FastAPI
+        event-loop thread.
+        """
 
         if not text or not text.strip():
             raise ValueError(
                 "Message text must not be empty."
             )
 
-        preprocessed = preprocessor.process(text)
+        preprocessed = preprocessor.process(
+            text
+        )
 
         ml_text = (
             preprocessed.vocabulary_matched
@@ -260,20 +268,26 @@ class MessageService:
             else preprocessed.normalized
         )
 
-        prediction = intent_classifier.predict(
-            ml_text
+        prediction = (
+            await intent_classifier.predict_async(
+                ml_text
+            )
         )
 
-        extraction = entity_extractor.extract(
-            ml_text,
-            intent=prediction.intent.value,
+        extraction = (
+            await entity_extractor.extract_async(
+                ml_text,
+                intent=prediction.intent.value,
+            )
         )
 
         return MessageUnderstanding(
             original_text=text,
             normalized_text=ml_text,
             intent=prediction.intent,
-            intent_confidence=prediction.confidence,
+            intent_confidence=(
+                prediction.confidence
+            ),
             entities=extraction.entities,
         )
     # =========================================================
@@ -545,7 +559,7 @@ class MessageService:
             )
         )
 
-        understanding = self.understand(
+        understanding = await self.understand(
             text,
             use_synonyms=use_synonyms,
         )

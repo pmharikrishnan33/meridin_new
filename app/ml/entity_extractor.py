@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Tuple
-
+import asyncio
 from app.ml.loader import model_loader
 from app.models.schemas import EntityType, ExtractedEntity
 from app.utils.logger import logger
@@ -68,7 +68,28 @@ class EntityExtractor:
 
     def __init__(self):
         pass
+    
+    async def extract_async(
+        self,
+        text: str,
+        intent: Optional[str] = None,
+    ) -> EntityExtractionResult:
+        """
+        Run entity extraction without blocking the FastAPI
+        event loop.
 
+        The complete synchronous ML/regex extraction pipeline is
+        executed in a worker thread.
+        """
+
+        return await asyncio.to_thread(
+            self.extract,
+            text,
+            intent,
+        )
+    
+    
+    
     def extract(self, text: str, intent: Optional[str] = None) -> EntityExtractionResult:
         """
         Extract all entities from text.
