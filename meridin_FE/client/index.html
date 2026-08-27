@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Meridin — Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+            <div class="brand-mark">M</div>
+
+            <div>
+                <strong>Meridin</strong>
+                <span>Client</span>
+            </div>
+        </div>
+
+        <nav>
+
+            <a href="#overview" class="nav-link active">
+                Overview
+            </a>
+
+            <div class="nav-title">Catalog</div>
+
+            <a href="#products" class="nav-link">
+                Products
+            </a>
+
+            <a href="#collections" class="nav-link">
+                Collections
+            </a>
+
+            <div class="nav-title">Messaging</div>
+
+            <a href="#messages" class="nav-link">
+                Messages
+            </a>
+
+            <a href="#leads" class="nav-link">
+                Leads
+            </a>
+
+            <div class="nav-title">Insights</div>
+
+            <a href="#analytics" class="nav-link">
+                Analytics
+            </a>
+
+        </nav>
+
+        <button
+            id="logoutButton"
+            class="logout-button"
+        >
+            Sign out
+        </button>
+
+    </aside>
+
+    <main class="main">
+
+        <header class="topbar">
+
+            <div>
+                <h1>Overview</h1>
+                <p id="businessName">
+                    Your Meridin workspace
+                </p>
+            </div>
+
+            <div class="status">
+                <span class="status-dot"></span>
+                Automation active
+            </div>
+
+        </header>
+
+        <section id="overview">
+
+            <div class="metrics">
+
+                <article class="metric-card">
+                    <span>Products</span>
+                    <strong id="productsMetric">—</strong>
+                </article>
+
+                <article class="metric-card">
+                    <span>Customers</span>
+                    <strong id="customersMetric">—</strong>
+                </article>
+
+                <article class="metric-card">
+                    <span>Conversations</span>
+                    <strong id="conversationsMetric">—</strong>
+                </article>
+
+                <article class="metric-card">
+                    <span>Messages</span>
+                    <strong id="messagesMetric">—</strong>
+                </article>
+
+            </div>
+
+            <div class="grid-two">
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Recent messages</h2>
+                            <p>Latest WhatsApp activity</p>
+                        </div>
+                    </div>
+
+                    <div id="recentMessages">
+                        Loading...
+                    </div>
+                </section>
+
+                <section class="panel">
+
+                    <div class="panel-header">
+                        <div>
+                            <h2>Quick actions</h2>
+                            <p>Manage your catalog</p>
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+
+                        <button
+                            onclick="showProducts()"
+                        >
+                            Manage products
+                        </button>
+
+                        <button
+                            onclick="showCollections()"
+                        >
+                            Manage collections
+                        </button>
+
+                        <button
+                            onclick="showAnalytics()"
+                        >
+                            View analytics
+                        </button>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+        </section>
+
+        <section
+            id="products"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+
+                <div>
+                    <h2>Products</h2>
+                    <p>Your clothing catalog</p>
+                </div>
+
+                <button
+                    id="reloadProducts"
+                    class="primary-button small"
+                >
+                    Refresh
+                </button>
+
+            </div>
+
+            <div
+                id="productsGrid"
+                class="products-grid"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+        <section
+            id="collections"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+
+                <div>
+                    <h2>Collections</h2>
+                    <p>Organize your products into collections.</p>
+                </div>
+
+                <button
+                    id="createCollectionButton"
+                    class="primary-button small"
+                >
+                    New collection
+                </button>
+
+            </div>
+
+            <div id="collectionsList">
+                Loading...
+            </div>
+
+        </section>
+
+        <section
+            id="messages"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+
+                <div>
+                    <h2>Messages</h2>
+                    <p>Recent WhatsApp conversations.</p>
+                </div>
+
+            </div>
+
+            <div
+                id="messagesList"
+                class="table-container"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+        <section
+            id="leads"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+
+                <div>
+                    <h2>Lead classifications</h2>
+                    <p>Messages classified by Meridin ML.</p>
+                </div>
+
+            </div>
+
+            <div
+                id="leadsList"
+                class="table-container"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+        <section
+            id="analytics"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+
+                <div>
+                    <h2>Analytics</h2>
+                    <p>Message and intent activity.</p>
+                </div>
+
+            </div>
+
+            <div
+                id="analyticsData"
+                class="grid-two"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

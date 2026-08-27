@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>Meridin — Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="auth-page">
+
+<main class="auth-card">
+
+    <div class="brand">
+        <div class="brand-mark">M</div>
+
+        <div>
+            <h1>Meridin</h1>
+            <p>Admin Panel</p>
+        </div>
+    </div>
+
+    <h2>Administrator sign in</h2>
+
+    <p class="muted">
+        Access the Meridin operations dashboard.
+    </p>
+
+    <form id="loginForm">
+
+        <label for="email">
+            Email
+        </label>
+
+        <input
+            id="email"
+            type="email"
+            required
+        >
+
+        <label for="password">
+            Password
+        </label>
+
+        <input
+            id="password"
+            type="password"
+            required
+        >
+
+        <button
+            type="submit"
+            class="primary-button"
+        >
+            Sign in
+        </button>
+
+        <p
+            id="loginError"
+            class="error"
+        ></p>
+
+    </form>
+
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+
+</body>
+</html>

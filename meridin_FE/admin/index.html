@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Meridin — Admin Dashboard</title>
+
+    <link
+        rel="stylesheet"
+        href="css/style.css"
+    >
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="brand-mark">
+                M
+            </div>
+
+            <div>
+                <strong>
+                    Meridin
+                </strong>
+
+                <span>
+                    Admin
+                </span>
+            </div>
+
+        </div>
+
+        <nav>
+
+            <a
+                href="#overview"
+                class="nav-link active"
+            >
+                Overview
+            </a>
+
+            <div class="nav-title">
+                Clients
+            </div>
+
+            <a
+                href="#clients"
+                class="nav-link"
+            >
+                All clients
+            </a>
+
+            <div class="nav-title">
+                Platform
+            </div>
+
+            <a
+                href="#messages"
+                class="nav-link"
+            >
+                Global messages
+            </a>
+
+            <a
+                href="#usage"
+                class="nav-link"
+            >
+                API usage
+            </a>
+
+        </nav>
+
+        <button
+            id="logoutButton"
+            class="logout-button"
+        >
+            Sign out
+        </button>
+
+    </aside>
+
+    <main class="main">
+
+        <header class="topbar">
+
+            <div>
+
+                <h1>
+                    Platform overview
+                </h1>
+
+                <p>
+                    Meridin operations center
+                </p>
+
+            </div>
+
+            <div class="status">
+
+                <span class="status-dot"></span>
+
+                API operational
+
+            </div>
+
+        </header>
+
+        <section id="overview">
+
+            <div class="metrics">
+
+                <article class="metric-card">
+
+                    <span>
+                        Total clients
+                    </span>
+
+                    <strong id="clientsMetric">
+                        —
+                    </strong>
+
+                </article>
+
+                <article class="metric-card">
+
+                    <span>
+                        Active clients
+                    </span>
+
+                    <strong id="activeClientsMetric">
+                        —
+                    </strong>
+
+                </article>
+
+                <article class="metric-card">
+
+                    <span>
+                        Messages
+                    </span>
+
+                    <strong id="messagesMetric">
+                        —
+                    </strong>
+
+                </article>
+
+                <article class="metric-card">
+
+                    <span>
+                        Customers
+                    </span>
+
+                    <strong id="customersMetric">
+                        —
+                    </strong>
+
+                </article>
+
+            </div>
+
+        </section>
+
+        <section id="clients" class="dashboard-section">
+
+            <div class="section-header">
+
+                <div>
+
+                    <h2>
+                        Clients
+                    </h2>
+
+                    <p>
+                        Manage Meridin tenants.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div
+                id="clientsList"
+                class="table-container"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+        <section id="messages" class="dashboard-section">
+
+            <div class="section-header">
+
+                <div>
+
+                    <h2>
+                        Global messages
+                    </h2>
+
+                    <p>
+                        Recent messages across tenants.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div
+                id="messagesList"
+                class="table-container"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+        <section id="usage" class="dashboard-section">
+
+            <div class="section-header">
+
+                <div>
+
+                    <h2>
+                        Platform usage
+                    </h2>
+
+                    <p>
+                        AI and Meta usage records.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div
+                id="usageList"
+                class="grid-two"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+
+</html>

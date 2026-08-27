@@ -93,5 +93,9 @@ class Collections:
     def rate_limits(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["rate_limits"]
 
+    @property
+    def collections(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["collections"]
+
 
 collections = Collections()

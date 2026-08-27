@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     # webhook secret is not supplied.
     APP_SECRET: str
     TRUST_PROXY_HEADERS: bool = False
+
+    # ==========================================================
+    # ADMIN DASHBOARD
+    # ==========================================================
+    MERIDIN_ADMIN_EMAIL: str = ""
+    MERIDIN_ADMIN_PASSWORD_HASH: str = ""
+
     # ==========================================================
     # DATABASE
     # ==========================================================

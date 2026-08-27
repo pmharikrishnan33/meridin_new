@@ -99,6 +99,15 @@ async def _ensure_customer_indexes() -> None:
         name="unique_customer_per_tenant_wa_id",
     )
 
+    await _create_index(
+        collections.customers,
+        [
+            ("tenant_id", 1),
+            ("last_interaction_at", -1),
+        ],
+        name="customer_last_interaction_lookup",
+    )
+
 
 async def _ensure_conversation_indexes() -> None:
     """
@@ -130,6 +139,15 @@ async def _ensure_conversation_indexes() -> None:
             ("updated_at", -1),
         ],
         name="conversation_lookup",
+    )
+
+    await _create_index(
+        collections.conversations,
+        [
+            ("tenant_id", 1),
+            ("updated_at", -1),
+        ],
+        name="tenant_conversation_updated_lookup",
     )
 
 
@@ -181,6 +199,26 @@ async def _ensure_message_indexes() -> None:
         name="outbound_delivery_lookup",
     )
 
+    await _create_index(
+        collections.messages,
+        [
+            ("tenant_id", 1),
+            ("created_at", -1),
+        ],
+        name="tenant_message_created_lookup",
+    )
+
+    await _create_index(
+        collections.messages,
+        [
+            ("tenant_id", 1),
+            ("direction", 1),
+            ("intent", 1),
+            ("created_at", -1),
+        ],
+        name="tenant_message_lead_lookup",
+    )
+
 
 
 async def _ensure_client_indexes() -> None:
@@ -210,6 +248,29 @@ async def _ensure_client_indexes() -> None:
             ("is_active", 1),
         ],
         name="active_tenant_lookup",
+    )
+
+    await _create_index(
+        collections.clients,
+        [
+            ("dashboard_email", 1),
+        ],
+        unique=True,
+        sparse=True,
+        name="unique_dashboard_email",
+    )
+
+
+async def _ensure_collection_indexes() -> None:
+    """Create indexes required by the collections collection."""
+
+    await _create_index(
+        collections.collections,
+        [
+            ("tenant_id", 1),
+            ("created_at", -1),
+        ],
+        name="tenant_collection_created_lookup",
     )
 
 
@@ -521,6 +582,8 @@ async def ensure_indexes() -> None:
     await _ensure_message_indexes()
 
     await _ensure_client_indexes()
+
+    await _ensure_collection_indexes()
 
     await _ensure_order_indexes()
 

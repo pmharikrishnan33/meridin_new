@@ -6,6 +6,7 @@ from app.models.schemas import (
     BotResponse,
     ConversationContext,
     EntityType,
+    IntentType,
     MessageUnderstanding,
     ProductSearchFilters,
 )

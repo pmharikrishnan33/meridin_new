@@ -1,8 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import ConnectionFailure
 
+from app.api.dashboard_admin import router as dashboard_admin_router
+from app.api.dashboard_auth import router as dashboard_auth_router
+from app.api.dashboard_client import router as dashboard_client_router
 from app.api.webhook import router as message_router
 from app.core.config import settings
 from app.database.indexes import ensure_indexes
@@ -135,8 +139,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:5501",
+        "http://127.0.0.1:5501",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(
     message_router,
+    prefix="/api",
+)
+
+app.include_router(
+    dashboard_auth_router,
+    prefix="/api",
+)
+
+app.include_router(
+    dashboard_client_router,
+    prefix="/api",
+)
+
+app.include_router(
+    dashboard_admin_router,
     prefix="/api",
 )
 
