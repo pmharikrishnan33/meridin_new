@@ -19,26 +19,40 @@ class IntentPrediction:
     intent: IntentType
     confidence: float
     all_scores: dict
+    margin: float = 0.0
 
 
 class IntentClassifier:
     """
     Classifies user messages using the trained ML model.
 
-    The classifier uses a confidence threshold and a confidence
-    margin so a weak ML prediction is not treated as a definite
-    intent.
+    The classifier uses:
 
-    If the ML model is uncertain, deterministic keyword rules are
-    used as a fallback.
+    1. Deterministic rules for obvious intents.
+    2. TF-IDF + Logistic Regression for general intent detection.
+    3. A minimum confidence threshold.
+    4. A top-vs-second prediction margin.
+
+    The margin is important because the current model has nine intent
+    classes and its raw probabilities are relatively diffuse.
     """
 
     # ---------------------------------------------------------
     # ML confidence controls
     # ---------------------------------------------------------
+    #
+    # The diagnostic showed examples such as:
+    #
+    # product_search = 0.2255
+    #
+    # Therefore 0.50 would reject many correct predictions.
+    #
+    # The margin prevents genuinely ambiguous predictions from being
+    # accepted merely because they are the highest class.
+    # ---------------------------------------------------------
 
-    INTENT_CONFIDENCE_THRESHOLD = 0.50
-    INTENT_MARGIN_THRESHOLD = 0.10
+    INTENT_CONFIDENCE_THRESHOLD = 0.18
+    INTENT_MARGIN_THRESHOLD = 0.05
 
     # ---------------------------------------------------------
     # Deterministic keyword fallback
@@ -113,10 +127,8 @@ class IntentClassifier:
         IntentType.CANCEL_ORDER: [
             "cancel",
             "cancel order",
-            "refund",
-            "don't want",
-            "do not want",
             "change my mind",
+            "stop my order",
         ],
 
         IntentType.RETURN_REQUEST: [
@@ -165,8 +177,7 @@ class IntentClassifier:
         text: str,
     ) -> IntentPrediction:
         """
-        Run intent prediction without blocking the FastAPI
-        event loop.
+        Run synchronous prediction in a worker thread.
         """
 
         return await asyncio.to_thread(
@@ -179,9 +190,7 @@ class IntentClassifier:
         text: str,
     ) -> IntentPrediction:
         """
-        Synchronous intent prediction.
-
-        Async callers should use predict_async().
+        Predict the user's intent.
         """
 
         if not text or not text.strip():
@@ -189,6 +198,7 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores={},
+                margin=0.0,
             )
 
         text_clean = self._clean_text(text)
@@ -198,10 +208,11 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores={},
+                margin=0.0,
             )
 
         # -----------------------------------------------------
-        # Exact greetings
+        # Exact obvious greetings
         # -----------------------------------------------------
 
         if text_clean in {
@@ -222,30 +233,46 @@ class IntentClassifier:
                 all_scores={
                     IntentType.GREETING.value: 0.99,
                 },
+                margin=0.99,
             )
 
         # -----------------------------------------------------
-        # ML prediction
+        # Exact obvious thanks
+        # -----------------------------------------------------
+
+        if text_clean in {
+            "thanks",
+            "thank you",
+            "thankyou",
+            "thx",
+            "ty",
+            "many thanks",
+        }:
+            return IntentPrediction(
+                intent=IntentType.THANKS,
+                confidence=0.99,
+                all_scores={
+                    IntentType.THANKS.value: 0.99,
+                },
+                margin=0.99,
+            )
+
+        # -----------------------------------------------------
+        # ML model
         # -----------------------------------------------------
 
         if (
             model_loader.intent_model is not None
             and model_loader.intent_vectorizer is not None
         ):
-            ml_prediction = self._predict_ml(
+            prediction = self._predict_ml(
                 text_clean
             )
 
-            if (
-                ml_prediction.intent
-                != IntentType.UNKNOWN
-            ):
-                return ml_prediction
+            if prediction.intent != IntentType.UNKNOWN:
+                return prediction
 
-            # ML is uncertain.
-            #
-            # Do NOT blindly return the weak ML prediction.
-            # Try deterministic rules instead.
+            # If ML is uncertain, use deterministic keywords.
             keyword_prediction = (
                 self._predict_keywords(
                     text_clean
@@ -258,7 +285,7 @@ class IntentClassifier:
             ):
                 return keyword_prediction
 
-            return ml_prediction
+            return prediction
 
         logger.warning(
             "Intent model not loaded; "
@@ -274,7 +301,15 @@ class IntentClassifier:
         text: str,
     ) -> IntentPrediction:
         """
-        Run ML inference and reject weak predictions.
+        Predict intent using the trained ML model.
+
+        Returns UNKNOWN when:
+
+        confidence < minimum confidence
+
+        OR
+
+        top-vs-second margin < minimum margin
         """
 
         if (
@@ -285,6 +320,7 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores={},
+                margin=0.0,
             )
 
         try:
@@ -308,6 +344,7 @@ class IntentClassifier:
                     intent=IntentType.UNKNOWN,
                     confidence=0.0,
                     all_scores={},
+                    margin=0.0,
                 )
 
             sorted_indices = np.argsort(
@@ -337,31 +374,36 @@ class IntentClassifier:
                 - second_confidence
             )
 
-            predicted_intent_str = str(
-                classes[best_index]
-            )
-
-            intent = (
+            predicted_intent = (
                 self._map_to_intent_type(
-                    predicted_intent_str
+                    str(classes[best_index])
                 )
             )
 
-            all_scores = {
-                self._map_to_intent_type(
-                    str(cls)
-                ).value: float(prob)
-                for cls, prob in zip(
-                    classes,
-                    probabilities,
+            all_scores = {}
+
+            for cls, probability in zip(
+                classes,
+                probabilities,
+            ):
+                mapped_intent = (
+                    self._map_to_intent_type(
+                        str(cls)
+                    )
                 )
-            }
+
+                all_scores[
+                    mapped_intent.value
+                ] = float(probability)
 
             logger.info(
                 "Intent ML prediction: %s "
-                "(confidence: %.3f, margin: %.3f)",
-                intent.value,
+                "(confidence: %.3f, "
+                "second: %.3f, "
+                "margin: %.3f)",
+                predicted_intent.value,
                 confidence,
+                second_confidence,
                 margin,
             )
 
@@ -373,10 +415,10 @@ class IntentClassifier:
                 confidence
                 < self._confidence_threshold
             ):
-                logger.warning(
-                    "Rejecting ML intent '%s': "
-                    "confidence %.3f < threshold %.3f",
-                    intent.value,
+                logger.info(
+                    "ML intent rejected: "
+                    "%s confidence %.3f < %.3f",
+                    predicted_intent.value,
                     confidence,
                     self._confidence_threshold,
                 )
@@ -385,6 +427,7 @@ class IntentClassifier:
                     intent=IntentType.UNKNOWN,
                     confidence=confidence,
                     all_scores=all_scores,
+                    margin=margin,
                 )
 
             # -------------------------------------------------
@@ -396,10 +439,12 @@ class IntentClassifier:
                 and margin
                 < self._margin_threshold
             ):
-                logger.warning(
-                    "Rejecting ambiguous ML intent '%s': "
-                    "margin %.3f < threshold %.3f",
-                    intent.value,
+                logger.info(
+                    "ML intent rejected as ambiguous: "
+                    "%s confidence %.3f, "
+                    "margin %.3f < %.3f",
+                    predicted_intent.value,
+                    confidence,
                     margin,
                     self._margin_threshold,
                 )
@@ -408,12 +453,14 @@ class IntentClassifier:
                     intent=IntentType.UNKNOWN,
                     confidence=confidence,
                     all_scores=all_scores,
+                    margin=margin,
                 )
 
             return IntentPrediction(
-                intent=intent,
+                intent=predicted_intent,
                 confidence=confidence,
                 all_scores=all_scores,
+                margin=margin,
             )
 
         except Exception as exc:
@@ -426,6 +473,7 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores={},
+                margin=0.0,
             )
 
     def _predict_keywords(
@@ -434,9 +482,6 @@ class IntentClassifier:
     ) -> IntentPrediction:
         """
         Deterministic fallback classifier.
-
-        This is intentionally used when the ML model is
-        uncertain.
         """
 
         text_lower = text.lower()
@@ -458,9 +503,8 @@ class IntentClassifier:
                 if " " in keyword_lower:
                     if keyword_lower in text_lower:
                         score += 2
-                    continue
 
-                if re.search(
+                elif re.search(
                     rf"\b{re.escape(keyword_lower)}\b",
                     text_lower,
                 ):
@@ -470,18 +514,19 @@ class IntentClassifier:
                 intent_enum.value
             ] = score
 
-        if not scores:
-            return IntentPrediction(
-                intent=IntentType.UNKNOWN,
-                confidence=0.0,
-                all_scores={},
-            )
-
         ranked = sorted(
             scores.items(),
             key=lambda item: item[1],
             reverse=True,
         )
+
+        if not ranked:
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores=scores,
+                margin=0.0,
+            )
 
         best_intent_value = ranked[0][0]
         best_score = ranked[0][1]
@@ -497,25 +542,21 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores=scores,
+                margin=0.0,
             )
 
-        # Convert deterministic rule score into a bounded
-        # confidence value.
-        confidence = min(
-            0.60
-            + (best_score * 0.10),
-            0.95,
+        margin = float(
+            best_score - second_score
         )
 
-        # Avoid choosing an intent when two categories have
-        # exactly the same evidence.
+        # If two intents have equal keyword evidence,
+        # don't guess.
         if (
-            len(ranked) > 1
-            and best_score == second_score
+            best_score == second_score
             and best_score > 0
         ):
-            logger.warning(
-                "Keyword intent is ambiguous: %s",
+            logger.info(
+                "Keyword intent ambiguous: %s",
                 ranked[:3],
             )
 
@@ -523,23 +564,32 @@ class IntentClassifier:
                 intent=IntentType.UNKNOWN,
                 confidence=0.0,
                 all_scores=scores,
+                margin=margin,
             )
+
+        confidence = min(
+            0.70
+            + (best_score * 0.08),
+            0.95,
+        )
 
         intent = IntentType(
             best_intent_value
         )
 
         logger.info(
-            "Intent keyword prediction: %s "
-            "(confidence: %.3f)",
+            "Keyword fallback prediction: %s "
+            "(confidence: %.3f, margin: %.3f)",
             intent.value,
             confidence,
+            margin,
         )
 
         return IntentPrediction(
             intent=intent,
             confidence=confidence,
             all_scores=scores,
+            margin=margin,
         )
 
     @staticmethod
@@ -547,8 +597,7 @@ class IntentClassifier:
         text: str,
     ) -> str:
         """
-        Apply the same basic text normalization expected
-        by the trained TF-IDF model.
+        Normalize user text before classification.
         """
 
         text = text.lower()
@@ -572,7 +621,7 @@ class IntentClassifier:
         intent_str: str,
     ) -> IntentType:
         """
-        Normalize model labels to IntentType.
+        Convert model class labels to IntentType.
         """
 
         intent_lower = (
