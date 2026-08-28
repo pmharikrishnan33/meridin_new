@@ -146,6 +146,11 @@ async function loadProducts() {
                                 ${product.stock ?? 0}
                             </div>
 
+                            <div class="product-actions" style="display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                                <button class="table-button" onclick="editProduct('${product._id}')" style="flex: 1;">Edit</button>
+                                <button class="table-button" onclick="deleteProduct('${product._id}')" style="flex: 1; background: #fee2e2; border-color: #fecaca; color: #991b1b;">Delete</button>
+                            </div>
+
                         </div>
 
                     </article>
@@ -207,6 +212,11 @@ async function loadCollections() {
                         <span>
                             products
                         </span>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-left: 16px;">
+                        <button class="table-button" onclick="editCollection('${collection._id}')" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                        <button class="table-button" onclick="deleteCollection('${collection._id}')" style="padding: 6px 12px; font-size: 12px; background: #fee2e2; border-color: #fecaca; color: #991b1b;">Delete</button>
                     </div>
 
                 </article>
@@ -533,3 +543,233 @@ loadCollections();
 loadMessages();
 loadLeads();
 loadAnalytics();
+
+
+// ============ MODAL HANDLING ============
+
+const productModal = document.getElementById("productModal");
+const collectionModal = document.getElementById("collectionModal");
+const productForm = document.getElementById("productForm");
+const collectionForm = document.getElementById("collectionForm");
+const productCollectionSelect = document.getElementById("productCollection");
+
+function openModal(modal) {
+    modal.classList.add("open");
+    document.body.style.overflow = "hidden";
+    // Focus first input
+    const firstInput = modal.querySelector("input, select, textarea");
+    if (firstInput) firstInput.focus();
+}
+
+function closeModal(modal) {
+    modal.classList.remove("open");
+    document.body.style.overflow = "";
+    modal.querySelector("form").reset();
+    document.getElementById("productId").value = "";
+    document.getElementById("collectionId").value = "";
+}
+
+// Close on backdrop click
+document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+    backdrop.addEventListener("click", () => {
+        closeModal(backdrop.closest(".modal"));
+    });
+});
+
+// Close on close button
+document.querySelectorAll(".modal-close").forEach(btn => {
+    btn.addEventListener("click", () => {
+        closeModal(btn.closest(".modal"));
+    });
+});
+
+// Close on cancel button
+document.querySelectorAll(".modal-cancel").forEach(btn => {
+    btn.addEventListener("click", () => {
+        closeModal(btn.closest(".modal"));
+    });
+});
+
+// Close on Escape key
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        document.querySelectorAll(".modal.open").forEach(closeModal);
+    }
+});
+
+// ============ COLLECTION DROPDOWN ============
+
+async function loadCollectionsForDropdown() {
+    try {
+        const data = await apiRequest("/dashboard/client/collections");
+        productCollectionSelect.innerHTML = '<option value="">-- Select collection --</option>';
+        data.items.forEach(collection => {
+            const option = document.createElement("option");
+            option.value = collection._id;
+            option.textContent = collection.name;
+            productCollectionSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error("Failed to load collections for dropdown:", error);
+    }
+}
+
+// ============ CREATE/EDIT PRODUCT ============
+
+document.getElementById("createProductButton").addEventListener("click", () => {
+    document.getElementById("productModalTitle").textContent = "Add Product";
+    productForm.reset();
+    document.getElementById("productId").value = "";
+    loadCollectionsForDropdown();
+    openModal(productModal);
+});
+
+productForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const productId = document.getElementById("productId").value;
+    const isEditing = !!productId;
+
+    const productData = {
+        title: document.getElementById("productTitle").value.trim(),
+        description: document.getElementById("productDescription").value.trim(),
+        price: Number(document.getElementById("productPrice").value),
+        stock: Number(document.getElementById("productStock").value),
+        category: document.getElementById("productCategory").value.trim() || undefined,
+        collection_id: document.getElementById("productCollection").value || undefined,
+        image: document.getElementById("productImage").value.trim() || undefined
+    };
+
+    // Remove undefined values
+    Object.keys(productData).forEach(key => productData[key] === undefined && delete productData[key]);
+
+    try {
+        const endpoint = isEditing
+            ? `/dashboard/client/products/${productId}`
+            : "/dashboard/client/products";
+        const method = isEditing ? "PATCH" : "POST";
+
+        await apiRequest(endpoint, {
+            method,
+            body: JSON.stringify(productData)
+        });
+
+        closeModal(productModal);
+        await loadProducts();
+        await loadOverview(); // Refresh metrics
+    } catch (error) {
+        alert(error.message || "Failed to save product");
+    }
+});
+
+// ============ CREATE/EDIT COLLECTION ============
+
+document.getElementById("createCollectionButton").addEventListener("click", () => {
+    document.getElementById("collectionModalTitle").textContent = "New Collection";
+    collectionForm.reset();
+    document.getElementById("collectionId").value = "";
+    openModal(collectionModal);
+});
+
+collectionForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const collectionId = document.getElementById("collectionId").value;
+    const isEditing = !!collectionId;
+
+    const collectionData = {
+        name: document.getElementById("collectionName").value.trim(),
+        description: document.getElementById("collectionDescription").value.trim() || undefined
+    };
+
+    Object.keys(collectionData).forEach(key => collectionData[key] === undefined && delete collectionData[key]);
+
+    try {
+        const endpoint = isEditing
+            ? `/dashboard/client/collections/${collectionId}`
+            : "/dashboard/client/collections";
+        const method = isEditing ? "PATCH" : "POST";
+
+        await apiRequest(endpoint, {
+            method,
+            body: JSON.stringify(collectionData)
+        });
+
+        closeModal(collectionModal);
+        await loadCollections();
+        await loadProducts(); // Refresh products to update collection dropdown
+        await loadOverview();
+    } catch (error) {
+        alert(error.message || "Failed to save collection");
+    }
+});
+
+// ============ EDIT/DELETE FROM LIST ============
+
+// Make functions globally available for inline onclick handlers
+window.editProduct = async function(productId) {
+    try {
+        // Fetch product details - we need to get it from the loaded data or fetch individually
+        // For now, open modal in edit mode - you'd need to fetch product details first
+        const data = await apiRequest("/dashboard/client/products");
+        const product = data.items.find(p => p._id === productId);
+        if (!product) throw new Error("Product not found");
+
+        document.getElementById("productModalTitle").textContent = "Edit Product";
+        document.getElementById("productId").value = product._id;
+        document.getElementById("productTitle").value = product.title || "";
+        document.getElementById("productDescription").value = product.description || "";
+        document.getElementById("productPrice").value = product.price || 0;
+        document.getElementById("productStock").value = product.stock || 0;
+        document.getElementById("productCategory").value = product.category || "";
+        document.getElementById("productImage").value = product.media?.[0] || "";
+
+        await loadCollectionsForDropdown();
+        if (product.collection_id) {
+            document.getElementById("productCollection").value = product.collection_id;
+        }
+
+        openModal(productModal);
+    } catch (error) {
+        alert(error.message || "Failed to load product");
+    }
+};
+
+window.deleteProduct = async function(productId) {
+    if (!confirm("Delete this product?")) return;
+    try {
+        await apiRequest(`/dashboard/client/products/${productId}`, { method: "DELETE" });
+        await loadProducts();
+        await loadOverview();
+    } catch (error) {
+        alert(error.message || "Failed to delete product");
+    }
+};
+
+window.editCollection = async function(collectionId) {
+    try {
+        const data = await apiRequest("/dashboard/client/collections");
+        const collection = data.items.find(c => c._id === collectionId);
+        if (!collection) throw new Error("Collection not found");
+
+        document.getElementById("collectionModalTitle").textContent = "Edit Collection";
+        document.getElementById("collectionId").value = collection._id;
+        document.getElementById("collectionName").value = collection.name || "";
+        document.getElementById("collectionDescription").value = collection.description || "";
+        openModal(collectionModal);
+    } catch (error) {
+        alert(error.message || "Failed to load collection");
+    }
+};
+
+window.deleteCollection = async function(collectionId) {
+    if (!confirm("Delete this collection?")) return;
+    try {
+        await apiRequest(`/dashboard/client/collections/${collectionId}`, { method: "DELETE" });
+        await loadCollections();
+        await loadProducts();
+        await loadOverview();
+    } catch (error) {
+        alert(error.message || "Failed to delete collection");
+    }
+};
