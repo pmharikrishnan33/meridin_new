@@ -27,12 +27,29 @@ class ConversationRequirementEngine:
 
     Category-specific requirements come from inventory_metadata.
 
-    The engine itself does NOT know that:
-        dresses need dress_style
-        shirts need size
-        tops need color
+    Example metadata:
 
-    Those rules belong to metadata.
+        "category_requirements": {
+            "101": [
+                {
+                    "key": "type",
+                    "required": true,
+                    "entity_type": "style",
+                    "question": "What type of dress are you looking for?",
+                    "options": ["mini", "midi", "maxi"]
+                }
+            ],
+            "201": [
+                {
+                    "key": "size",
+                    "required": true,
+                    "entity_type": "size",
+                    "question": "What size shirt would you like?"
+                }
+            ]
+        }
+
+    The engine itself does not know what a particular category requires.
     """
 
     FILTER_ENTITY_MAP = {
@@ -46,11 +63,33 @@ class ConversationRequirementEngine:
         EntityType.MATERIAL: "material",
         EntityType.GENDER: "gender",
         EntityType.PATTERN: "pattern",
-        EntityType.STYLE: "style",
+        # STYLE is mapped to "type" because the existing Product model
+        # stores product-specific type values in the "type" field.
+        EntityType.STYLE: "type",
         EntityType.OCCASION: "occasion",
         EntityType.SEASON: "season",
         EntityType.SLEEVE: "sleeve",
         EntityType.NECK: "neck",
+    }
+
+    REQUIREMENT_ENTITY_MAP = {
+        "category": EntityType.CATEGORY,
+        "query": EntityType.PRODUCT,
+        "color": EntityType.COLOR,
+        "size": EntityType.SIZE,
+        "fit": EntityType.FIT,
+        "price": EntityType.PRICE,
+        "brand": EntityType.BRAND,
+        "material": EntityType.MATERIAL,
+        "gender": EntityType.GENDER,
+        "type": EntityType.STYLE,
+        "style": EntityType.STYLE,
+        "pattern": EntityType.PATTERN,
+        "occasion": EntityType.OCCASION,
+        "season": EntityType.SEASON,
+        "sleeve": EntityType.SLEEVE,
+        "neck": EntityType.NECK,
+        "age_group": None,
     }
 
     DEFAULT_QUESTION_TEXT = {
@@ -63,6 +102,14 @@ class ConversationRequirementEngine:
         "price": "What price range would you prefer?",
         "category": "What type of clothing are you looking for?",
         "query": "What type of clothing are you looking for?",
+        "type": "What type would you prefer?",
+        "style": "What style would you prefer?",
+        "pattern": "What pattern would you prefer?",
+        "occasion": "What occasion are you shopping for?",
+        "season": "Which season are you shopping for?",
+        "sleeve": "What sleeve style would you prefer?",
+        "neck": "What neck style would you prefer?",
+        "age_group": "Which age group are you shopping for?",
     }
 
     def entity_to_filters(
@@ -70,7 +117,7 @@ class ConversationRequirementEngine:
         entities: List[ExtractedEntity],
     ) -> Dict[str, Any]:
         """
-        Convert extracted entities into generic filters.
+        Convert extracted entities into generic search filters.
 
         Metadata resolution happens later.
         """
@@ -138,6 +185,8 @@ class ConversationRequirementEngine:
     ) -> Dict[str, Any]:
         """
         Merge new filters into existing conversation state.
+
+        New non-empty values take precedence.
         """
 
         merged = dict(
@@ -187,6 +236,49 @@ class ConversationRequirementEngine:
             return bool(value)
 
         return True
+
+    @classmethod
+    def entity_type_for_requirement(
+        cls,
+        requirement: Dict[str, Any],
+    ) -> Optional[EntityType]:
+        """
+        Resolve the EntityType used to collect a requirement.
+
+        Metadata may explicitly specify entity_type.
+
+        Example:
+
+            {
+                "key": "type",
+                "entity_type": "style"
+            }
+
+        If metadata does not specify it, the requirement key is used.
+        """
+
+        raw_entity_type = requirement.get(
+            "entity_type"
+        )
+
+        if raw_entity_type:
+            try:
+                return EntityType(
+                    str(raw_entity_type).strip().lower()
+                )
+            except ValueError:
+                pass
+
+        key = str(
+            requirement.get(
+                "key",
+                "",
+            )
+        ).strip().lower()
+
+        return cls.REQUIREMENT_ENTITY_MAP.get(
+            key
+        )
 
     def missing_metadata_requirements(
         self,
@@ -258,6 +350,8 @@ class ConversationRequirementEngine:
         Build a customer-facing question from metadata.
 
         Question text is preferably stored in metadata.
+
+        If metadata provides options, they are appended automatically.
         """
 
         question = requirement.get(
@@ -268,23 +362,87 @@ class ConversationRequirementEngine:
             isinstance(question, str)
             and question.strip()
         ):
-            return question.strip()
-
-        label = str(
-            requirement.get(
-                "label",
+            question_text = question.strip()
+        else:
+            label = str(
                 requirement.get(
-                    "key",
-                    "attribute",
-                ),
-            )
-        ).strip()
+                    "label",
+                    requirement.get(
+                        "key",
+                        "attribute",
+                    ),
+                )
+            ).strip()
 
-        return (
-            self.DEFAULT_QUESTION_TEXT.get(
-                label.lower(),
-                f"What {label} would you like?",
+            question_text = (
+                self.DEFAULT_QUESTION_TEXT.get(
+                    label.lower(),
+                    f"What {label} would you like?",
+                )
             )
+
+        options = requirement.get(
+            "options"
+        )
+
+        if (
+            isinstance(options, list)
+            and options
+        ):
+            cleaned_options = [
+                str(option).strip()
+                for option in options
+                if str(option).strip()
+            ]
+
+            if cleaned_options:
+                option_text = ", ".join(
+                    cleaned_options
+                )
+
+                if option_text.lower() not in question_text.lower():
+                    question_text = (
+                        f"{question_text} "
+                        f"Options: {option_text}."
+                    )
+
+        return question_text
+
+    def question_for(
+        self,
+        entity_type: EntityType,
+    ) -> str:
+        """
+        Compatibility helper used by intent_router.py.
+
+        This fixes the previous mismatch where intent_router called
+        question_for() but the requirement engine only implemented
+        question_for_requirement().
+        """
+
+        if not isinstance(
+            entity_type,
+            EntityType,
+        ):
+            try:
+                entity_type = EntityType(
+                    str(entity_type).strip().lower()
+                )
+            except ValueError:
+                return (
+                    "Could you please provide "
+                    "the requested information?"
+                )
+
+        field = self.FILTER_ENTITY_MAP.get(
+            entity_type,
+            entity_type.value,
+        )
+
+        return self.DEFAULT_QUESTION_TEXT.get(
+            field,
+            f"Could you please provide "
+            f"the {field}?",
         )
 
     def add_requirement_value(
@@ -296,7 +454,8 @@ class ConversationRequirementEngine:
         """
         Store a value against a metadata requirement.
 
-        This method intentionally does not hardcode attribute names.
+        This method intentionally does not hardcode clothing
+        categories or product types.
         """
 
         updated = dict(

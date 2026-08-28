@@ -1,6 +1,9 @@
 from typing import Any, Dict, Optional
 
 from app.conversation.context import ConversationContextManager
+from app.conversation.requirements import (
+    conversation_requirement_engine,
+)
 from app.handlers.base_handler import BaseHandler
 from app.models.schemas import (
     BotResponse,
@@ -28,11 +31,13 @@ def _rank_products(
     filters: ProductSearchFilters,
 ):
     """
-    Rank already tenant-filtered products before they are displayed.
+    Rank already tenant-filtered products before display.
 
-    Filtering remains the responsibility of MongoDB. Ranking only changes
-    result order and never removes a product.
+    ProductService already performs the primary deterministic ranking.
+    This secondary ranking is intentionally lightweight and only
+    reorders the returned candidates.
     """
+
     if not products:
         return []
 
@@ -41,9 +46,13 @@ def _rank_products(
     )
 
     def score(product):
-        title_tokens = set(
-            product.title.lower().split()
-        )
+        title = (
+            product.title or ""
+        ).lower()
+
+        description = (
+            product.description or ""
+        ).lower()
 
         searchable_text = " ".join(
             part
@@ -60,75 +69,107 @@ def _rank_products(
             if part
         ).lower()
 
-        searchable_tokens = set(
-            searchable_text.split()
-        )
-
         query_score = 0.0
 
         if query_tokens:
-            title_match = (
-                len(query_tokens & title_tokens)
-                / len(query_tokens)
+            title_matches = sum(
+                1
+                for token in query_tokens
+                if token in title
             )
 
-            overall_match = (
-                len(query_tokens & searchable_tokens)
-                / len(query_tokens)
+            overall_matches = sum(
+                1
+                for token in query_tokens
+                if token in searchable_text
             )
 
             query_score = (
-                0.7 * title_match
-                + 0.3 * overall_match
+                0.7
+                * (
+                    title_matches
+                    / len(query_tokens)
+                )
+                + 0.3
+                * (
+                    overall_matches
+                    / len(query_tokens)
+                )
             )
 
-        filter_checks = 0
-        filter_matches = 0
+        attribute_checks = 0
+        attribute_matches = 0
 
         scalar_filters = (
-            (filters.category, product.category),
-            (filters.type, product.type),
-            (filters.brand, product.brand),
-            (filters.material, product.material),
-            (filters.fit, product.fit),
-            (filters.gender, product.gender),
-            (filters.age_group, product.age_group),
+            (
+                filters.category,
+                product.category,
+            ),
+            (
+                filters.type,
+                product.type,
+            ),
+            (
+                filters.brand,
+                product.brand,
+            ),
+            (
+                filters.material,
+                product.material,
+            ),
+            (
+                filters.fit,
+                product.fit,
+            ),
+            (
+                filters.gender,
+                product.gender,
+            ),
+            (
+                filters.age_group,
+                product.age_group,
+            ),
         )
 
         for requested, actual in scalar_filters:
             if requested:
-                filter_checks += 1
+                attribute_checks += 1
 
                 if (
                     actual
                     and requested.strip().lower()
                     == actual.strip().lower()
                 ):
-                    filter_matches += 1
+                    attribute_matches += 1
 
         if filters.color:
-            filter_checks += 1
+            attribute_checks += 1
 
             if any(
                 filters.color.strip().lower()
-                == value.strip().lower()
-                for value in product.color
+                == str(value).strip().lower()
+                for value in (
+                    product.color or []
+                )
             ):
-                filter_matches += 1
+                attribute_matches += 1
 
         if filters.size:
-            filter_checks += 1
+            attribute_checks += 1
 
             if any(
                 filters.size.strip().lower()
-                == value.strip().lower()
-                for value in product.size
+                == str(value).strip().lower()
+                for value in (
+                    product.size or []
+                )
             ):
-                filter_matches += 1
+                attribute_matches += 1
 
         attribute_score = (
-            filter_matches / filter_checks
-            if filter_checks
+            attribute_matches
+            / attribute_checks
+            if attribute_checks
             else 0.0
         )
 
@@ -139,24 +180,25 @@ def _rank_products(
         )
 
         stock_score = min(
-            max(product.stock, 0) / 10.0,
+            max(
+                product.stock,
+                0,
+            )
+            / 10.0,
             1.0,
         )
 
-        recency_score = (
+        return (
+            (
+                0.60 * query_score
+                + 0.25 * attribute_score
+                + 0.10 * featured_score
+                + 0.05 * stock_score
+            ),
             product.created_at.timestamp()
             if product.created_at
-            else 0.0
+            else 0.0,
         )
-
-        final_score = (
-            0.60 * query_score
-            + 0.25 * attribute_score
-            + 0.10 * featured_score
-            + 0.05 * stock_score
-        )
-
-        return final_score, recency_score
 
     return sorted(
         products,
@@ -166,6 +208,20 @@ def _rank_products(
 
 
 class ProductSearchHandler(BaseHandler):
+    """
+    Handles PRODUCT_SEARCH.
+
+    Important:
+
+    This handler does NOT hardcode:
+        - every search requiring size
+        - every dress requiring a particular attribute
+        - any specific category
+        - any specific question
+
+    Those rules come from inventory_metadata.category_requirements.
+    """
+
     MAX_PRODUCTS_PER_RESPONSE = 3
     DEFAULT_PRODUCTS_PER_RESPONSE = 3
     SEARCH_LIMIT = 100
@@ -178,45 +234,146 @@ class ProductSearchHandler(BaseHandler):
         conversation_context: Optional[ConversationContext],
     ) -> BotResponse:
 
-        filters = product_service.entities_to_filters(
-            understanding.entities
+        # =========================================================
+        # 1. BUILD FILTERS FROM ENTITIES
+        # =========================================================
+
+        filters = (
+            product_service.entities_to_filters(
+                understanding.entities
+            )
         )
 
-        filters, size_clarification = (
-            await catalog_metadata_service.normalize_filters(
+        # =========================================================
+        # 2. MERGE PREVIOUS CONVERSATION FILTERS
+        # =========================================================
+
+        if (
+            conversation_context
+            and conversation_context.last_search_filters
+        ):
+            incoming_has_new_product_scope = any(
+                (
+                    filters.query,
+                    filters.category,
+                    filters.type,
+                )
+            )
+
+            if not incoming_has_new_product_scope:
+                previous_filters = (
+                    ProductSearchFilters(
+                        **conversation_context.last_search_filters
+                    )
+                )
+
+                merged_dict = (
+                    ConversationContextManager.merge_filters(
+                        previous_filters.model_dump(
+                            exclude_none=True
+                        ),
+                        filters.model_dump(
+                            exclude_none=True
+                        ),
+                    )
+                )
+
+                filters = ProductSearchFilters(
+                    **merged_dict
+                )
+
+        # =========================================================
+        # 3. NORMALIZE METADATA
+        # =========================================================
+
+        (
+            filters,
+            _,
+        ) = await (
+            catalog_metadata_service.normalize_filters(
                 tenant_id,
                 filters,
                 understanding.original_text,
             )
         )
 
-        if size_clarification:
-            return BotResponse(
-                response_type="text",
-                text=size_clarification,
-                metadata={
-                    "needs_clarification": True,
-                    "missing": "size",
-                },
-            )
+        # =========================================================
+        # 4. CATEGORY REQUIREMENTS
+        # =========================================================
 
-        # A query such as "I need a black shirt" identifies the product
-        # family and color, but not the customer's size. Preserve those
-        # filters in conversation state and ask for size before showing
-        # catalog results.
-        if filters.query and not filters.size:
+        requirements = (
+            await catalog_metadata_service.get_category_requirements(
+                tenant_id=tenant_id,
+                category_id=filters.category_id,
+                category=filters.category,
+            )
+        )
+
+        (
+            ready_to_search,
+            missing_requirement,
+            question,
+        ) = conversation_requirement_engine.evaluate(
+            current_filters=filters.model_dump(
+                exclude_none=True
+            ),
+            requirements=requirements,
+            context=conversation_context,
+        )
+
+        if not ready_to_search:
             if conversation_context:
-                conversation_context.awaiting_entity = (
-                    EntityType.SIZE
+                entity_type = (
+                    conversation_requirement_engine
+                    .entity_type_for_requirement(
+                        missing_requirement
+                    )
+                    if missing_requirement
+                    else None
                 )
 
-                conversation_context.awaiting_confirmation = True
+                conversation_context.awaiting_entity = (
+                    entity_type
+                )
+
+                conversation_context.awaiting_confirmation = (
+                    False
+                )
+
+                missing_key = (
+                    str(
+                        missing_requirement.get(
+                            "key",
+                            "",
+                        )
+                    )
+                    if missing_requirement
+                    else ""
+                )
 
                 conversation_context.confirmation_context = {
-                    "intent": IntentType.PRODUCT_SEARCH.value,
-                    "missing_entities": [
-                        EntityType.SIZE.value
-                    ],
+                    "intent": (
+                        IntentType.PRODUCT_SEARCH.value
+                    ),
+                    "missing_entities": (
+                        [
+                            entity_type.value
+                        ]
+                        if entity_type
+                        else []
+                    ),
+                    "missing_attributes": (
+                        [missing_key]
+                        if missing_key
+                        else []
+                    ),
+                    "requirement": (
+                        dict(
+                            missing_requirement
+                        )
+                        if missing_requirement
+                        else {}
+                    ),
                 }
 
                 conversation_context.last_search_filters = (
@@ -228,39 +385,54 @@ class ProductSearchHandler(BaseHandler):
             return BotResponse(
                 response_type="text",
                 text=(
-                    "What size would you like? "
-                    "For example: S, M, L, or XL."
+                    question
+                    or (
+                        "Could you please provide "
+                        "the missing information?"
+                    )
                 ),
                 metadata={
                     "needs_clarification": True,
-                    "missing": "size",
+                    "missing": (
+                        missing_requirement.get(
+                            "key"
+                        )
+                        if missing_requirement
+                        else None
+                    ),
+                    "missing_requirement": (
+                        missing_requirement
+                    ),
                     "filters": filters.model_dump(
                         exclude_none=True
                     ),
                 },
             )
 
-        if (
-            conversation_context
-            and conversation_context.last_search_filters
-            and self._should_refine_previous_search(
-                filters
-            )
-        ):
-            filters_dict = filters.model_dump(
-                exclude_none=True
-            )
+        # =========================================================
+        # 5. SAVE COMPLETE SEARCH STATE
+        # =========================================================
 
-            merged = (
-                ConversationContextManager.merge_filters(
-                    conversation_context.last_search_filters,
-                    filters_dict,
+        if conversation_context:
+            conversation_context.last_search_filters = (
+                filters.model_dump(
+                    exclude_none=True
                 )
             )
 
-            filters = ProductSearchFilters(
-                **merged
-            )
+            if filters.category:
+                conversation_context.current_category = (
+                    filters.category
+                )
+
+            if filters.query:
+                conversation_context.current_product = (
+                    filters.query
+                )
+
+        # =========================================================
+        # 6. TENANT RESPONSE LIMIT
+        # =========================================================
 
         feature_flags = (
             tenant_settings.get(
@@ -270,28 +442,44 @@ class ProductSearchHandler(BaseHandler):
             or {}
         )
 
-        configured_page_size = feature_flags.get(
-            "max_products_per_response",
-            self.DEFAULT_PRODUCTS_PER_RESPONSE,
+        configured_page_size = (
+            feature_flags.get(
+                "max_products_per_response",
+                self.DEFAULT_PRODUCTS_PER_RESPONSE,
+            )
         )
 
         try:
             page_size = max(
                 1,
                 min(
-                    int(configured_page_size),
+                    int(
+                        configured_page_size
+                    ),
                     self.MAX_PRODUCTS_PER_RESPONSE,
                 ),
             )
-        except (TypeError, ValueError):
-            page_size = self.DEFAULT_PRODUCTS_PER_RESPONSE
+        except (
+            TypeError,
+            ValueError,
+        ):
+            page_size = (
+                self.DEFAULT_PRODUCTS_PER_RESPONSE
+            )
+
+        # =========================================================
+        # 7. SEARCH
+        # =========================================================
 
         filters.limit = self.SEARCH_LIMIT
         filters.offset = 0
+        filters.in_stock_only = True
 
-        products = await product_service.search_products(
-            tenant_id,
-            filters,
+        products = (
+            await product_service.search_products(
+                tenant_id,
+                filters,
+            )
         )
 
         products = _rank_products(
@@ -299,11 +487,17 @@ class ProductSearchHandler(BaseHandler):
             filters,
         )
 
-        response_text = None
+        response_text: Optional[str] = None
+
+        # =========================================================
+        # 8. ZERO-RESULT RELAXATION
+        # =========================================================
 
         if not products:
-            filters_dict = filters.model_dump(
-                exclude_none=True
+            filters_dict = (
+                filters.model_dump(
+                    exclude_none=True
+                )
             )
 
             filters_dict.pop(
@@ -319,8 +513,10 @@ class ProductSearchHandler(BaseHandler):
             async def search_fn(
                 relaxed_filters_dict: Dict[str, Any],
             ):
-                relaxed_filters = ProductSearchFilters(
-                    **relaxed_filters_dict
+                relaxed_filters = (
+                    ProductSearchFilters(
+                        **relaxed_filters_dict
+                    )
                 )
 
                 relaxed_filters.limit = (
@@ -328,6 +524,7 @@ class ProductSearchHandler(BaseHandler):
                 )
 
                 relaxed_filters.offset = 0
+                relaxed_filters.in_stock_only = True
 
                 results = (
                     await product_service.search_products(
@@ -341,21 +538,29 @@ class ProductSearchHandler(BaseHandler):
                     relaxed_filters,
                 )
 
-            best_key = await find_best_relaxation(
-                query=understanding.original_text,
-                filters=filters_dict,
-                search_fn=search_fn,
+            best_key = (
+                await find_best_relaxation(
+                    query=(
+                        understanding.original_text
+                    ),
+                    filters=filters_dict,
+                    search_fn=search_fn,
+                )
             )
 
             if best_key:
                 relaxed_dict = {
                     key: value
-                    for key, value in filters_dict.items()
+                    for key, value in (
+                        filters_dict.items()
+                    )
                     if key != best_key
                 }
 
-                relaxed_filters = ProductSearchFilters(
-                    **relaxed_dict
+                relaxed_filters = (
+                    ProductSearchFilters(
+                        **relaxed_dict
+                    )
                 )
 
                 relaxed_filters.limit = (
@@ -363,10 +568,13 @@ class ProductSearchHandler(BaseHandler):
                 )
 
                 relaxed_filters.offset = 0
+                relaxed_filters.in_stock_only = True
 
-                products = await product_service.search_products(
-                    tenant_id,
-                    relaxed_filters,
+                products = (
+                    await product_service.search_products(
+                        tenant_id,
+                        relaxed_filters,
+                    )
                 )
 
                 products = _rank_products(
@@ -377,12 +585,24 @@ class ProductSearchHandler(BaseHandler):
                 if products:
                     filters = relaxed_filters
 
-                response_text = build_relaxation_message(
-                    query=understanding.original_text,
-                    filters=filters_dict,
-                    removed_key=best_key,
-                    removed_value=filters_dict[best_key],
-                )
+                    response_text = (
+                        build_relaxation_message(
+                            query=(
+                                understanding.original_text
+                            ),
+                            filters=filters_dict,
+                            removed_key=best_key,
+                            removed_value=(
+                                filters_dict[
+                                    best_key
+                                ]
+                            ),
+                        )
+                    )
+
+        # =========================================================
+        # 9. STILL NO PRODUCTS
+        # =========================================================
 
         if not products:
             return BotResponse(
@@ -390,31 +610,46 @@ class ProductSearchHandler(BaseHandler):
                 text=(
                     "I couldn't find any products "
                     "matching your search. "
-                    "Could you try different "
-                    "keywords or filters?"
+                    "Could you try a different "
+                    "color, size, type, or category?"
                 ),
                 quick_replies=[
                     {
                         "label": "Search Again",
-                        "value": "__COMMAND__:search_again",
+                        "value": (
+                            "__COMMAND__:search_again"
+                        ),
                     }
                 ],
                 metadata={
                     "search_performed": True,
                     "results_count": 0,
+                    "filters": filters.model_dump(
+                        exclude_none=True
+                    ),
                 },
             )
 
-        page = inventory_search_service.build_search_page(
-            tenant_id=tenant_id,
-            filters=filters,
-            result_ids=[
-                product.id
-                for product in products
-            ],
-            page=1,
-            page_size=page_size,
+        # =========================================================
+        # 10. PAGINATION
+        # =========================================================
+
+        page = (
+            inventory_search_service.build_search_page(
+                tenant_id=tenant_id,
+                filters=filters,
+                result_ids=[
+                    product.id
+                    for product in products
+                ],
+                page=1,
+                page_size=page_size,
+            )
         )
+
+        # =========================================================
+        # 11. SAVE CONVERSATION STATE
+        # =========================================================
 
         if conversation_context:
             conversation_context.last_search_filters = (
@@ -469,6 +704,10 @@ class ProductSearchHandler(BaseHandler):
             conversation_context.awaiting_confirmation = False
             conversation_context.confirmation_context = {}
 
+        # =========================================================
+        # 12. BUILD PRODUCT RESPONSE
+        # =========================================================
+
         response_products = [
             product_service.product_to_response(
                 product
@@ -476,14 +715,20 @@ class ProductSearchHandler(BaseHandler):
             for product in products[:page_size]
         ]
 
-        has_more = len(products) > page_size
+        has_more = (
+            len(products)
+            > page_size
+        )
 
         if response_text is None:
-            response_text = (
-                "I found this item for you:"
-                if len(products) == 1
-                else "I found these products for you:"
-            )
+            if len(products) == 1:
+                response_text = (
+                    "I found this item for you:"
+                )
+            else:
+                response_text = (
+                    "I found these products for you:"
+                )
 
         quick_replies = []
 
@@ -491,9 +736,15 @@ class ProductSearchHandler(BaseHandler):
             quick_replies.append(
                 {
                     "label": "Show more",
-                    "value": "__COMMAND__:show_more",
+                    "value": (
+                        "__COMMAND__:show_more"
+                    ),
                 }
             )
+
+        # =========================================================
+        # 13. FINAL RESPONSE
+        # =========================================================
 
         return BotResponse(
             response_type="product_list",
@@ -519,6 +770,17 @@ class ProductSearchHandler(BaseHandler):
     def _should_refine_previous_search(
         filters: ProductSearchFilters,
     ) -> bool:
+        """
+        Compatibility helper.
+
+        A message containing only a refinement such as:
+            "M"
+            "black"
+            "maxi"
+
+        can inherit the previous product search.
+        """
+
         return not any(
             (
                 filters.query,
@@ -528,4 +790,6 @@ class ProductSearchHandler(BaseHandler):
         )
 
 
-product_search_handler = ProductSearchHandler()
+product_search_handler = (
+    ProductSearchHandler()
+)
