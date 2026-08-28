@@ -15,21 +15,32 @@ from app.models.schemas import (
     ConversationContext,
     EntityType,
     ExtractedEntity,
-    ProductSearchFilters,
 )
 
 
 class ConversationRequirementEngine:
     """
     Determines which product-search information is still required.
+
+    Product is the primary search requirement.
+
+    Size is requested as the next conversational refinement when
+    the client wants size-specific shopping.
+
+    Color, brand, material, fit, gender, style, pattern and price
+    remain optional filters.
     """
 
     DEFAULT_REQUIRED_FIELDS = (
-        EntityType.CATEGORY,
+        EntityType.PRODUCT,
         EntityType.SIZE,
     )
 
     QUESTION_TEXT = {
+        EntityType.PRODUCT: (
+            "What type of clothing are you looking for? "
+            "For example: shirt, jeans, hoodie, or dress."
+        ),
         EntityType.CATEGORY: (
             "What type of clothing are you looking for? "
             "For example: shirt, jeans, hoodie, or dress."
@@ -38,8 +49,11 @@ class ConversationRequirementEngine:
             "What color would you like?"
         ),
         EntityType.SIZE: (
-            "What size would you like? "
-            "For example: S, M, L, or XL."
+            "What size would you like?\n\n"
+            "1) S\n"
+            "2) M\n"
+            "3) L\n"
+            "4) XL"
         ),
         EntityType.BRAND: (
             "Do you have a preferred brand?"
@@ -75,10 +89,13 @@ class ConversationRequirementEngine:
 
     def __init__(
         self,
-        required_fields: Optional[List[EntityType]] = None,
+        required_fields: Optional[
+            List[EntityType]
+        ] = None,
     ) -> None:
         self.required_fields = tuple(
-            required_fields or self.DEFAULT_REQUIRED_FIELDS
+            required_fields
+            or self.DEFAULT_REQUIRED_FIELDS
         )
 
     def entity_to_filters(
@@ -120,12 +137,17 @@ class ConversationRequirementEngine:
 
                     if operator == "max":
                         filters["max_price"] = price
+
                     elif operator == "min":
                         filters["min_price"] = price
+
                     else:
                         filters["max_price"] = price
 
-                except (TypeError, ValueError):
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
                 continue
@@ -142,16 +164,24 @@ class ConversationRequirementEngine:
         """
         Merge new filters into existing filters.
 
-        New values always take precedence.
+        New non-empty values take precedence.
         """
 
-        merged = dict(existing or {})
+        merged = dict(
+            existing or {}
+        )
 
-        for key, value in (new or {}).items():
+        for key, value in (
+            new or {}
+        ).items():
+
             if value is None:
                 continue
 
-            if isinstance(value, str) and not value.strip():
+            if (
+                isinstance(value, str)
+                and not value.strip()
+            ):
                 continue
 
             merged[key] = value
@@ -163,6 +193,10 @@ class ConversationRequirementEngine:
         filters: Dict[str, Any],
         key: str,
     ) -> bool:
+        """
+        Check whether a filter contains a usable value.
+        """
+
         value = filters.get(key)
 
         if value is None:
@@ -171,7 +205,10 @@ class ConversationRequirementEngine:
         if isinstance(value, str):
             return bool(value.strip())
 
-        if isinstance(value, (list, tuple, set)):
+        if isinstance(
+            value,
+            (list, tuple, set),
+        ):
             return bool(value)
 
         return True
@@ -180,12 +217,14 @@ class ConversationRequirementEngine:
         self,
         filters: Dict[str, Any],
         *,
-        required_fields: Optional[List[EntityType]] = None,
+        required_fields: Optional[
+            List[EntityType]
+        ] = None,
     ) -> List[EntityType]:
         """
         Return required fields that are still missing.
 
-        The order is intentional: category first, then size.
+        Product is checked before size.
         """
 
         fields = tuple(
@@ -193,11 +232,16 @@ class ConversationRequirementEngine:
             or self.required_fields
         )
 
-        missing: List[EntityType] = []
+        missing: List[
+            EntityType
+        ] = []
 
         for entity_type in fields:
-            filter_key = self.FILTER_ENTITY_MAP.get(
-                entity_type
+
+            filter_key = (
+                self.FILTER_ENTITY_MAP.get(
+                    entity_type
+                )
             )
 
             if filter_key is None:
@@ -207,7 +251,9 @@ class ConversationRequirementEngine:
                 filters,
                 filter_key,
             ):
-                missing.append(entity_type)
+                missing.append(
+                    entity_type
+                )
 
         return missing
 
@@ -215,18 +261,26 @@ class ConversationRequirementEngine:
         self,
         filters: Dict[str, Any],
         *,
-        required_fields: Optional[List[EntityType]] = None,
+        required_fields: Optional[
+            List[EntityType]
+        ] = None,
     ) -> Optional[EntityType]:
         """
         Return the next missing required entity.
         """
 
-        missing = self.missing_requirements(
-            filters,
-            required_fields=required_fields,
+        missing = (
+            self.missing_requirements(
+                filters,
+                required_fields=required_fields,
+            )
         )
 
-        return missing[0] if missing else None
+        return (
+            missing[0]
+            if missing
+            else None
+        )
 
     def question_for(
         self,
@@ -238,16 +292,27 @@ class ConversationRequirementEngine:
 
         return self.QUESTION_TEXT.get(
             entity_type,
-            f"Could you please provide the {entity_type.value}?",
+            (
+                "Could you please provide "
+                f"the {entity_type.value}?"
+            ),
         )
 
     def evaluate(
         self,
         *,
         current_filters: Dict[str, Any],
-        context: Optional[ConversationContext] = None,
-        required_fields: Optional[List[EntityType]] = None,
-    ) -> Tuple[bool, Optional[EntityType], Optional[str]]:
+        context: Optional[
+            ConversationContext
+        ] = None,
+        required_fields: Optional[
+            List[EntityType]
+        ] = None,
+    ) -> Tuple[
+        bool,
+        Optional[EntityType],
+        Optional[str],
+    ]:
         """
         Determine whether search can proceed.
 
@@ -260,20 +325,28 @@ class ConversationRequirementEngine:
         )
         """
 
-        missing = self.missing_requirements(
-            current_filters,
-            required_fields=required_fields,
+        missing = (
+            self.missing_requirements(
+                current_filters,
+                required_fields=required_fields,
+            )
         )
 
         if not missing:
-            return True, None, None
+            return (
+                True,
+                None,
+                None,
+            )
 
         next_entity = missing[0]
 
         return (
             False,
             next_entity,
-            self.question_for(next_entity),
+            self.question_for(
+                next_entity
+            ),
         )
 
     def build_filters_from_context(
@@ -285,8 +358,15 @@ class ConversationRequirementEngine:
         """
 
         filters = dict(
-            context.last_search_filters or {}
+            context.last_search_filters
+            or {}
         )
+
+        if context.current_product:
+            filters.setdefault(
+                "query",
+                context.current_product,
+            )
 
         if context.current_category:
             filters.setdefault(

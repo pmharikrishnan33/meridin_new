@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 import asyncio
-import numpy as np
+import re
 from typing import Dict
+
+import numpy as np
 
 from app.ml.loader import model_loader
 from app.models.schemas import IntentType
@@ -23,12 +25,24 @@ class IntentClassifier:
     """
     Classifies user messages using the trained ML model.
 
-    Synchronous prediction remains available for internal synchronous
-    callers.
+    The classifier uses a confidence threshold and a confidence
+    margin so a weak ML prediction is not treated as a definite
+    intent.
 
-    Async callers should use predict_async() so scikit-learn inference
-    never blocks the FastAPI event loop.
+    If the ML model is uncertain, deterministic keyword rules are
+    used as a fallback.
     """
+
+    # ---------------------------------------------------------
+    # ML confidence controls
+    # ---------------------------------------------------------
+
+    INTENT_CONFIDENCE_THRESHOLD = 0.50
+    INTENT_MARGIN_THRESHOLD = 0.10
+
+    # ---------------------------------------------------------
+    # Deterministic keyword fallback
+    # ---------------------------------------------------------
 
     INTENT_KEYWORDS = {
         IntentType.GREETING: [
@@ -36,9 +50,12 @@ class IntentClassifier:
             "hello",
             "hey",
             "good morning",
+            "good afternoon",
             "good evening",
             "namaste",
+            "howdy",
         ],
+
         IntentType.PRODUCT_SEARCH: [
             "need",
             "want",
@@ -46,9 +63,15 @@ class IntentClassifier:
             "search",
             "find",
             "show me",
+            "i want",
+            "i need",
             "buy",
             "purchase",
+            "looking",
+            "browse",
+            "looking to buy",
         ],
+
         IntentType.PRODUCT_INQUIRY: [
             "tell me about",
             "details",
@@ -57,39 +80,54 @@ class IntentClassifier:
             "fabric",
             "how is",
             "describe",
+            "features",
+            "care instruction",
+            "machine washable",
+            "pockets",
+            "fit like",
         ],
+
         IntentType.AVAILABILITY: [
             "available",
             "in stock",
             "stock",
             "have",
-            "size",
-            "xl",
-            "xxl",
+            "do you have",
+            "is it available",
+            "is this available",
+            "sold out",
         ],
+
         IntentType.ORDER_STATUS: [
             "order",
             "track",
-            "where is",
+            "where is my order",
+            "where is order",
             "delivered",
             "shipped",
             "status",
+            "tracking",
             "order id",
         ],
+
         IntentType.CANCEL_ORDER: [
             "cancel",
-            "return",
+            "cancel order",
             "refund",
             "don't want",
-            "change mind",
+            "do not want",
+            "change my mind",
         ],
+
         IntentType.RETURN_REQUEST: [
             "return",
             "exchange",
             "replace",
             "wrong size",
             "defective",
+            "return policy",
         ],
+
         IntentType.COMPLAINT: [
             "complaint",
             "issue",
@@ -99,18 +137,28 @@ class IntentClassifier:
             "poor",
             "disappointed",
             "angry",
+            "terrible",
+            "unhappy",
         ],
+
         IntentType.THANKS: [
             "thanks",
             "thank you",
             "thx",
             "ty",
             "appreciate",
+            "grateful",
         ],
     }
 
     def __init__(self) -> None:
-        self._confidence_threshold = 0.25
+        self._confidence_threshold = (
+            self.INTENT_CONFIDENCE_THRESHOLD
+        )
+
+        self._margin_threshold = (
+            self.INTENT_MARGIN_THRESHOLD
+        )
 
     async def predict_async(
         self,
@@ -119,9 +167,6 @@ class IntentClassifier:
         """
         Run intent prediction without blocking the FastAPI
         event loop.
-
-        All synchronous model loading/vectorization/inference is
-        executed inside a worker thread.
         """
 
         return await asyncio.to_thread(
@@ -136,11 +181,8 @@ class IntentClassifier:
         """
         Synchronous intent prediction.
 
-        Do not call this directly from an async FastAPI request
-        handler. Use predict_async() instead.
+        Async callers should use predict_async().
         """
-
-        import re
 
         if not text or not text.strip():
             return IntentPrediction(
@@ -149,36 +191,74 @@ class IntentClassifier:
                 all_scores={},
             )
 
-        text_clean = re.sub(
-            r"[^\w\s]",
-            "",
-            text,
-        ).strip().lower()
+        text_clean = self._clean_text(text)
+
+        if not text_clean:
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores={},
+            )
+
+        # -----------------------------------------------------
+        # Exact greetings
+        # -----------------------------------------------------
 
         if text_clean in {
             "hi",
             "hello",
             "hey",
             "hii",
+            "helo",
             "namaste",
             "good morning",
+            "good afternoon",
             "good evening",
+            "howdy",
         }:
             return IntentPrediction(
                 intent=IntentType.GREETING,
-                confidence=0.95,
+                confidence=0.99,
                 all_scores={
-                    IntentType.GREETING.value: 0.95,
+                    IntentType.GREETING.value: 0.99,
                 },
             )
+
+        # -----------------------------------------------------
+        # ML prediction
+        # -----------------------------------------------------
 
         if (
             model_loader.intent_model is not None
             and model_loader.intent_vectorizer is not None
         ):
-            return self._predict_ml(
+            ml_prediction = self._predict_ml(
                 text_clean
             )
+
+            if (
+                ml_prediction.intent
+                != IntentType.UNKNOWN
+            ):
+                return ml_prediction
+
+            # ML is uncertain.
+            #
+            # Do NOT blindly return the weak ML prediction.
+            # Try deterministic rules instead.
+            keyword_prediction = (
+                self._predict_keywords(
+                    text_clean
+                )
+            )
+
+            if (
+                keyword_prediction.intent
+                != IntentType.UNKNOWN
+            ):
+                return keyword_prediction
+
+            return ml_prediction
 
         logger.warning(
             "Intent model not loaded; "
@@ -193,12 +273,19 @@ class IntentClassifier:
         self,
         text: str,
     ) -> IntentPrediction:
+        """
+        Run ML inference and reject weak predictions.
+        """
 
         if (
             model_loader.intent_vectorizer is None
             or model_loader.intent_model is None
         ):
-            return self._predict_keywords(text)
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores={},
+            )
 
         try:
             vectorized = (
@@ -216,16 +303,42 @@ class IntentClassifier:
                 model_loader.intent_model.classes_
             )
 
-            max_idx = int(
-                np.argmax(probabilities)
+            if len(probabilities) == 0:
+                return IntentPrediction(
+                    intent=IntentType.UNKNOWN,
+                    confidence=0.0,
+                    all_scores={},
+                )
+
+            sorted_indices = np.argsort(
+                probabilities
+            )[::-1]
+
+            best_index = int(
+                sorted_indices[0]
             )
 
-            predicted_intent_str = str(
-                classes[max_idx]
+            second_index = (
+                int(sorted_indices[1])
+                if len(sorted_indices) > 1
+                else best_index
             )
 
             confidence = float(
-                probabilities[max_idx]
+                probabilities[best_index]
+            )
+
+            second_confidence = float(
+                probabilities[second_index]
+            )
+
+            margin = (
+                confidence
+                - second_confidence
+            )
+
+            predicted_intent_str = str(
+                classes[best_index]
             )
 
             intent = (
@@ -244,12 +357,58 @@ class IntentClassifier:
                 )
             }
 
-            logger.debug(
+            logger.info(
                 "Intent ML prediction: %s "
-                "(confidence: %.3f)",
+                "(confidence: %.3f, margin: %.3f)",
                 intent.value,
                 confidence,
+                margin,
             )
+
+            # -------------------------------------------------
+            # Confidence gate
+            # -------------------------------------------------
+
+            if (
+                confidence
+                < self._confidence_threshold
+            ):
+                logger.warning(
+                    "Rejecting ML intent '%s': "
+                    "confidence %.3f < threshold %.3f",
+                    intent.value,
+                    confidence,
+                    self._confidence_threshold,
+                )
+
+                return IntentPrediction(
+                    intent=IntentType.UNKNOWN,
+                    confidence=confidence,
+                    all_scores=all_scores,
+                )
+
+            # -------------------------------------------------
+            # Margin gate
+            # -------------------------------------------------
+
+            if (
+                len(probabilities) > 1
+                and margin
+                < self._margin_threshold
+            ):
+                logger.warning(
+                    "Rejecting ambiguous ML intent '%s': "
+                    "margin %.3f < threshold %.3f",
+                    intent.value,
+                    margin,
+                    self._margin_threshold,
+                )
+
+                return IntentPrediction(
+                    intent=IntentType.UNKNOWN,
+                    confidence=confidence,
+                    all_scores=all_scores,
+                )
 
             return IntentPrediction(
                 intent=intent,
@@ -263,29 +422,46 @@ class IntentClassifier:
                 exc,
             )
 
-            return self._predict_keywords(
-                text
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores={},
             )
 
     def _predict_keywords(
         self,
         text: str,
     ) -> IntentPrediction:
+        """
+        Deterministic fallback classifier.
 
-        import re
+        This is intentionally used when the ML model is
+        uncertain.
+        """
 
         text_lower = text.lower()
 
         scores: Dict[str, int] = {}
 
-        for intent_enum, keywords in (
-            self.INTENT_KEYWORDS.items()
-        ):
+        for (
+            intent_enum,
+            keywords,
+        ) in self.INTENT_KEYWORDS.items():
+
             score = 0
 
             for keyword in keywords:
+                keyword_lower = (
+                    keyword.lower()
+                )
+
+                if " " in keyword_lower:
+                    if keyword_lower in text_lower:
+                        score += 2
+                    continue
+
                 if re.search(
-                    rf"\b{re.escape(keyword)}\b",
+                    rf"\b{re.escape(keyword_lower)}\b",
                     text_lower,
                 ):
                     score += 1
@@ -294,40 +470,66 @@ class IntentClassifier:
                 intent_enum.value
             ] = score
 
-        if scores:
-
-            best_intent = max(
-                scores,
-                key=scores.get,
+        if not scores:
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores={},
             )
 
-            best_score = scores[
-                best_intent
-            ]
+        ranked = sorted(
+            scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
 
-            confidence = (
-                min(
-                    best_score / 3.0,
-                    1.0,
-                )
-                if best_score > 0
-                else 0.1
+        best_intent_value = ranked[0][0]
+        best_score = ranked[0][1]
+
+        second_score = (
+            ranked[1][1]
+            if len(ranked) > 1
+            else 0
+        )
+
+        if best_score <= 0:
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores=scores,
             )
 
-            if best_score > 0:
-                intent = IntentType(
-                    best_intent
-                )
-            else:
-                intent = IntentType.UNKNOWN
-                confidence = 0.1
+        # Convert deterministic rule score into a bounded
+        # confidence value.
+        confidence = min(
+            0.60
+            + (best_score * 0.10),
+            0.95,
+        )
 
-        else:
+        # Avoid choosing an intent when two categories have
+        # exactly the same evidence.
+        if (
+            len(ranked) > 1
+            and best_score == second_score
+            and best_score > 0
+        ):
+            logger.warning(
+                "Keyword intent is ambiguous: %s",
+                ranked[:3],
+            )
 
-            intent = IntentType.UNKNOWN
-            confidence = 0.1
+            return IntentPrediction(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                all_scores=scores,
+            )
 
-        logger.debug(
+        intent = IntentType(
+            best_intent_value
+        )
+
+        logger.info(
             "Intent keyword prediction: %s "
             "(confidence: %.3f)",
             intent.value,
@@ -340,18 +542,48 @@ class IntentClassifier:
             all_scores=scores,
         )
 
+    @staticmethod
+    def _clean_text(
+        text: str,
+    ) -> str:
+        """
+        Apply the same basic text normalization expected
+        by the trained TF-IDF model.
+        """
+
+        text = text.lower()
+
+        text = re.sub(
+            r"[^\w\s]",
+            " ",
+            text,
+        )
+
+        text = re.sub(
+            r"\s+",
+            " ",
+            text,
+        )
+
+        return text.strip()
+
     def _map_to_intent_type(
         self,
         intent_str: str,
     ) -> IntentType:
+        """
+        Normalize model labels to IntentType.
+        """
 
         intent_lower = (
             intent_str.lower()
+            .strip()
         )
 
         aliases = {
             "product_availability":
                 IntentType.AVAILABILITY.value,
+
             "cancel_request":
                 IntentType.CANCEL_ORDER.value,
         }
