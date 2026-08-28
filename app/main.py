@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,10 +22,8 @@ async def lifespan(app: FastAPI):
     """
     Application startup and shutdown lifecycle.
 
-    The Vercel Python runtime may create and destroy multiple
-    independent function instances. Resources are therefore
-    initialized once per warm instance rather than treated as
-    process-global infrastructure.
+    ML model loading is synchronous disk/serialization work, so it is
+    executed in a worker thread instead of blocking the FastAPI event loop.
     """
 
     logger.info(
@@ -35,29 +34,16 @@ async def lifespan(app: FastAPI):
     # ---------------------------------------------------------
     # ML MODELS
     # ---------------------------------------------------------
-    #
-    # Model loading is synchronous disk I/O and should not be
-    # performed repeatedly for every request.
-    #
-    # The loader itself loads the models once per warm instance.
-    #
-    # If a model is missing, the existing ML components can use
-    # their fallback behavior.
-    #
 
     try:
-        model_loader.load_all()
+        await asyncio.to_thread(
+            model_loader.load_all
+        )
 
     except Exception:
         logger.exception(
             "ML model initialization failed."
         )
-
-        # Do not make the entire FastAPI application unusable
-        # when the ML components have their own fallback logic.
-        #
-        # Individual inference failures are handled by the ML
-        # services themselves.
 
     # ---------------------------------------------------------
     # MONGODB
@@ -96,7 +82,6 @@ async def lifespan(app: FastAPI):
         await redis_cache.connect()
 
     except Exception:
-
         logger.exception(
             "Redis initialization failed."
         )
@@ -119,6 +104,7 @@ async def lifespan(app: FastAPI):
 
     try:
         await mongodb.disconnect()
+
     except Exception:
         logger.exception(
             "MongoDB shutdown failed."
@@ -126,6 +112,7 @@ async def lifespan(app: FastAPI):
 
     try:
         await redis_cache.disconnect()
+
     except Exception:
         logger.exception(
             "Redis shutdown failed."
@@ -139,6 +126,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -151,6 +139,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(
     message_router,

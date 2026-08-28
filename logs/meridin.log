@@ -621,3 +621,518 @@ entry.0.changes.0.field
 2026-08-17 20:04:41,653 | INFO | meridin | MongoDB connected successfully (async).
 2026-08-17 20:04:45,722 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
 2026-08-17 20:04:45,723 | INFO | meridin | Meridin started successfully.
+2026-08-27 12:27:40,311 | INFO | meridin | Meridin starting...
+2026-08-27 12:27:40,311 | INFO | meridin | Loading ML models...
+2026-08-27 12:27:50,391 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 12:27:50,431 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 12:27:50,431 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 12:27:50,448 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 12:27:50,448 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 12:27:50,448 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 12:27:55,706 | ERROR | meridin | MongoDB connection failed: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a8fdfeede78df0b987d055a, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\mongodb.py", line 30, in connect
+    await self.client.admin.command("ping")
+  File "C:\Users\Jaseel\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\database.py", line 953, in command
+    return self._client._retryable_read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2076, in _retryable_read
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+          ^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3027, in _read
+    self._server = self._get_server()
+                   ^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2975, in _get_server
+    return self._client._select_server(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1851, in _select_server
+    server = topology.select_server(
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 428, in select_server
+    server = self._select_server(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 402, in _select_server
+    servers = self.select_servers(
+              ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 298, in select_servers
+    server_descriptions = self._select_servers_loop(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 359, in _select_servers_loop
+    raise ServerSelectionTimeoutError(
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a8fdfeede78df0b987d055a, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-08-27 12:27:55,729 | WARNING | meridin | MongoDB is unavailable; running without MongoDB.
+2026-08-27 12:27:59,798 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 12:27:59,798 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:24:32,184 | INFO | meridin | Meridin starting...
+2026-08-27 21:24:32,184 | INFO | meridin | Loading ML models...
+2026-08-27 21:24:33,883 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:24:33,906 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:24:33,915 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:24:33,939 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:24:33,939 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:24:33,939 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:24:39,127 | ERROR | meridin | MongoDB connection failed: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a905db976125e5f05f71e8e, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\mongodb.py", line 30, in connect
+    await self.client.admin.command("ping")
+  File "C:\Users\Jaseel\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\database.py", line 953, in command
+    return self._client._retryable_read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2076, in _retryable_read
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+          ^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3027, in _read
+    self._server = self._get_server()
+                   ^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2975, in _get_server
+    return self._client._select_server(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1851, in _select_server
+    server = topology.select_server(
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 428, in select_server
+    server = self._select_server(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 402, in _select_server
+    servers = self.select_servers(
+              ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 298, in select_servers
+    server_descriptions = self._select_servers_loop(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 359, in _select_servers_loop
+    raise ServerSelectionTimeoutError(
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a905db976125e5f05f71e8e, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-08-27 21:24:39,143 | WARNING | meridin | MongoDB is unavailable; running without MongoDB.
+2026-08-27 21:24:43,216 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:24:43,216 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:30:28,215 | INFO | meridin | Meridin shutting down...
+2026-08-27 21:30:28,215 | INFO | meridin | MongoDB connection closed.
+2026-08-27 21:30:31,751 | INFO | meridin | Meridin starting...
+2026-08-27 21:30:31,751 | INFO | meridin | Loading ML models...
+2026-08-27 21:30:33,021 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:30:33,043 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:30:33,043 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:30:33,049 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:30:33,049 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:30:33,049 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:30:38,175 | ERROR | meridin | MongoDB connection failed: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a905f2113a0a7fc344cd325, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\mongodb.py", line 30, in connect
+    await self.client.admin.command("ping")
+  File "C:\Users\Jaseel\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\database.py", line 953, in command
+    return self._client._retryable_read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2076, in _retryable_read
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+          ^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3027, in _read
+    self._server = self._get_server()
+                   ^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2975, in _get_server
+    return self._client._select_server(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1851, in _select_server
+    server = topology.select_server(
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 428, in select_server
+    server = self._select_server(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 402, in _select_server
+    servers = self.select_servers(
+              ^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 298, in select_servers
+    server_descriptions = self._select_servers_loop(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\topology.py", line 359, in _select_servers_loop
+    raise ServerSelectionTimeoutError(
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 6a905f2113a0a7fc344cd325, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>
+2026-08-27 21:30:38,178 | WARNING | meridin | MongoDB is unavailable; running without MongoDB.
+2026-08-27 21:30:42,251 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:30:42,251 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:36:19,637 | INFO | meridin | Meridin shutting down...
+2026-08-27 21:36:19,637 | INFO | meridin | MongoDB connection closed.
+2026-08-27 21:38:49,719 | INFO | meridin | Meridin starting...
+2026-08-27 21:38:49,719 | INFO | meridin | Loading ML models...
+2026-08-27 21:38:51,150 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:38:51,150 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:38:51,161 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:38:51,171 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:38:51,171 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:38:51,173 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:38:52,930 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 21:38:52,930 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 21:38:54,599 | INFO | meridin | No registered tenants found. Tenant inventory indexes skipped.
+2026-08-27 21:38:54,599 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 21:38:58,712 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:38:58,712 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:46:19,905 | INFO | meridin | Meridin starting...
+2026-08-27 21:46:19,905 | INFO | meridin | Loading ML models...
+2026-08-27 21:46:21,534 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:46:21,549 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:46:21,553 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:46:21,560 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:46:21,560 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:46:21,560 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:46:22,790 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 21:46:22,790 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 21:46:22,910 | ERROR | meridin | MongoDB index 'unique_customer_per_tenant_wa_id' could not be created: Index build failed: 7700098e-df21-492d-8082-da1bf36b126b: Collection meridin.customers ( 90fd90fe-fbd7-4ec2-8d3d-5ebbdb4487ef ) :: caused by :: E11000 duplicate key error collection: meridin.customers index: unique_customer_per_tenant_wa_id dup key: { tenant_id: "meridin_clothing", wa_id: "919495470356" }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: 7700098e-df21-492d-8082-da1bf36b126b: Collection meridin.customers ( 90fd90fe-fbd7-4ec2-8d3d-5ebbdb4487ef ) :: caused by :: E11000 duplicate key error collection: meridin.customers index: unique_customer_per_tenant_wa_id dup key: { tenant_id: "meridin_clothing", wa_id: "919495470356" }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'tenant_id': 1, 'wa_id': 1}, 'keyValue': {'tenant_id': 'meridin_clothing', 'wa_id': '919495470356'}, '$clusterTime': {'clusterTime': Timestamp(1787847382, 8), 'signature': {'hash': b')\x19\x9f0\xb3\xbfr\xf8#wH\x95\xdf\x00{\x93\x85\x81\x8b\xf3', 'keyId': 7634915319147921410}}, 'operationTime': Timestamp(1787847382, 8)}
+2026-08-27 21:46:22,910 | ERROR | meridin | MongoDB initialization failed.
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\main.py", line 70, in lifespan
+    await ensure_indexes()
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 578, in ensure_indexes
+    await _ensure_customer_indexes()
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 92, in _ensure_customer_indexes
+    await _create_index(
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 67, in _create_index
+    await collection.create_index(
+  File "C:\Users\Jaseel\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2391, in create_index
+    return (self._create_indexes([index], session, **cmd_options))[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2273, in _create_indexes
+    return self.database.client._retryable_write(False, inner, session, _Op.CREATE_INDEXES)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2113, in _retryable_write
+    return self._retry_with_session(retryable, func, s, bulk, operation, operation_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1986, in _retry_with_session
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+                                             ^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3014, in _write
+    return self._func(self._session, conn, self._retryable)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2263, in inner
+    self._command(
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 615, in _command
+    return conn.command(
+           ^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\helpers.py", line 53, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\pool.py", line 403, in command
+    return command(
+           ^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\network.py", line 212, in command
+    helpers_shared._check_command_response(
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\helpers_shared.py", line 274, in _check_command_response
+    raise DuplicateKeyError(errmsg, code, response, max_wire_version)
+pymongo.errors.DuplicateKeyError: Index build failed: 7700098e-df21-492d-8082-da1bf36b126b: Collection meridin.customers ( 90fd90fe-fbd7-4ec2-8d3d-5ebbdb4487ef ) :: caused by :: E11000 duplicate key error collection: meridin.customers index: unique_customer_per_tenant_wa_id dup key: { tenant_id: "meridin_clothing", wa_id: "919495470356" }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: 7700098e-df21-492d-8082-da1bf36b126b: Collection meridin.customers ( 90fd90fe-fbd7-4ec2-8d3d-5ebbdb4487ef ) :: caused by :: E11000 duplicate key error collection: meridin.customers index: unique_customer_per_tenant_wa_id dup key: { tenant_id: "meridin_clothing", wa_id: "919495470356" }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'tenant_id': 1, 'wa_id': 1}, 'keyValue': {'tenant_id': 'meridin_clothing', 'wa_id': '919495470356'}, '$clusterTime': {'clusterTime': Timestamp(1787847382, 8), 'signature': {'hash': b')\x19\x9f0\xb3\xbfr\xf8#wH\x95\xdf\x00{\x93\x85\x81\x8b\xf3', 'keyId': 7634915319147921410}}, 'operationTime': Timestamp(1787847382, 8)}
+2026-08-27 21:46:26,993 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:46:26,994 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:49:09,804 | INFO | meridin | Meridin shutting down...
+2026-08-27 21:49:09,955 | INFO | meridin | MongoDB connection closed.
+2026-08-27 21:49:13,907 | INFO | meridin | Meridin starting...
+2026-08-27 21:49:13,907 | INFO | meridin | Loading ML models...
+2026-08-27 21:49:15,300 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:49:15,300 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:49:15,300 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:49:15,323 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:49:15,323 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:49:15,323 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:49:16,264 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 21:49:16,264 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 21:49:17,455 | ERROR | meridin | MongoDB index 'unique_tenant_id' could not be created: Index build failed: c040cd99-1f78-45c6-b9a6-8037d3be6859: Collection meridin.clients ( 7c7de3ee-b0f7-4d54-abd7-692f617effc8 ) :: caused by :: E11000 duplicate key error collection: meridin.clients index: unique_tenant_id dup key: { tenant_id: "meridin_clothing" }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: c040cd99-1f78-45c6-b9a6-8037d3be6859: Collection meridin.clients ( 7c7de3ee-b0f7-4d54-abd7-692f617effc8 ) :: caused by :: E11000 duplicate key error collection: meridin.clients index: unique_tenant_id dup key: { tenant_id: "meridin_clothing" }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'tenant_id': 1}, 'keyValue': {'tenant_id': 'meridin_clothing'}, '$clusterTime': {'clusterTime': Timestamp(1787847557, 35), 'signature': {'hash': b'\xcc\'\xc5n\x0f\x13\xbdD\x94\xa2v\xe24;\x1a\xdf"N\x86,', 'keyId': 7634915319147921410}}, 'operationTime': Timestamp(1787847557, 35)}
+2026-08-27 21:49:17,455 | ERROR | meridin | MongoDB initialization failed.
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\main.py", line 70, in lifespan
+    await ensure_indexes()
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 584, in ensure_indexes
+    await _ensure_client_indexes()
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 227, in _ensure_client_indexes
+    await _create_index(
+  File "C:\harikrishnan\meridin\meridin_new-main\app\database\indexes.py", line 67, in _create_index
+    await collection.create_index(
+  File "C:\Users\Jaseel\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2391, in create_index
+    return (self._create_indexes([index], session, **cmd_options))[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2273, in _create_indexes
+    return self.database.client._retryable_write(False, inner, session, _Op.CREATE_INDEXES)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2113, in _retryable_write
+    return self._retry_with_session(retryable, func, s, bulk, operation, operation_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 1986, in _retry_with_session
+    return self._retry_internal(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2038, in _retry_internal
+    ).run()
+      ^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 2811, in run
+    res = self._read() if self._is_read else self._write()
+                                             ^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\mongo_client.py", line 3014, in _write
+    return self._func(self._session, conn, self._retryable)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 2263, in inner
+    self._command(
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\collection.py", line 615, in _command
+    return conn.command(
+           ^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\helpers.py", line 53, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\pool.py", line 403, in command
+    return command(
+           ^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\synchronous\network.py", line 212, in command
+    helpers_shared._check_command_response(
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\pymongo\helpers_shared.py", line 274, in _check_command_response
+    raise DuplicateKeyError(errmsg, code, response, max_wire_version)
+pymongo.errors.DuplicateKeyError: Index build failed: c040cd99-1f78-45c6-b9a6-8037d3be6859: Collection meridin.clients ( 7c7de3ee-b0f7-4d54-abd7-692f617effc8 ) :: caused by :: E11000 duplicate key error collection: meridin.clients index: unique_tenant_id dup key: { tenant_id: "meridin_clothing" }, full error: {'ok': 0.0, 'errmsg': 'Index build failed: c040cd99-1f78-45c6-b9a6-8037d3be6859: Collection meridin.clients ( 7c7de3ee-b0f7-4d54-abd7-692f617effc8 ) :: caused by :: E11000 duplicate key error collection: meridin.clients index: unique_tenant_id dup key: { tenant_id: "meridin_clothing" }', 'code': 11000, 'codeName': 'DuplicateKey', 'keyPattern': {'tenant_id': 1}, 'keyValue': {'tenant_id': 'meridin_clothing'}, '$clusterTime': {'clusterTime': Timestamp(1787847557, 35), 'signature': {'hash': b'\xcc\'\xc5n\x0f\x13\xbdD\x94\xa2v\xe24;\x1a\xdf"N\x86,', 'keyId': 7634915319147921410}}, 'operationTime': Timestamp(1787847557, 35)}
+2026-08-27 21:49:21,565 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:49:21,565 | INFO | meridin | Meridin started successfully.
+2026-08-27 21:53:15,864 | INFO | meridin | Meridin shutting down...
+2026-08-27 21:53:15,956 | INFO | meridin | MongoDB connection closed.
+2026-08-27 21:53:20,087 | INFO | meridin | Meridin starting...
+2026-08-27 21:53:20,087 | INFO | meridin | Loading ML models...
+2026-08-27 21:53:21,712 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 21:53:21,714 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 21:53:21,729 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 21:53:21,739 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 21:53:21,745 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 21:53:21,746 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 21:53:22,651 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 21:53:22,651 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 21:53:25,374 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 21:53:25,374 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 21:53:29,465 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 21:53:29,466 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:05:15,683 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:05:15,767 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:05:17,742 | INFO | meridin | Meridin starting...
+2026-08-27 22:05:17,742 | INFO | meridin | Loading ML models...
+2026-08-27 22:05:19,337 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:05:19,339 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:05:19,339 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:05:19,353 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:05:19,353 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:05:19,353 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:05:20,917 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:05:20,917 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:05:37,501 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:05:37,502 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:05:41,555 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:05:41,556 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:05:41,664 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:05:41,778 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:05:43,922 | INFO | meridin | Meridin starting...
+2026-08-27 22:05:43,923 | INFO | meridin | Loading ML models...
+2026-08-27 22:05:45,671 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:05:45,675 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:05:45,675 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:05:45,675 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:05:45,675 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:05:45,675 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:05:46,568 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:05:46,568 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:05:48,802 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:05:48,802 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:05:52,865 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:05:52,866 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:07:04,607 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:07:04,669 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:07:06,742 | INFO | meridin | Meridin starting...
+2026-08-27 22:07:06,742 | INFO | meridin | Loading ML models...
+2026-08-27 22:07:08,641 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:07:08,651 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:07:08,652 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:07:08,661 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:07:08,661 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:07:08,662 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:07:09,611 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:07:09,612 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:07:11,978 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:07:11,979 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:07:16,039 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:07:16,039 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:07:22,911 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:07:24,109 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:07:25,983 | INFO | meridin | Meridin starting...
+2026-08-27 22:07:25,984 | INFO | meridin | Loading ML models...
+2026-08-27 22:07:27,554 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:07:27,555 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:07:27,565 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:07:27,574 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:07:27,574 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:07:27,575 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:07:28,998 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:07:28,998 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:07:32,980 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:07:32,980 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:07:37,032 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:07:37,032 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:07:37,147 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:07:37,228 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:07:38,962 | INFO | meridin | Meridin starting...
+2026-08-27 22:07:38,962 | INFO | meridin | Loading ML models...
+2026-08-27 22:07:40,389 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:07:40,389 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:07:40,403 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:07:40,409 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:07:40,409 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:07:40,409 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:07:41,426 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:07:41,426 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:07:43,066 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:07:43,933 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:07:43,933 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:07:48,029 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:07:48,029 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:09:15,466 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:09:15,575 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:09:17,466 | INFO | meridin | Meridin starting...
+2026-08-27 22:09:17,475 | INFO | meridin | Loading ML models...
+2026-08-27 22:09:18,264 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:09:19,000 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:09:19,009 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:09:19,012 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:09:19,021 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:09:19,021 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:09:19,021 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:09:20,061 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:09:20,061 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:09:23,186 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:09:23,186 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:09:27,241 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:09:27,241 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:11:19,619 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:11:19,681 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:11:22,068 | INFO | meridin | Meridin starting...
+2026-08-27 22:11:22,068 | INFO | meridin | Loading ML models...
+2026-08-27 22:11:23,789 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:11:23,797 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:11:23,805 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:11:23,813 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:11:23,813 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:11:23,813 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:11:24,877 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:11:24,877 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:11:28,924 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:11:28,924 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:11:32,983 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:11:32,983 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:11:33,623 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:11:59,410 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:11:59,489 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:12:01,919 | INFO | meridin | Meridin starting...
+2026-08-27 22:12:01,919 | INFO | meridin | Loading ML models...
+2026-08-27 22:12:03,821 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:12:03,833 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:12:03,833 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:12:03,839 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:12:03,845 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:12:03,845 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:12:04,822 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:12:04,824 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:12:07,086 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:12:07,086 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:12:11,192 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:12:11,192 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:12:30,559 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:12:30,690 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:12:32,579 | INFO | meridin | Meridin starting...
+2026-08-27 22:12:32,579 | INFO | meridin | Loading ML models...
+2026-08-27 22:12:34,349 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:12:34,349 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:12:34,365 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:12:34,366 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:12:34,366 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:12:34,366 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:12:35,333 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:12:35,333 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:12:37,516 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:12:37,516 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:12:41,602 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:12:41,602 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:13:02,017 | INFO | meridin | Meridin shutting down...
+2026-08-27 22:13:02,101 | INFO | meridin | MongoDB connection closed.
+2026-08-27 22:13:04,229 | INFO | meridin | Meridin starting...
+2026-08-27 22:13:04,229 | INFO | meridin | Loading ML models...
+2026-08-27 22:13:05,631 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-27 22:13:05,634 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-27 22:13:05,634 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-27 22:13:05,645 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-27 22:13:05,645 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-27 22:13:05,645 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-27 22:13:06,643 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:13:06,643 | INFO | meridin | Starting MongoDB index verification...
+2026-08-27 22:13:07,371 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-27 22:13:09,046 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-27 22:13:09,046 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-27 22:13:13,132 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-27 22:13:13,132 | INFO | meridin | Meridin started successfully.
+2026-08-27 22:16:59,556 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
+2026-08-27 22:17:10,075 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
+2026-08-27 22:17:46,445 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
+2026-08-27 22:17:47,353 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
+2026-08-27 22:17:49,640 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
+2026-08-27 22:17:50,646 | INFO | meridin | Product search returned 17 results for tenant meridin_clothing
