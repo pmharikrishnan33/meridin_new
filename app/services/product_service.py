@@ -6,7 +6,7 @@ Responsibilities:
 - tenant-scoped product search
 - product retrieval
 - product availability
-- entity -> filter conversion
+- entity -> product filter conversion
 - candidate ranking
 - variant-aware inventory summaries
 - WhatsApp response conversion
@@ -25,11 +25,9 @@ from app.models.schemas import (
     ProductSearchFilters,
     ResponseProduct,
 )
-
 from app.repositories.product_repository import (
     product_repository,
 )
-
 from app.utils.logger import logger
 
 
@@ -122,10 +120,13 @@ class ProductService:
         5. exact brand
         6. material
         7. fit
-        8. gender
+        8. gender / department
         9. text/title relevance
         10. stock
         11. featured products
+
+        Canonical catalogue IDs are preferred when available.
+        Text fields remain as fallback for legacy documents.
         """
 
         scored: List[
@@ -186,10 +187,29 @@ class ProductService:
             else ""
         )
 
-        department_id = filters.department_id
-        category_id = filters.category_id
-        color_id = filters.color_id
-        size_id = filters.size_id
+        department_id = getattr(
+            filters,
+            "department_id",
+            None,
+        )
+
+        category_id = getattr(
+            filters,
+            "category_id",
+            None,
+        )
+
+        color_id = getattr(
+            filters,
+            "color_id",
+            None,
+        )
+
+        size_id = getattr(
+            filters,
+            "size_id",
+            None,
+        )
 
         for index, product in enumerate(products):
             score = 0.0
@@ -226,32 +246,63 @@ class ProductService:
                 product.gender or ""
             ).strip().lower()
 
+            # -------------------------------------------------
+            # CANONICAL IDS
+            # -------------------------------------------------
+
             product_department_id = getattr(
                 product,
                 "department_id",
                 None,
             )
+
             product_category_id = getattr(
                 product,
                 "category_id",
                 None,
             )
 
-            product_color_ids = {
-                int(value)
-                for value in (
-                    getattr(product, "color_ids", []) or []
-                )
-                if str(value).strip().isdigit()
-            }
+            raw_color_ids = getattr(
+                product,
+                "color_ids",
+                [],
+            ) or []
 
-            product_size_ids = {
-                int(value)
-                for value in (
-                    getattr(product, "size_ids", []) or []
-                )
-                if str(value).strip().isdigit()
-            }
+            raw_size_ids = getattr(
+                product,
+                "size_ids",
+                [],
+            ) or []
+
+            product_color_ids = set()
+
+            for value in raw_color_ids:
+                try:
+                    product_color_ids.add(
+                        int(value)
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+
+            product_size_ids = set()
+
+            for value in raw_size_ids:
+                try:
+                    product_size_ids.add(
+                        int(value)
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+
+            # -------------------------------------------------
+            # LEGACY TEXT VALUES
+            # -------------------------------------------------
 
             product_colors = {
                 str(value).strip().lower()
@@ -275,10 +326,21 @@ class ProductService:
 
             if category_id is not None:
                 try:
-                    if product_category_id is not None and int(product_category_id) == int(category_id):
+                    if (
+                        product_category_id
+                        is not None
+                        and int(
+                            product_category_id
+                        )
+                        == int(category_id)
+                    ):
                         score += 100
-                except (TypeError, ValueError):
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     pass
+
             elif category:
                 if product_category == category:
                     score += 100
@@ -302,8 +364,15 @@ class ProductService:
             # -------------------------------------------------
 
             if color_id is not None:
-                if color_id in product_color_ids:
-                    score += 90
+                try:
+                    if int(color_id) in product_color_ids:
+                        score += 90
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
             elif color:
                 if color in product_colors:
                     score += 90
@@ -313,8 +382,15 @@ class ProductService:
             # -------------------------------------------------
 
             if size_id is not None:
-                if size_id in product_size_ids:
-                    score += 90
+                try:
+                    if int(size_id) in product_size_ids:
+                        score += 90
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
             elif size:
                 if size in product_sizes:
                     score += 90
@@ -350,15 +426,26 @@ class ProductService:
                     score += 45
 
             # -------------------------------------------------
-            # GENDER
+            # GENDER / DEPARTMENT
             # -------------------------------------------------
 
             if department_id is not None:
                 try:
-                    if product_department_id is not None and int(product_department_id) == int(department_id):
+                    if (
+                        product_department_id
+                        is not None
+                        and int(
+                            product_department_id
+                        )
+                        == int(department_id)
+                    ):
                         score += 40
-                except (TypeError, ValueError):
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     pass
+
             elif gender:
                 if product_gender == gender:
                     score += 40
@@ -401,12 +488,9 @@ class ProductService:
             if stock > 0:
                 score += 10
 
-                # Small preference for products with healthy
-                # stock, without allowing stock quantity to
-                # dominate relevance.
                 score += min(
                     stock,
-                    10
+                    10,
                 ) * 0.5
 
             # -------------------------------------------------
@@ -437,13 +521,20 @@ class ProductService:
         ]
 
         logger.info(
-            "Ranked %s product candidates for query=%s "
-            "category=%s color=%s size=%s",
+            "Ranked %s product candidates "
+            "for query=%s category=%s "
+            "color=%s size=%s "
+            "department_id=%s category_id=%s "
+            "color_id=%s size_id=%s",
             len(ranked),
             filters.query,
             filters.category,
             filters.color,
             filters.size,
+            department_id,
+            category_id,
+            color_id,
+            size_id,
         )
 
         return ranked
@@ -536,27 +627,34 @@ class ProductService:
         )
 
     # =========================================================
-    # VARIANTS
+    # VARIANT HELPERS
     # =========================================================
 
     @staticmethod
     def _variant_values(
         variant: Any,
     ) -> Dict[str, Any]:
+        """
+        Normalize a variant document without assuming
+        one specific storage shape.
+        """
 
         if hasattr(
             variant,
             "model_dump",
         ):
-            return variant.model_dump()
+            data = variant.model_dump()
 
-        if isinstance(
+        elif isinstance(
             variant,
             dict,
         ):
-            return dict(variant)
+            data = dict(variant)
 
-        return {}
+        else:
+            return {}
+
+        return data
 
     @classmethod
     def _matching_variants(
@@ -567,11 +665,13 @@ class ProductService:
         color: Optional[str] = None,
         in_stock_only: bool = False,
     ) -> List[Dict[str, Any]]:
+        """
+        Return variants matching all supplied attributes
+        on the SAME variant.
+        """
 
         variants = [
-            cls._variant_values(
-                variant
-            )
+            cls._variant_values(variant)
             for variant in (
                 product.variants or []
             )
@@ -603,7 +703,6 @@ class ProductService:
         ] = []
 
         for variant in variants:
-
             variant_size = str(
                 variant.get(
                     "size",
@@ -663,11 +762,13 @@ class ProductService:
         cls,
         product: Product,
     ) -> Dict[str, Any]:
+        """
+        Build stock, size, color and price information
+        from variants.
+        """
 
         variants = [
-            cls._variant_values(
-                variant
-            )
+            cls._variant_values(variant)
             for variant in (
                 product.variants or []
             )
@@ -687,10 +788,7 @@ class ProductService:
                 "available_sizes": sorted(
                     {
                         str(value).strip()
-                        for value in (
-                            product.size
-                            or []
-                        )
+                        for value in product.size
                         if value
                         and str(value).strip()
                     }
@@ -698,10 +796,7 @@ class ProductService:
                 "available_colors": sorted(
                     {
                         str(value).strip()
-                        for value in (
-                            product.color
-                            or []
-                        )
+                        for value in product.color
                         if value
                         and str(value).strip()
                     }
@@ -712,14 +807,12 @@ class ProductService:
         total_stock = 0
 
         available_sizes = set()
+
         available_colors = set()
 
-        sale_prices: List[
-            float
-        ] = []
+        sale_prices: List[float] = []
 
         for variant in variants:
-
             try:
                 stock = int(
                     variant.get(
@@ -735,7 +828,6 @@ class ProductService:
                 stock = 0
 
             if stock > 0:
-
                 total_stock += stock
 
                 size_value = str(
@@ -805,6 +897,10 @@ class ProductService:
         size: Optional[str] = None,
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """
+        Check product availability with variant-aware
+        stock semantics.
+        """
 
         if not tenant_id:
             raise ValueError(
@@ -826,9 +922,7 @@ class ProductService:
             }
 
         variants = [
-            self._variant_values(
-                variant
-            )
+            self._variant_values(variant)
             for variant in (
                 product.variants or []
             )
@@ -841,7 +935,6 @@ class ProductService:
         ]
 
         if variants:
-
             matching = (
                 self._matching_variants(
                     product,
@@ -880,7 +973,6 @@ class ProductService:
             )
 
             if not matching:
-
                 if (
                     size
                     and not all_size_matches
@@ -914,15 +1006,20 @@ class ProductService:
                     "requested_size": size,
                     "requested_color": color,
                     "stock": summary["stock"],
-                    "available_sizes": summary[
-                        "available_sizes"
-                    ],
-                    "available_colors": summary[
-                        "available_colors"
-                    ],
+                    "available_sizes": (
+                        summary[
+                            "available_sizes"
+                        ]
+                    ),
+                    "available_colors": (
+                        summary[
+                            "available_colors"
+                        ]
+                    ),
                 }
 
             matching_stock = 0
+
             matching_prices: List[
                 float
             ] = []
@@ -932,7 +1029,6 @@ class ProductService:
             ] = []
 
             for variant in matching:
-
                 try:
                     matching_stock += int(
                         variant.get(
@@ -947,14 +1043,18 @@ class ProductService:
                 ):
                     pass
 
-                if variant.get(
-                    "price"
-                ) is not None:
-
+                if (
+                    variant.get(
+                        "price"
+                    )
+                    is not None
+                ):
                     try:
                         matching_prices.append(
                             float(
-                                variant["price"]
+                                variant[
+                                    "price"
+                                ]
                             )
                         )
                     except (
@@ -963,10 +1063,12 @@ class ProductService:
                     ):
                         pass
 
-                if variant.get(
-                    "sale_price"
-                ) is not None:
-
+                if (
+                    variant.get(
+                        "sale_price"
+                    )
+                    is not None
+                ):
                     try:
                         matching_sale_prices.append(
                             float(
@@ -995,12 +1097,16 @@ class ProductService:
                 "stock": matching_stock,
                 "requested_size": size,
                 "requested_color": color,
-                "available_sizes": summary[
-                    "available_sizes"
-                ],
-                "available_colors": summary[
-                    "available_colors"
-                ],
+                "available_sizes": (
+                    summary[
+                        "available_sizes"
+                    ]
+                ),
+                "available_colors": (
+                    summary[
+                        "available_colors"
+                    ]
+                ),
                 "price": (
                     min(matching_prices)
                     if matching_prices
@@ -1016,13 +1122,15 @@ class ProductService:
                     ]
                 ),
                 "variant_skus": [
-                    str(
-                        variant["sku"]
-                    )
-                    for variant in matching
-                    if variant.get("sku")
+                    str(v["sku"])
+                    for v in matching
+                    if v.get("sku")
                 ],
             }
+
+        # -----------------------------------------------------
+        # LEGACY PRODUCT-LEVEL INVENTORY
+        # -----------------------------------------------------
 
         requested_size = (
             size.strip().lower()
@@ -1038,18 +1146,14 @@ class ProductService:
 
         available_sizes = [
             str(value).strip()
-            for value in (
-                product.size or []
-            )
+            for value in product.size
             if value
             and str(value).strip()
         ]
 
         available_colors = [
             str(value).strip()
-            for value in (
-                product.color or []
-            )
+            for value in product.color
             if value
             and str(value).strip()
         ]
@@ -1075,7 +1179,9 @@ class ProductService:
         if not size_matches:
             return {
                 "available": False,
-                "reason": "size_not_available",
+                "reason": (
+                    "size_not_available"
+                ),
                 "product_name": product.title,
                 "requested_size": size,
                 "available_sizes": sorted(
@@ -1090,7 +1196,9 @@ class ProductService:
         if not color_matches:
             return {
                 "available": False,
-                "reason": "color_not_available",
+                "reason": (
+                    "color_not_available"
+                ),
                 "product_name": product.title,
                 "requested_color": color,
                 "available_sizes": sorted(
@@ -1143,6 +1251,9 @@ class ProductService:
         tenant_id: str,
         product_id: str,
     ) -> Optional[Product]:
+        """
+        Retrieve a full product for product inquiry.
+        """
 
         return await self.get_product_by_id(
             tenant_id=tenant_id,
@@ -1157,11 +1268,28 @@ class ProductService:
         self,
         entities: List[ExtractedEntity],
     ) -> ProductSearchFilters:
+        """
+        Convert extracted entities into product search
+        filters.
+
+        The entity extractor may provide canonical metadata
+        such as:
+
+            department_id
+            category_id
+            color_id
+            size_id
+            size_group
+
+        When present, these IDs are stored in the filters.
+
+        Text values are also retained so that the system can
+        continue supporting legacy inventory documents.
+        """
 
         filters = ProductSearchFilters()
 
         for entity in entities:
-
             value = (
                 entity.normalized_value
                 or entity.value
@@ -1177,17 +1305,87 @@ class ProductService:
 
             entity_type = entity.entity_type
 
+            metadata = (
+                entity.metadata or {}
+            )
+
             if entity_type == EntityType.PRODUCT:
                 filters.query = value.lower()
 
             elif entity_type == EntityType.CATEGORY:
                 filters.category = value.lower()
 
+                category_id = metadata.get(
+                    "category_id"
+                )
+
+                if category_id is not None:
+                    try:
+                        filters.category_id = int(
+                            category_id
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        logger.warning(
+                            "Invalid category_id "
+                            "metadata: %s",
+                            category_id,
+                        )
+
             elif entity_type == EntityType.COLOR:
                 filters.color = value.lower()
 
+                color_id = metadata.get(
+                    "color_id"
+                )
+
+                if color_id is not None:
+                    try:
+                        filters.color_id = int(
+                            color_id
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        logger.warning(
+                            "Invalid color_id "
+                            "metadata: %s",
+                            color_id,
+                        )
+
             elif entity_type == EntityType.SIZE:
                 filters.size = value.upper()
+
+                size_id = metadata.get(
+                    "size_id"
+                )
+
+                if size_id is not None:
+                    try:
+                        filters.size_id = int(
+                            size_id
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        logger.warning(
+                            "Invalid size_id "
+                            "metadata: %s",
+                            size_id,
+                        )
+
+                size_group = metadata.get(
+                    "size_group"
+                )
+
+                if size_group:
+                    filters.size_group = str(
+                        size_group
+                    ).strip().lower()
 
             elif entity_type == EntityType.STYLE:
                 filters.type = value.lower()
@@ -1204,6 +1402,25 @@ class ProductService:
             elif entity_type == EntityType.GENDER:
                 filters.gender = value.lower()
 
+                department_id = metadata.get(
+                    "department_id"
+                )
+
+                if department_id is not None:
+                    try:
+                        filters.department_id = int(
+                            department_id
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        logger.warning(
+                            "Invalid department_id "
+                            "metadata: %s",
+                            department_id,
+                        )
+
             elif entity_type == EntityType.PRICE:
                 self._apply_price_entity(
                     filters=filters,
@@ -1213,15 +1430,23 @@ class ProductService:
 
         return filters
 
+    # =========================================================
+    # PRICE
+    # =========================================================
+
     @staticmethod
     def _apply_price_entity(
         filters: ProductSearchFilters,
         entity: ExtractedEntity,
         value: str,
     ) -> None:
+        """
+        Convert a PRICE entity to price filters.
+        """
 
         try:
             price = float(value)
+
         except (
             ValueError,
             TypeError,
@@ -1230,11 +1455,10 @@ class ProductService:
                 "Unable to parse price entity: %s",
                 value,
             )
+
             return
 
-        metadata = (
-            entity.metadata or {}
-        )
+        metadata = entity.metadata or {}
 
         operator = metadata.get(
             "operator",
@@ -1263,6 +1487,9 @@ class ProductService:
         cls,
         product: Product,
     ) -> ResponseProduct:
+        """
+        Convert a product to a WhatsApp-safe response model.
+        """
 
         summary = (
             cls._variant_inventory_summary(
@@ -1277,15 +1504,11 @@ class ProductService:
         )
 
         if not image:
-
             for raw_variant in (
-                product.variants or []
+                product.variants
             ):
-
-                variant = (
-                    cls._variant_values(
-                        raw_variant
-                    )
+                variant = cls._variant_values(
+                    raw_variant
                 )
 
                 images = (
@@ -1299,11 +1522,9 @@ class ProductService:
                 )
 
                 if images:
-
                     image = str(
                         images[0]
                     )
-
                     break
 
         return ResponseProduct(

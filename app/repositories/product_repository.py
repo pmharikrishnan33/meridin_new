@@ -25,6 +25,12 @@ class ProductRepository:
     - Search filters are combined with AND semantics.
     - Multiple OR-based conditions are placed inside $and so they
       cannot overwrite one another.
+    - Canonical catalogue IDs are preferred:
+        department_id
+        category_id
+        color_ids
+        size_ids
+    - Legacy textual fields remain supported during migration.
     """
 
     @staticmethod
@@ -94,7 +100,12 @@ class ProductRepository:
         field: str,
         value: Optional[int],
     ) -> Optional[Dict[str, Any]]:
-        """Build an exact integer ID condition for canonical catalog fields."""
+        """
+        Build an exact integer-ID condition.
+
+        Example:
+            {"category_id": 201}
+        """
         if value is None:
             return None
 
@@ -103,14 +114,23 @@ class ProductRepository:
         except (TypeError, ValueError):
             return None
 
-        return {field: normalized}
+        return {
+            field: normalized
+        }
 
     @staticmethod
     def _build_id_array_condition(
         field: str,
         value: Optional[int],
     ) -> Optional[Dict[str, Any]]:
-        """Match a canonical integer ID inside a MongoDB array field."""
+        """
+        Match an integer ID inside a MongoDB array field.
+
+        Example:
+            {"color_ids": 1}
+
+        MongoDB matches the scalar 1 against an array containing 1.
+        """
         if value is None:
             return None
 
@@ -119,14 +139,22 @@ class ProductRepository:
         except (TypeError, ValueError):
             return None
 
-        return {field: normalized}
+        return {
+            field: normalized
+        }
 
     @staticmethod
     def _or_condition(
         *conditions: Optional[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-        """Combine non-empty conditions without losing existing filters."""
-        valid = [condition for condition in conditions if condition]
+        """
+        Combine non-empty conditions without losing existing filters.
+        """
+        valid = [
+            condition
+            for condition in conditions
+            if condition
+        ]
 
         if not valid:
             return None
@@ -134,7 +162,9 @@ class ProductRepository:
         if len(valid) == 1:
             return valid[0]
 
-        return {"$or": valid}
+        return {
+            "$or": valid
+        }
 
     @staticmethod
     def _build_array_condition(
@@ -148,7 +178,14 @@ class ProductRepository:
             color = ["Black", "White"]
 
         Query:
-            {"color": {"$elemMatch": {"$regex": "^black$", ...}}}
+            {
+                "color": {
+                    "$elemMatch": {
+                        "$regex": "^black$",
+                        "$options": "i"
+                    }
+                }
+            }
         """
         if not value or not value.strip():
             return None
@@ -315,7 +352,6 @@ class ProductRepository:
                     document.get("_id"),
                 )
 
-        # Preserve the exact order requested by the caller.
         return [
             products_by_id[product_id]
             for product_id in unique_ids
@@ -345,29 +381,10 @@ class ProductRepository:
             )
             return []
 
-        # --------------------------------------------------
-        # BASE TENANT CONDITION
-        # --------------------------------------------------
-
         query: Dict[str, Any] = {
             "tenant_id": tenant_id,
         }
 
-        # Every independent filter goes into this list.
-        #
-        # This is important because multiple filters may
-        # themselves contain $or conditions.
-        #
-        # Example:
-        #
-        # query["$and"] = [
-        #     {"$or": [...]},       # text search
-        #     {"$or": [...]},       # stock
-        #     {"category": ...},
-        #     {"color": ...},
-        # ]
-        #
-        # This prevents one $or from overwriting another.
         conditions: List[Dict[str, Any]] = []
 
         # --------------------------------------------------
@@ -432,7 +449,69 @@ class ProductRepository:
                 )
 
         # --------------------------------------------------
-        # EXACT / CASE-INSENSITIVE FILTERS
+        # CANONICAL DEPARTMENT ID
+        # --------------------------------------------------
+
+        department_id_condition = (
+            self._build_id_condition(
+                "department_id",
+                getattr(
+                    filters,
+                    "department_id",
+                    None,
+                ),
+            )
+        )
+
+        department_text_condition = (
+            self._build_exact_text_condition(
+                "gender",
+                filters.gender,
+            )
+        )
+
+        if department_id_condition:
+            conditions.append(
+                department_id_condition
+            )
+        elif department_text_condition:
+            conditions.append(
+                department_text_condition
+            )
+
+        # --------------------------------------------------
+        # CANONICAL CATEGORY ID
+        # --------------------------------------------------
+
+        category_id_condition = (
+            self._build_id_condition(
+                "category_id",
+                getattr(
+                    filters,
+                    "category_id",
+                    None,
+                ),
+            )
+        )
+
+        category_text_condition = (
+            self._build_exact_text_condition(
+                "category",
+                filters.category,
+            )
+        )
+
+        if category_id_condition:
+            conditions.append(
+                category_id_condition
+            )
+        elif category_text_condition:
+            conditions.append(
+                category_text_condition
+            )
+
+        # --------------------------------------------------
+        # OTHER EXACT TEXT FILTERS
         # --------------------------------------------------
 
         exact_filters = {
@@ -440,184 +519,305 @@ class ProductRepository:
             "brand": filters.brand,
             "material": filters.material,
             "fit": filters.fit,
-            "gender": filters.gender,
             "age_group": filters.age_group,
         }
 
         for field, value in exact_filters.items():
-            condition = self._build_exact_text_condition(
-                field,
-                value,
+            condition = (
+                self._build_exact_text_condition(
+                    field,
+                    value,
+                )
             )
 
             if condition:
-                conditions.append(condition)
-
-        # Canonical department/category IDs are authoritative for the
-        # new inventory schema. Legacy text fields remain as a fallback
-        # during migration so existing products continue to work.
-        department_id_condition = self._build_id_condition(
-            "department_id",
-            filters.department_id,
-        )
-        department_text_condition = self._build_exact_text_condition(
-            "gender",
-            filters.gender,
-        )
-
-        if department_id_condition:
-            conditions.append(
-                self._or_condition(
-                    department_id_condition,
-                    department_text_condition,
+                conditions.append(
+                    condition
                 )
-            )
-        elif department_text_condition:
-            conditions.append(department_text_condition)
-
-        category_id_condition = self._build_id_condition(
-            "category_id",
-            filters.category_id,
-        )
-        category_text_condition = self._build_exact_text_condition(
-            "category",
-            filters.category,
-        )
-
-        if category_id_condition:
-            conditions.append(
-                self._or_condition(
-                    category_id_condition,
-                    category_text_condition,
-                )
-            )
-        elif category_text_condition:
-            conditions.append(category_text_condition)
 
         # --------------------------------------------------
-        # CANONICAL COLOR / SIZE + VARIANT FALLBACK
+        # COLOR
+        #
+        # Canonical:
+        #     color_ids: [1, 2, 3]
+        #
+        # Legacy:
+        #     color: ["black", "navy blue", ...]
         # --------------------------------------------------
-        # New documents use integer IDs. Older documents may still use
-        # text arrays or variant-level text values. Build one OR group
-        # so migration does not break existing inventory.
+
+        color_id = getattr(
+            filters,
+            "color_id",
+            None,
+        )
 
         color_value = (
             filters.color.strip()
             if filters.color
             else ""
         )
+
+        color_id_condition = (
+            self._build_id_array_condition(
+                "color_ids",
+                color_id,
+            )
+        )
+
+        color_text_condition = (
+            self._build_array_condition(
+                "color",
+                color_value,
+            )
+        )
+
+        color_variant_condition = None
+
+        if color_value:
+            color_variant_condition = {
+                "variants": {
+                    "$elemMatch": {
+                        "color": {
+                            "$regex": (
+                                "^"
+                                + re.escape(color_value)
+                                + "$"
+                            ),
+                            "$options": "i",
+                        }
+                    }
+                }
+            }
+
+        color_conditions = [
+            color_id_condition,
+            color_text_condition,
+            color_variant_condition,
+        ]
+
+        color_condition = self._or_condition(
+            *color_conditions
+        )
+
+        if color_condition:
+            conditions.append(
+                color_condition
+            )
+
+        # --------------------------------------------------
+        # SIZE
+        #
+        # Canonical:
+        #     size_ids: [3, 2, 1]
+        #
+        # Legacy:
+        #     size: ["L", "M", "S"]
+        # --------------------------------------------------
+
+        size_id = getattr(
+            filters,
+            "size_id",
+            None,
+        )
+
         size_value = (
             filters.size.strip()
             if filters.size
             else ""
         )
 
-        color_id_condition = self._build_id_array_condition(
-            "color_ids",
-            filters.color_id,
-        )
-        size_id_condition = self._build_id_array_condition(
-            "size_ids",
-            filters.size_id,
+        size_id_condition = (
+            self._build_id_array_condition(
+                "size_ids",
+                size_id,
+            )
         )
 
-        color_text_condition = self._build_array_condition(
-            "color",
-            color_value,
-        )
-        size_text_condition = self._build_array_condition(
-            "size",
-            size_value,
+        size_text_condition = (
+            self._build_array_condition(
+                "size",
+                size_value,
+            )
         )
 
-        color_size_conditions: List[Dict[str, Any]] = []
+        size_variant_condition = None
 
-        if color_id_condition and size_id_condition:
-            color_size_conditions.append(
-                {
-                    "$and": [
-                        color_id_condition,
-                        size_id_condition,
-                    ]
+        if size_value:
+            size_variant_condition = {
+                "variants": {
+                    "$elemMatch": {
+                        "size": {
+                            "$regex": (
+                                "^"
+                                + re.escape(size_value)
+                                + "$"
+                            ),
+                            "$options": "i",
+                        }
+                    }
                 }
-            )
-        elif color_id_condition:
-            color_size_conditions.append(
-                color_id_condition
-            )
-        elif size_id_condition:
-            color_size_conditions.append(
-                size_id_condition
+            }
+
+        size_conditions = [
+            size_id_condition,
+            size_text_condition,
+            size_variant_condition,
+        ]
+
+        size_condition = self._or_condition(
+            *size_conditions
+        )
+
+        if size_condition:
+            conditions.append(
+                size_condition
             )
 
-        if color_text_condition and size_text_condition:
-            color_size_conditions.append(
-                {
-                    "$and": [
-                        color_text_condition,
-                        size_text_condition,
-                    ]
-                }
-            )
-        elif color_text_condition:
-            color_size_conditions.append(
-                color_text_condition
-            )
-        elif size_text_condition:
-            color_size_conditions.append(
-                size_text_condition
-            )
+        # --------------------------------------------------
+        # SAME-VARIANT COLOR + SIZE SAFETY
+        #
+        # If both color and size are supplied and variants
+        # exist, a variant must contain both values together.
+        #
+        # Canonical top-level IDs remain valid for products
+        # that don't use variant documents.
+        # --------------------------------------------------
 
-        # Variant fallback. This intentionally uses the legacy textual
-        # representation because the current variant schema is textual.
-        if color_value and size_value:
-            color_size_conditions.append(
-                {
+        if color_id is not None and size_id is not None:
+            canonical_pair = {
+                "$and": [
+                    {
+                        "color_ids": int(color_id)
+                    },
+                    {
+                        "size_ids": int(size_id)
+                    },
+                ]
+            }
+
+            variant_pair = None
+
+            if color_value and size_value:
+                variant_pair = {
                     "variants": {
                         "$elemMatch": {
                             "color": {
-                                "$regex": "^" + re.escape(color_value) + "$",
+                                "$regex": (
+                                    "^"
+                                    + re.escape(color_value)
+                                    + "$"
+                                ),
                                 "$options": "i",
                             },
                             "size": {
-                                "$regex": "^" + re.escape(size_value) + "$",
+                                "$regex": (
+                                    "^"
+                                    + re.escape(size_value)
+                                    + "$"
+                                ),
                                 "$options": "i",
                             },
                         }
                     }
                 }
-            )
-        elif color_value:
-            color_size_conditions.append(
-                {
-                    "variants": {
-                        "$elemMatch": {
-                            "color": {
-                                "$regex": "^" + re.escape(color_value) + "$",
-                                "$options": "i",
-                            }
-                        }
-                    }
-                }
-            )
-        elif size_value:
-            color_size_conditions.append(
-                {
-                    "variants": {
-                        "$elemMatch": {
-                            "size": {
-                                "$regex": "^" + re.escape(size_value) + "$",
-                                "$options": "i",
-                            }
-                        }
-                    }
-                }
-            )
 
-        if color_size_conditions:
+            pair_conditions = [
+                canonical_pair,
+                variant_pair,
+            ]
+
+            valid_pair_conditions = [
+                condition
+                for condition in pair_conditions
+                if condition
+            ]
+
+            if valid_pair_conditions:
+                if color_condition in conditions:
+                    conditions.remove(
+                        color_condition
+                    )
+
+                if size_condition in conditions:
+                    conditions.remove(
+                        size_condition
+                    )
+
+                conditions.append(
+                    {
+                        "$or": valid_pair_conditions
+                    }
+                )
+
+        elif color_value and size_value:
+            variant_pair = {
+                "variants": {
+                    "$elemMatch": {
+                        "color": {
+                            "$regex": (
+                                "^"
+                                + re.escape(color_value)
+                                + "$"
+                            ),
+                            "$options": "i",
+                        },
+                        "size": {
+                            "$regex": (
+                                "^"
+                                + re.escape(size_value)
+                                + "$"
+                            ),
+                            "$options": "i",
+                        },
+                    }
+                }
+            }
+
+            legacy_pair = {
+                "$and": [
+                    {
+                        "color": {
+                            "$elemMatch": {
+                                "$regex": (
+                                    "^"
+                                    + re.escape(color_value)
+                                    + "$"
+                                ),
+                                "$options": "i",
+                            }
+                        }
+                    },
+                    {
+                        "size": {
+                            "$elemMatch": {
+                                "$regex": (
+                                    "^"
+                                    + re.escape(size_value)
+                                    + "$"
+                                ),
+                                "$options": "i",
+                            }
+                        }
+                    },
+                ]
+            }
+
+            if color_condition in conditions:
+                conditions.remove(
+                    color_condition
+                )
+
+            if size_condition in conditions:
+                conditions.remove(
+                    size_condition
+                )
+
             conditions.append(
                 {
-                    "$or": color_size_conditions
+                    "$or": [
+                        legacy_pair,
+                        variant_pair,
+                    ]
                 }
             )
 
@@ -692,7 +892,7 @@ class ProductRepository:
             )
 
         # --------------------------------------------------
-        # APPLY ALL CONDITIONS
+        # APPLY CONDITIONS
         # --------------------------------------------------
 
         if conditions:
