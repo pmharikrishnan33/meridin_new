@@ -186,6 +186,11 @@ class ProductService:
             else ""
         )
 
+        department_id = filters.department_id
+        category_id = filters.category_id
+        color_id = filters.color_id
+        size_id = filters.size_id
+
         for index, product in enumerate(products):
             score = 0.0
 
@@ -221,6 +226,33 @@ class ProductService:
                 product.gender or ""
             ).strip().lower()
 
+            product_department_id = getattr(
+                product,
+                "department_id",
+                None,
+            )
+            product_category_id = getattr(
+                product,
+                "category_id",
+                None,
+            )
+
+            product_color_ids = {
+                int(value)
+                for value in (
+                    getattr(product, "color_ids", []) or []
+                )
+                if str(value).strip().isdigit()
+            }
+
+            product_size_ids = {
+                int(value)
+                for value in (
+                    getattr(product, "size_ids", []) or []
+                )
+                if str(value).strip().isdigit()
+            }
+
             product_colors = {
                 str(value).strip().lower()
                 for value in (
@@ -241,7 +273,13 @@ class ProductService:
             # CATEGORY
             # -------------------------------------------------
 
-            if category:
+            if category_id is not None:
+                try:
+                    if product_category_id is not None and int(product_category_id) == int(category_id):
+                        score += 100
+                except (TypeError, ValueError):
+                    pass
+            elif category:
                 if product_category == category:
                     score += 100
 
@@ -263,7 +301,10 @@ class ProductService:
             # COLOR
             # -------------------------------------------------
 
-            if color:
+            if color_id is not None:
+                if color_id in product_color_ids:
+                    score += 90
+            elif color:
                 if color in product_colors:
                     score += 90
 
@@ -271,7 +312,10 @@ class ProductService:
             # SIZE
             # -------------------------------------------------
 
-            if size:
+            if size_id is not None:
+                if size_id in product_size_ids:
+                    score += 90
+            elif size:
                 if size in product_sizes:
                     score += 90
 
@@ -309,7 +353,13 @@ class ProductService:
             # GENDER
             # -------------------------------------------------
 
-            if gender:
+            if department_id is not None:
+                try:
+                    if product_department_id is not None and int(product_department_id) == int(department_id):
+                        score += 40
+                except (TypeError, ValueError):
+                    pass
+            elif gender:
                 if product_gender == gender:
                     score += 40
 

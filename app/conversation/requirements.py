@@ -1,13 +1,16 @@
 """
-Conversation requirement engine.
+Metadata-driven conversation requirement engine.
 
-Determines whether a product-search conversation has enough
-information to perform an inventory search.
+This module does not hardcode clothing-category requirements.
 
-The requirement engine is intentionally separate from the
-product-search handler so conversational logic does not become
-coupled to inventory logic.
+The inventory_metadata document is the source of truth for:
+- required attributes
+- question text
+- option lists
+- category-specific conversational requirements
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,54 +23,17 @@ from app.models.schemas import (
 
 class ConversationRequirementEngine:
     """
-    Determines which product-search information is still required.
+    Determines which attributes are still required before product search.
 
-    Product is the primary search requirement.
+    Category-specific requirements come from inventory_metadata.
 
-    Size is requested as the next conversational refinement when
-    the client wants size-specific shopping.
+    The engine itself does NOT know that:
+        dresses need dress_style
+        shirts need size
+        tops need color
 
-    Color, brand, material, fit, gender, style, pattern and price
-    remain optional filters.
+    Those rules belong to metadata.
     """
-
-    DEFAULT_REQUIRED_FIELDS = (
-        EntityType.PRODUCT,
-        EntityType.SIZE,
-    )
-
-    QUESTION_TEXT = {
-        EntityType.PRODUCT: (
-            "What type of clothing are you looking for? "
-            "For example: shirt, jeans, hoodie, or dress."
-        ),
-        EntityType.CATEGORY: (
-            "What type of clothing are you looking for? "
-            "For example: shirt, jeans, hoodie, or dress."
-        ),
-        EntityType.COLOR: (
-            "What color would you like?"
-        ),
-        EntityType.SIZE: (
-            "What size would you like?\n\n"
-            "1) S\n"
-            "2) M\n"
-            "3) L\n"
-            "4) XL"
-        ),
-        EntityType.BRAND: (
-            "Do you have a preferred brand?"
-        ),
-        EntityType.MATERIAL: (
-            "Do you have a preferred material?"
-        ),
-        EntityType.FIT: (
-            "What fit would you prefer?"
-        ),
-        EntityType.PRICE: (
-            "What price range would you prefer?"
-        ),
-    }
 
     FILTER_ENTITY_MAP = {
         EntityType.CATEGORY: "category",
@@ -87,23 +53,26 @@ class ConversationRequirementEngine:
         EntityType.NECK: "neck",
     }
 
-    def __init__(
-        self,
-        required_fields: Optional[
-            List[EntityType]
-        ] = None,
-    ) -> None:
-        self.required_fields = tuple(
-            required_fields
-            or self.DEFAULT_REQUIRED_FIELDS
-        )
+    DEFAULT_QUESTION_TEXT = {
+        "color": "What color would you like?",
+        "size": "What size would you like?",
+        "gender": "Who are you shopping for?",
+        "brand": "Do you have a preferred brand?",
+        "material": "Do you have a preferred material?",
+        "fit": "What fit would you prefer?",
+        "price": "What price range would you prefer?",
+        "category": "What type of clothing are you looking for?",
+        "query": "What type of clothing are you looking for?",
+    }
 
     def entity_to_filters(
         self,
         entities: List[ExtractedEntity],
     ) -> Dict[str, Any]:
         """
-        Convert extracted entities into product-search filters.
+        Convert extracted entities into generic filters.
+
+        Metadata resolution happens later.
         """
 
         filters: Dict[str, Any] = {}
@@ -121,34 +90,40 @@ class ConversationRequirementEngine:
                 or entity.value
             )
 
+            if value is None:
+                continue
+
+            if isinstance(value, str):
+                value = value.strip()
+
             if not value:
                 continue
 
             if entity.entity_type == EntityType.PRICE:
                 try:
                     price = float(value)
-
-                    operator = (
-                        entity.metadata or {}
-                    ).get(
-                        "operator",
-                        "exact",
-                    )
-
-                    if operator == "max":
-                        filters["max_price"] = price
-
-                    elif operator == "min":
-                        filters["min_price"] = price
-
-                    else:
-                        filters["max_price"] = price
-
                 except (
                     TypeError,
                     ValueError,
                 ):
                     continue
+
+                operator = (
+                    entity.metadata or {}
+                ).get(
+                    "operator",
+                    "exact",
+                )
+
+                if operator == "max":
+                    filters["max_price"] = price
+
+                elif operator == "min":
+                    filters["min_price"] = price
+
+                else:
+                    filters["min_price"] = price
+                    filters["max_price"] = price
 
                 continue
 
@@ -162,9 +137,7 @@ class ConversationRequirementEngine:
         new: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Merge new filters into existing filters.
-
-        New non-empty values take precedence.
+        Merge new filters into existing conversation state.
         """
 
         merged = dict(
@@ -189,12 +162,12 @@ class ConversationRequirementEngine:
         return merged
 
     @staticmethod
-    def _has_value(
+    def has_value(
         filters: Dict[str, Any],
         key: str,
     ) -> bool:
         """
-        Check whether a filter contains a usable value.
+        Determine whether a filter contains a usable value.
         """
 
         value = filters.get(key)
@@ -203,7 +176,9 @@ class ConversationRequirementEngine:
             return False
 
         if isinstance(value, str):
-            return bool(value.strip())
+            return bool(
+                value.strip()
+            )
 
         if isinstance(
             value,
@@ -213,66 +188,59 @@ class ConversationRequirementEngine:
 
         return True
 
-    def missing_requirements(
+    def missing_metadata_requirements(
         self,
         filters: Dict[str, Any],
-        *,
-        required_fields: Optional[
-            List[EntityType]
-        ] = None,
-    ) -> List[EntityType]:
+        requirements: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
         """
-        Return required fields that are still missing.
-
-        Product is checked before size.
+        Return required metadata attributes that are missing.
         """
-
-        fields = tuple(
-            required_fields
-            or self.required_fields
-        )
 
         missing: List[
-            EntityType
+            Dict[str, Any]
         ] = []
 
-        for entity_type in fields:
-
-            filter_key = (
-                self.FILTER_ENTITY_MAP.get(
-                    entity_type
-                )
-            )
-
-            if filter_key is None:
+        for requirement in requirements:
+            if not requirement.get(
+                "required",
+                False,
+            ):
                 continue
 
-            if not self._has_value(
+            key = str(
+                requirement.get(
+                    "key",
+                    "",
+                )
+            ).strip()
+
+            if not key:
+                continue
+
+            if not self.has_value(
                 filters,
-                filter_key,
+                key,
             ):
                 missing.append(
-                    entity_type
+                    requirement
                 )
 
         return missing
 
-    def next_requirement(
+    def next_metadata_requirement(
         self,
         filters: Dict[str, Any],
-        *,
-        required_fields: Optional[
-            List[EntityType]
-        ] = None,
-    ) -> Optional[EntityType]:
+        requirements: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
         """
-        Return the next missing required entity.
+        Return the first missing required metadata attribute.
         """
 
         missing = (
-            self.missing_requirements(
+            self.missing_metadata_requirements(
                 filters,
-                required_fields=required_fields,
+                requirements,
             )
         )
 
@@ -282,35 +250,93 @@ class ConversationRequirementEngine:
             else None
         )
 
-    def question_for(
+    def question_for_requirement(
         self,
-        entity_type: EntityType,
+        requirement: Dict[str, Any],
     ) -> str:
         """
-        Return the customer-facing question for an entity.
+        Build a customer-facing question from metadata.
+
+        Question text is preferably stored in metadata.
         """
 
-        return self.QUESTION_TEXT.get(
-            entity_type,
-            (
-                "Could you please provide "
-                f"the {entity_type.value}?"
-            ),
+        question = requirement.get(
+            "question"
         )
+
+        if (
+            isinstance(question, str)
+            and question.strip()
+        ):
+            return question.strip()
+
+        label = str(
+            requirement.get(
+                "label",
+                requirement.get(
+                    "key",
+                    "attribute",
+                ),
+            )
+        ).strip()
+
+        return (
+            self.DEFAULT_QUESTION_TEXT.get(
+                label.lower(),
+                f"What {label} would you like?",
+            )
+        )
+
+    def add_requirement_value(
+        self,
+        filters: Dict[str, Any],
+        requirement: Dict[str, Any],
+        value: Any,
+    ) -> Dict[str, Any]:
+        """
+        Store a value against a metadata requirement.
+
+        This method intentionally does not hardcode attribute names.
+        """
+
+        updated = dict(
+            filters or {}
+        )
+
+        key = str(
+            requirement.get(
+                "key",
+                "",
+            )
+        ).strip()
+
+        if not key:
+            return updated
+
+        if isinstance(
+            value,
+            str,
+        ):
+            value = value.strip()
+
+        if value is not None:
+            updated[key] = value
+
+        return updated
 
     def evaluate(
         self,
         *,
         current_filters: Dict[str, Any],
+        requirements: Optional[
+            List[Dict[str, Any]]
+        ] = None,
         context: Optional[
             ConversationContext
         ] = None,
-        required_fields: Optional[
-            List[EntityType]
-        ] = None,
     ) -> Tuple[
         bool,
-        Optional[EntityType],
+        Optional[Dict[str, Any]],
         Optional[str],
     ]:
         """
@@ -318,17 +344,19 @@ class ConversationRequirementEngine:
 
         Returns:
 
-        (
-            ready_to_search,
-            missing_entity,
-            question,
-        )
+            ready_to_search
+            missing_requirement
+            question
         """
 
+        metadata_requirements = (
+            requirements or []
+        )
+
         missing = (
-            self.missing_requirements(
+            self.missing_metadata_requirements(
                 current_filters,
-                required_fields=required_fields,
+                metadata_requirements,
             )
         )
 
@@ -339,13 +367,13 @@ class ConversationRequirementEngine:
                 None,
             )
 
-        next_entity = missing[0]
+        requirement = missing[0]
 
         return (
             False,
-            next_entity,
-            self.question_for(
-                next_entity
+            requirement,
+            self.question_for_requirement(
+                requirement
             ),
         )
 
@@ -354,7 +382,7 @@ class ConversationRequirementEngine:
         context: ConversationContext,
     ) -> Dict[str, Any]:
         """
-        Convert stored conversational search state into filters.
+        Restore the previous conversational search state.
         """
 
         filters = dict(
@@ -381,7 +409,7 @@ class ConversationRequirementEngine:
         context: ConversationContext,
     ) -> None:
         """
-        Clear active product-search requirements.
+        Clear active search state.
         """
 
         context.current_product = None

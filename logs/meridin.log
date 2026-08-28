@@ -1532,3 +1532,85 @@ pymongo.errors.DuplicateKeyError: Index build failed: c040cd99-1f78-45c6-b9a6-80
 2026-08-28 18:43:38,846 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
 2026-08-28 18:43:38,846 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
 2026-08-28 18:43:38,859 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 19:46:43,398 | INFO | meridin | Meridin shutting down...
+2026-08-28 19:46:43,874 | INFO | meridin | MongoDB connection closed.
+2026-08-28 19:46:46,333 | INFO | meridin | Meridin starting...
+2026-08-28 19:46:46,333 | INFO | meridin | Loading ML models...
+2026-08-28 19:46:48,228 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-28 19:46:48,238 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-28 19:46:48,238 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-28 19:46:48,261 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-28 19:46:48,261 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-28 19:46:48,261 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 19:46:49,227 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-28 19:46:49,227 | INFO | meridin | Starting MongoDB index verification...
+2026-08-28 19:46:51,526 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-28 19:46:51,527 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-28 19:46:55,591 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-28 19:46:55,591 | INFO | meridin | Meridin started successfully.
+2026-08-28 19:47:15,260 | INFO | meridin | Meridin shutting down...
+2026-08-28 19:47:15,343 | INFO | meridin | MongoDB connection closed.
+2026-08-28 19:47:17,755 | INFO | meridin | Meridin starting...
+2026-08-28 19:47:17,755 | INFO | meridin | Loading ML models...
+2026-08-28 19:47:19,876 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-28 19:47:19,891 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-28 19:47:19,891 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-28 19:47:19,906 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-28 19:47:19,906 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-28 19:47:19,906 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 19:47:20,881 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-28 19:47:20,881 | INFO | meridin | Starting MongoDB index verification...
+2026-08-28 19:47:23,252 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-28 19:47:23,252 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-28 19:47:27,311 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-28 19:47:27,311 | INFO | meridin | Meridin started successfully.
+2026-08-28 19:48:07,616 | INFO | meridin | Meridin shutting down...
+2026-08-28 19:48:07,735 | INFO | meridin | MongoDB connection closed.
+2026-08-28 19:48:10,208 | INFO | meridin | Meridin starting...
+2026-08-28 19:48:10,220 | INFO | meridin | Loading ML models...
+2026-08-28 19:48:12,064 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-28 19:48:12,072 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-28 19:48:12,072 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-28 19:48:12,080 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-28 19:48:12,080 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-28 19:48:12,080 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 19:48:12,962 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-28 19:48:12,962 | INFO | meridin | Starting MongoDB index verification...
+2026-08-28 19:48:15,095 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-28 19:48:15,101 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-28 19:48:19,152 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-28 19:48:19,152 | INFO | meridin | Meridin started successfully.
+2026-08-28 19:48:23,247 | INFO | meridin | Meridin shutting down...
+2026-08-28 19:48:23,313 | INFO | meridin | MongoDB connection closed.
+2026-08-28 19:48:25,551 | INFO | meridin | Meridin starting...
+2026-08-28 19:48:25,559 | INFO | meridin | Loading ML models...
+2026-08-28 19:48:26,991 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-28 19:48:26,999 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-28 19:48:27,008 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-28 19:48:27,008 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-28 19:48:27,008 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-28 19:48:27,008 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 19:48:28,002 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-28 19:48:28,010 | INFO | meridin | Starting MongoDB index verification...
+2026-08-28 19:48:30,197 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-28 19:48:30,197 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-28 19:48:34,276 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-28 19:48:34,276 | INFO | meridin | Meridin started successfully.
+2026-08-28 20:01:16,814 | INFO | meridin | Meridin shutting down...
+2026-08-28 20:01:16,886 | INFO | meridin | MongoDB connection closed.
+2026-08-28 20:01:19,836 | INFO | meridin | Meridin starting...
+2026-08-28 20:01:19,838 | INFO | meridin | Loading ML models...
+2026-08-28 20:01:33,115 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-08-28 20:01:33,182 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-08-28 20:01:33,200 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-08-28 20:01:33,222 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-08-28 20:01:33,223 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-08-28 20:01:33,224 | INFO | meridin | All ML artifacts loaded successfully.
+2026-08-28 20:01:34,961 | INFO | meridin | MongoDB connected successfully (async).
+2026-08-28 20:01:34,962 | INFO | meridin | Starting MongoDB index verification...
+2026-08-28 20:01:37,125 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-08-28 20:01:37,126 | INFO | meridin | MongoDB indexes verified successfully.
+2026-08-28 20:01:41,209 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
+2026-08-28 20:01:41,209 | INFO | meridin | Meridin started successfully.
+2026-08-28 20:02:20,615 | INFO | meridin | Meridin shutting down...
+2026-08-28 20:02:20,695 | INFO | meridin | MongoDB connection closed.

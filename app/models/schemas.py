@@ -187,48 +187,91 @@ class Product(BaseModel):
     description: Optional[str] = None
     price: float = 0.0
 
+    # New canonical catalog identifiers
+    department_id: Optional[int] = None
+    category_id: Optional[int] = None
+
+    # Legacy display fields remain optional during migration.
     category: Optional[str] = None
     type: Optional[str] = None
     brand: Optional[str] = None
 
-    color: List[str] = Field(default_factory=list)
-    size: List[str] = Field(default_factory=list)
+    # New canonical color identifiers
+    color_ids: List[int] = Field(
+        default_factory=list
+    )
+
+    # Legacy display values remain optional during migration.
+    color: List[str] = Field(
+        default_factory=list
+    )
+
+    # New canonical size identifiers
+    size_group: Optional[str] = None
+    size_ids: List[int] = Field(
+        default_factory=list
+    )
+
+    # Legacy display values remain optional during migration.
+    size: List[str] = Field(
+        default_factory=list
+    )
 
     material: Optional[str] = None
     fit: Optional[str] = None
     gender: Optional[str] = None
     age_group: Optional[str] = None
 
-    tags: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(
+        default_factory=list
+    )
+
     stock: int = 0
 
-    media: List[str] = Field(default_factory=list)
-    variants: List[Dict[str, Any]] = Field(default_factory=list)
+    media: List[str] = Field(
+        default_factory=list
+    )
+
+    variants: List[Dict[str, Any]] = Field(
+        default_factory=list
+    )
 
     is_featured: bool = False
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
     @property
     def name(self) -> str:
         return self.title
 
-
 class ProductSearchFilters(BaseModel):
     query: Optional[str] = None
+
+    department_id: Optional[int] = None
+    category_id: Optional[int] = None
+
     category: Optional[str] = None
     type: Optional[str] = None
     brand: Optional[str] = None
     material: Optional[str] = None
     fit: Optional[str] = None
     gender: Optional[str] = None
+
+    color_id: Optional[int] = None
     color: Optional[str] = None
+
+    size_group: Optional[str] = None
+    size_id: Optional[int] = None
     size: Optional[str] = None
 
-    tags: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(
+        default_factory=list
+    )
 
     min_price: Optional[float] = None
     max_price: Optional[float] = None
@@ -240,7 +283,9 @@ class ProductSearchFilters(BaseModel):
     offset: int = 0
     sort_by: str = "relevance"
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid"
+    )
 
 
 class ProductSearchResult(BaseModel):
