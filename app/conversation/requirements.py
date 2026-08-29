@@ -65,7 +65,7 @@ class ConversationRequirementEngine:
         EntityType.PATTERN: "pattern",
         # STYLE is mapped to "type" because the existing Product model
         # stores product-specific type values in the "type" field.
-        EntityType.STYLE: "type",
+        EntityType.STYLE: "style",
         EntityType.OCCASION: "occasion",
         EntityType.SEASON: "season",
         EntityType.SLEEVE: "sleeve",
@@ -84,6 +84,7 @@ class ConversationRequirementEngine:
         "gender": EntityType.GENDER,
         "type": EntityType.STYLE,
         "style": EntityType.STYLE,
+        "dress_style": EntityType.STYLE,
         "pattern": EntityType.PATTERN,
         "occasion": EntityType.OCCASION,
         "season": EntityType.SEASON,

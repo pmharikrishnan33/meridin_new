@@ -792,16 +792,15 @@ class ProductSearchHandler(BaseHandler):
                 ]
             )
 
-        if normalized_key in {
-            "dress_style",
-            "dressstyle",
-        }:
+        attributes = getattr(filters, "attributes", {}) or {}
+        if normalized_key in attributes:
+            return bool(attributes.get(normalized_key))
+
+        if normalized_key in {"dress_style", "dressstyle"}:
             return bool(
-                filters.style
-                or filters.type
-                or entity_values.get(
-                    "style"
-                )
+                attributes.get("dress_style")
+                or filters.style
+                or entity_values.get("style")
             )
 
         if normalized_key in {

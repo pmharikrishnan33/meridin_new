@@ -313,6 +313,14 @@ async def _ensure_template_indexes() -> None:
     )
 
 
+async def _ensure_inventory_metadata_indexes() -> None:
+    await _create_index(
+        collections.inventory_metadata,
+        [("tenant_id", 1)],
+        name="inventory_metadata_tenant_lookup",
+    )
+
+
 async def _ensure_inventory_indexes_for_tenant(
     tenant_id: str,
 ) -> None:
@@ -433,6 +441,40 @@ async def _ensure_inventory_indexes_for_tenant(
             ("color", 1),
         ],
         name="product_color_lookup",
+    )
+
+    # ---------------------------------------------------------
+    # CANONICAL CATALOG IDS
+    # ---------------------------------------------------------
+
+    await _create_index(
+        collection,
+        [("department_id", 1), ("category_id", 1)],
+        name="product_department_category_id_lookup",
+    )
+
+    await _create_index(
+        collection,
+        [("category_id", 1), ("price", 1), ("stock", 1)],
+        name="product_category_id_price_stock_lookup",
+    )
+
+    await _create_index(
+        collection,
+        [("color_ids", 1)],
+        name="product_color_ids_lookup",
+    )
+
+    await _create_index(
+        collection,
+        [("size_ids", 1)],
+        name="product_size_ids_lookup",
+    )
+
+    await _create_index(
+        collection,
+        [("attributes.dress_style", 1)],
+        name="product_dress_style_lookup",
     )
 
     # ---------------------------------------------------------
@@ -588,6 +630,7 @@ async def ensure_indexes() -> None:
     await _ensure_order_indexes()
 
     await _ensure_template_indexes()
+    await _ensure_inventory_metadata_indexes()
 
     # =========================================================
     # TENANT INVENTORY

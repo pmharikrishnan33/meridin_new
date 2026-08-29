@@ -1,39 +1,31 @@
-"""
-Search result ranking.
+"""Search result ranking."""
 
-Provides a simple scoring function that combines text relevance,
-product popularity (featured flag), and recency to produce a final
-score for each search result.
-"""
-
+from datetime import datetime, timezone
 from typing import List
 
 from app.models.schemas import ProductSearchResult
 
 
 def rank_results(results: List[ProductSearchResult]) -> List[ProductSearchResult]:
-    """
-    Re-rank search results by a weighted score.
-
-    The score is computed as::
-
-        final = 0.6 * relevance + 0.2 * popularity + 0.2 * recency
-
-    where ``relevance`` is the existing score, ``popularity`` is 1.0 if
-    the product is featured, and ``recency`` is normalized to [0, 1]
-    based on ``created_at``.
-    """
     if not results:
         return results
 
-    # Compute recency normalization
-    timestamps = [r.product.created_at.timestamp() for r in results]
+    timestamps = []
+    for result in results:
+        created_at = result.product.created_at
+        if created_at is None:
+            timestamps.append(0.0)
+        else:
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            timestamps.append(created_at.timestamp())
+
     min_ts, max_ts = min(timestamps), max(timestamps)
     ts_range = max_ts - min_ts if max_ts > min_ts else 1.0
 
-    for r in results:
-        popularity = 1.0 if r.product.is_featured else 0.0
-        recency = (r.product.created_at.timestamp() - min_ts) / ts_range
-        r.score = 0.6 * r.score + 0.2 * popularity + 0.2 * recency
+    for result, timestamp in zip(results, timestamps):
+        popularity = 1.0 if result.product.is_featured else 0.0
+        recency = (timestamp - min_ts) / ts_range if timestamp else 0.0
+        result.score = 0.6 * result.score + 0.2 * popularity + 0.2 * recency
 
-    return sorted(results, key=lambda r: r.score, reverse=True)
+    return sorted(results, key=lambda item: item.score, reverse=True)

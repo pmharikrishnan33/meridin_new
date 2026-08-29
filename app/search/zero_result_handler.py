@@ -83,7 +83,7 @@ async def find_best_relaxation(
     """
     relaxable_keys = [
         key for key in filters
-        if key in {"color", "size", "type", "min_price", "max_price", "fit", "brand"}
+        if key in {"color", "size", "type", "min_price", "max_price", "fit", "brand", "material", "style", "dress_style", "pattern", "occasion", "season", "sleeve", "neck"}
     ]
     if not relaxable_keys:
         return None
@@ -148,6 +148,13 @@ def build_relaxation_message(
         "material": "material",
         "fit": "fit",
         "gender": "gender",
+        "style": "style",
+        "dress_style": "dress style",
+        "pattern": "pattern",
+        "occasion": "occasion",
+        "season": "season",
+        "sleeve": "sleeve style",
+        "neck": "neck style",
     }
     label = display_names.get(removed_key, removed_key)
     return (

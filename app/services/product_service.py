@@ -425,6 +425,20 @@ class ProductService:
                 if product_fit == fit:
                     score += 45
 
+            # Metadata-driven attributes.
+            product_attributes = {
+                str(k).strip().lower(): v
+                for k, v in (getattr(product, "attributes", {}) or {}).items()
+            }
+            for key, requested in (getattr(filters, "attributes", {}) or {}).items():
+                if requested is None:
+                    continue
+                actual = product_attributes.get(str(key).strip().lower())
+                if actual is None:
+                    actual = getattr(product, str(key), None)
+                if actual is not None and str(actual).strip().lower() == str(requested).strip().lower():
+                    score += 55
+
             # -------------------------------------------------
             # GENDER / DEPARTMENT
             # -------------------------------------------------
@@ -1388,7 +1402,8 @@ class ProductService:
                     ).strip().lower()
 
             elif entity_type == EntityType.STYLE:
-                filters.type = value.lower()
+                filters.style = value.lower()
+                filters.attributes["style"] = value.lower()
 
             elif entity_type == EntityType.BRAND:
                 filters.brand = value.lower()

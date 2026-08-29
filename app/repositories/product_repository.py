@@ -822,6 +822,32 @@ class ProductRepository:
             )
 
         # --------------------------------------------------
+        # METADATA-DRIVEN CATEGORY ATTRIBUTES
+        # --------------------------------------------------
+
+        for key, value in (getattr(filters, "attributes", {}) or {}).items():
+            if value is None or (isinstance(value, str) and not value.strip()):
+                continue
+            if isinstance(value, (list, tuple, set)):
+                normalized_values = [str(v).strip().lower() for v in value if str(v).strip()]
+                if normalized_values:
+                    conditions.append({
+                        "attributes": {
+                            "$elemMatch": {
+                                "key": key,
+                                "value": {"$in": normalized_values},
+                            }
+                        }
+                    })
+                continue
+            conditions.append({
+                "$or": [
+                    {f"attributes.{key}": {"$regex": "^" + re.escape(str(value).strip()) + "$", "$options": "i"}},
+                    {f"{key}": {"$regex": "^" + re.escape(str(value).strip()) + "$", "$options": "i"}},
+                ]
+            })
+
+        # --------------------------------------------------
         # TAGS
         # --------------------------------------------------
 

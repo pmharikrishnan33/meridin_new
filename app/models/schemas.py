@@ -275,6 +275,11 @@ class Product(BaseModel):
         default_factory=list
     )
 
+    # Category-specific metadata attributes, e.g. dress_style.
+    attributes: Dict[str, Any] = Field(
+        default_factory=dict
+    )
+
     is_featured: bool = False
 
     created_at: Optional[datetime] = None
@@ -327,6 +332,11 @@ class ProductSearchFilters(BaseModel):
     season: Optional[str] = None
     sleeve: Optional[str] = None
     neck: Optional[str] = None
+
+    # Metadata-driven category attributes not known at schema design time.
+    attributes: Dict[str, Any] = Field(
+        default_factory=dict
+    )
 
     limit: int = 10
     offset: int = 0

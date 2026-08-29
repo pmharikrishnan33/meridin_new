@@ -10,7 +10,8 @@ from typing import Dict, Any, List, Optional
 
 from app.database.collections import collections
 from app.database.mongodb import mongodb
-from app.models.schemas import Product
+from app.models.schemas import Product, ProductSearchFilters
+from app.services.catalog_metadata_service import catalog_metadata_service
 from app.utils.helpers import normalize_mongo_doc
 from app.utils.logger import logger
 
@@ -40,8 +41,10 @@ class InventoryService:
             logger.debug("Stock level check skipped — MongoDB unavailable.")
             return {"in_stock": False, "total_stock": 0, "variants": []}
 
+        from app.repositories.product_repository import ProductRepository
+        candidates = ProductRepository._id_candidates(product_id)
         doc = await collections.products(tenant_id).find_one({
-            "_id": product_id,
+            "_id": {"$in": candidates},
             "tenant_id": tenant_id,
         })
 
@@ -49,8 +52,32 @@ class InventoryService:
             return {"in_stock": False, "total_stock": 0, "variants": []}
 
         product = Product(**normalize_mongo_doc(doc))
-        size_matches = not size or any(value.lower() == size.lower() for value in product.size)
-        color_matches = not color or any(value.lower() == color.lower() for value in product.color)
+
+        color_id = None
+        size_id = None
+        if color or size:
+            filters = ProductSearchFilters(
+                category=product.category,
+                color=color,
+                size=size,
+                size_group=product.size_group,
+            )
+            filters, _ = await catalog_metadata_service.normalize_filters(
+                tenant_id=tenant_id,
+                filters=filters,
+                source_text=" ".join(v for v in (color, size) if v),
+            )
+            color_id = filters.color_id
+            size_id = filters.size_id
+
+        size_matches = not size or (
+            (size_id is not None and size_id in set(product.size_ids))
+            or any(value.lower() == size.lower() for value in product.size)
+        )
+        color_matches = not color or (
+            (color_id is not None and color_id in set(product.color_ids))
+            or any(value.lower() == color.lower() for value in product.color)
+        )
         in_stock = size_matches and color_matches and product.stock > 0
 
         return {

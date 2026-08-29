@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # webhook secret is not supplied.
     APP_SECRET: str
     TRUST_PROXY_HEADERS: bool = False
+    CORS_ORIGINS: str = "http://localhost:5500,http://127.0.0.1:5500,http://localhost:5501,http://127.0.0.1:5501"
 
     # ==========================================================
     # ADMIN DASHBOARD

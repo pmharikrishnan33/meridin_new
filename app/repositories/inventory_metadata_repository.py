@@ -5,31 +5,23 @@ from app.database.mongodb import mongodb
 
 
 class InventoryMetadataRepository:
-
     async def get(
         self,
         tenant_id: str,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Return inventory metadata.
-
-        The current metadata document is global/shared.
-        Tenant-specific metadata can be introduced later
-        if required.
-        """
-
-        if not mongodb.is_connected:
+        """Return the tenant's metadata, with a global fallback."""
+        if not tenant_id or not mongodb.is_connected:
             return None
 
-        document = (
-            await collections.inventory_metadata.find_one(
-                {}
-            )
+        document = await collections.inventory_metadata.find_one(
+            {"tenant_id": tenant_id}
+        )
+        if document:
+            return document
+
+        return await collections.inventory_metadata.find_one(
+            {"tenant_id": {"$exists": False}}
         )
 
-        return document
 
-
-inventory_metadata_repository = (
-    InventoryMetadataRepository()
-)
+inventory_metadata_repository = InventoryMetadataRepository()

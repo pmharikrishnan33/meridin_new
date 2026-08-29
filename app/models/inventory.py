@@ -33,15 +33,19 @@ class ClothingItem(BaseModel):
     title: str
     description: Optional[str] = None
     media: List[str] = Field(default_factory=list)
-    category: Optional[str] = None      # e.g. "shirt", "dress", "pants"
+    department_id: Optional[int] = None
+    category_id: Optional[int] = None
+    category: Optional[str] = None      # legacy display category
     type: Optional[str] = None          # e.g. "t-shirt", "formal shirt"
     brand: Optional[str] = None
     color: Optional[str] = None         # single attribute ID (legacy)
     size: Optional[str] = None          # single attribute ID (legacy)
-    color_ids: List[str] = Field(default_factory=list)  # array of color attribute IDs
-    size_ids: List[str] = Field(default_factory=list)   # array of size attribute IDs
+    color_ids: List[int] = Field(default_factory=list)  # array of color attribute IDs
+    size_ids: List[int] = Field(default_factory=list)   # array of size attribute IDs
     price: float = 0.0
     stock: int = 0
+    size_group: Optional[str] = None
+    attributes: Dict[str, Any] = Field(default_factory=dict)
     age_group: Optional[str] = None     # e.g. "adult", "kids", "unisex"
     created_at: datetime = Field(default_factory=_now_utc)
 

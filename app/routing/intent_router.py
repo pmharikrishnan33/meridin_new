@@ -1,3 +1,4 @@
+
 """
 Intent Router - routes understood messages to appropriate handlers.
 
@@ -21,6 +22,7 @@ from typing import Any, Dict, Optional
 
 from app.ai.fallback import ai_fallback
 from app.conversation.manager import conversation_manager
+from app.conversation.requirements import ConversationRequirementEngine
 from app.models.schemas import (
     BotResponse,
     EntityType,
@@ -722,30 +724,28 @@ class IntentRouter:
         if not missing:
             return
 
-        try:
-            entity_type = EntityType(
-                str(missing)
-            )
-        except ValueError:
-            logger.warning(
-                "Product search returned unknown "
-                "missing requirement: %s",
-                missing,
-            )
-            return
-
         requirement = (
             response.metadata.get(
                 "requirement"
             )
             or {
-                "key": str(
-                    missing
-                ),
-                "question": response.text
-                or "",
+                "key": str(missing),
+                "question": response.text or "",
             }
         )
+
+        requirement_engine = ConversationRequirementEngine()
+        entity_type = requirement_engine.entity_type_for_requirement(
+            requirement
+        )
+
+        if entity_type is None:
+            logger.warning(
+                "Product search returned a requirement that has no "
+                "conversation entity mapping: %s",
+                missing,
+            )
+            return
 
         session.context.awaiting_entity = (
             entity_type

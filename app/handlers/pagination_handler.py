@@ -108,6 +108,11 @@ class PaginationHandler(BaseHandler):
         # CURRENT PAGE
         # =====================================================
 
+        page_size = max(1, min(
+            int(conversation_context.active_search_page_size or PAGE_SIZE),
+            PAGE_SIZE,
+        ))
+
         current_page = (
             conversation_context
             .active_search_page
@@ -135,7 +140,7 @@ class PaginationHandler(BaseHandler):
 
         offset = (
             (next_page - 1)
-            * PAGE_SIZE
+            * page_size
         )
 
         total = len(result_ids)
@@ -146,7 +151,7 @@ class PaginationHandler(BaseHandler):
 
         page_ids = result_ids[
             offset:
-            offset + PAGE_SIZE
+            offset + page_size
         ]
 
         if not page_ids:
@@ -244,7 +249,7 @@ class PaginationHandler(BaseHandler):
         # =====================================================
 
         has_next = (
-            offset + PAGE_SIZE
+            offset + page_size
             < total
         )
 
@@ -317,7 +322,7 @@ class PaginationHandler(BaseHandler):
                 "page": next_page,
 
                 "page_size":
-                    PAGE_SIZE,
+                    page_size,
 
                 "offset": offset,
 

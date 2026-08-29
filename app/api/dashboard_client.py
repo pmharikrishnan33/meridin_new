@@ -23,10 +23,15 @@ class ProductCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
     price: float = Field(ge=0)
+    department_id: Optional[int] = None
+    category_id: Optional[int] = None
     category: Optional[str] = None
     type: Optional[str] = None
     brand: Optional[str] = None
+    color_ids: List[int] = Field(default_factory=list)
     color: List[str] = Field(default_factory=list)
+    size_group: Optional[str] = None
+    size_ids: List[int] = Field(default_factory=list)
     size: List[str] = Field(default_factory=list)
     material: Optional[str] = None
     fit: Optional[str] = None
@@ -35,9 +40,8 @@ class ProductCreateRequest(BaseModel):
     tags: List[str] = Field(default_factory=list)
     stock: int = Field(default=0, ge=0)
     media: List[str] = Field(default_factory=list)
-    variants: List[Dict[str, Any]] = Field(
-        default_factory=list
-    )
+    variants: List[Dict[str, Any]] = Field(default_factory=list)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
     is_featured: bool = False
 
 
@@ -294,6 +298,36 @@ async def product_detail(
             mode="json",
         )
     }
+
+
+@router.patch("/products/{product_id}")
+async def update_product(
+    product_id: str,
+    payload: ProductCreateRequest,
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    tenant_id = _client_id(user)
+    if not mongodb.is_connected:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is unavailable.")
+
+    candidates = [product_id]
+    if ObjectId.is_valid(product_id):
+        candidates.append(ObjectId(product_id))
+
+    document = payload.model_dump()
+    document["updated_at"] = datetime.now(timezone.utc)
+
+    result = await collections.products(tenant_id).update_one(
+        {"tenant_id": tenant_id, "_id": {"$in": candidates}},
+        {"$set": document},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    updated = await collections.products(tenant_id).find_one(
+        {"tenant_id": tenant_id, "_id": {"$in": candidates}}
+    )
+    return {"item": _serialize(updated)}
 
 
 @router.delete("/products/{product_id}")
@@ -696,3 +730,5 @@ async def analytics(
         "daily": daily,
         "intents": intents,
     }
+
+

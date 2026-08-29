@@ -26,7 +26,7 @@ def _build_ranking_prompt(query: str, products: List[ClothingItem]) -> List[Dict
         product_lines.append(
             f"[{i}] id={p.id} | title={p.title} | "
             f"desc={p.description or 'N/A'} | category={p.category or 'N/A'} | "
-            f"type={p.type or 'N/A'}"
+            f"type={p.type or 'N/A'} | colors={p.color_ids} | sizes={p.size_ids}"
         )
 
     system = (
@@ -329,3 +329,4 @@ def _static_narrowing_questions(filters: Dict[str, Any]) -> List[str]:
         questions.append("Do you have a specific category in mind?")
     questions.append("What's your preferred budget range?")
     return questions
+

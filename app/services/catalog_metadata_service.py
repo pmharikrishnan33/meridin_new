@@ -33,26 +33,20 @@ class CatalogMetadataService:
         """
         Return catalog metadata.
 
-        Metadata may be shared across tenants or explicitly tenant-scoped.
-        Shared metadata is preferred when present.
+        Tenant-scoped metadata is authoritative. A global document is used
+        only as a fallback when no tenant-specific document exists.
         """
 
         if not mongodb.is_connected:
             return {}
 
         document = await collections.inventory_metadata.find_one(
-            {
-                "tenant_id": {
-                    "$exists": False,
-                }
-            }
+            {"tenant_id": tenant_id}
         )
 
         if not document:
             document = await collections.inventory_metadata.find_one(
-                {
-                    "tenant_id": tenant_id,
-                }
+                {"tenant_id": {"$exists": False}}
             )
 
         return dict(document) if document else {}
@@ -1136,6 +1130,85 @@ class CatalogMetadataService:
 
         if normalized_size:
             filters.size = normalized_size
+
+        # Resolve canonical department ID.
+        if filters.gender and filters.department_id is None:
+            department_ids = metadata.get("department_ids") or {}
+            gender_key = str(filters.gender).strip().lower()
+            if isinstance(department_ids, dict) and gender_key in department_ids:
+                try:
+                    filters.department_id = int(department_ids[gender_key])
+                except (TypeError, ValueError):
+                    pass
+
+        # Resolve canonical category ID when the department makes it unique.
+        if filters.category_id is None and filters.category:
+            matching = self._get_matching_category_ids(
+                metadata, filters.category
+            )
+            if filters.department_id is not None:
+                category_ids = metadata.get("category_ids") or {}
+                for dept_name, mapping in category_ids.items():
+                    dept_id = (metadata.get("department_ids") or {}).get(dept_name)
+                    try:
+                        if int(dept_id) != int(filters.department_id):
+                            continue
+                    except (TypeError, ValueError):
+                        continue
+                    if isinstance(mapping, dict):
+                        value = mapping.get(filters.category)
+                        if value is not None:
+                            try:
+                                filters.category_id = int(value)
+                            except (TypeError, ValueError):
+                                pass
+                    break
+            elif len(matching) == 1:
+                filters.category_id = matching[0]
+
+        # Resolve canonical color ID.
+        if filters.color_id is None and filters.color:
+            color_map = metadata.get("color_map") or {}
+            if isinstance(color_map, dict):
+                value = color_map.get(filters.color)
+                if value is not None:
+                    try:
+                        filters.color_id = int(value)
+                    except (TypeError, ValueError):
+                        pass
+
+        # Resolve canonical size ID using the category's size group.
+        if filters.size_id is None and filters.size:
+            size_group_name = filters.size_group or self._resolve_size_group(
+                metadata, filters.category
+            )
+            size_groups = metadata.get("size_groups") or {}
+            if size_group_name and isinstance(size_groups, dict):
+                group = size_groups.get(size_group_name) or {}
+                if isinstance(group, dict):
+                    value = group.get(filters.size)
+                    if value is None:
+                        value = group.get(str(filters.size).upper())
+                    if value is not None:
+                        try:
+                            filters.size_id = int(value)
+                            filters.size_group = str(size_group_name)
+                        except (TypeError, ValueError):
+                            pass
+
+        # Map fixed entity fields into the generic metadata attribute bag.
+        attributes = dict(filters.attributes or {})
+        for key in ("style", "pattern", "occasion", "season", "sleeve", "neck"):
+            value = getattr(filters, key, None)
+            if value:
+                attributes[key] = value
+
+        # dress_style is a category-specific requirement in the supplied catalog.
+        if filters.category == "dresses" and filters.style:
+            attributes["dress_style"] = filters.style
+            filters.type = filters.type if filters.type not in {None, filters.style} else None
+
+        filters.attributes = attributes
 
         return filters, None
 
