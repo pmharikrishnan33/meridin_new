@@ -1,35 +1,68 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.conversation.context import ConversationContextManager
 from app.models.schemas import (
     ConversationContext,
-    IntentType,
     EntityType,
     ExtractedEntity,
-    MessageUnderstanding,
+    IntentType,
     MessageDirection,
-    MessageType
+    MessageType,
+    MessageUnderstanding,
 )
+
+
+MAX_MESSAGE_HISTORY = 20
+DEFAULT_PAGE_SIZE = 3
 
 
 @dataclass
 class ConversationSession:
     """
-    In-memory conversation session with context management.
-    Persisted to MongoDB periodically and on important events.
+    In-memory representation of a conversation session.
+
+    The conversation manager is responsible for persistence. This class
+    owns the session state and provides safe helpers for updating search,
+    clarification, and message-history state.
     """
 
     conversation_id: str
     tenant_id: str
     customer_id: str
-    context: ConversationContext = field(default_factory=ConversationContext)
-    message_history: List[Dict[str, Any]] = field(default_factory=list)
+
+    context: ConversationContext = field(
+        default_factory=ConversationContext
+    )
+
+    message_history: List[Dict[str, Any]] = field(
+        default_factory=list
+    )
+
     is_active: bool = True
-    last_updated: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    search_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+    last_updated: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    search_cache: Dict[str, Dict[str, Any]] = field(
+        default_factory=dict
+    )
+
+    def __post_init__(self) -> None:
+        """
+        Keep the private context history synchronized after construction.
+        """
+
+        self._synchronize_history()
+
+    # ============================================================
+    # MESSAGE HISTORY
+    # ============================================================
 
     def add_message(
         self,
@@ -45,97 +78,113 @@ class ConversationSession:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Add message to history and update context.
+        Add a message to the bounded conversation history.
         """
 
-        msg = {
+        serialized_entities: List[Dict[str, Any]] = []
+
+        for entity in entities or []:
+            if hasattr(entity, "model_dump"):
+                serialized_entities.append(
+                    entity.model_dump()
+                )
+            elif isinstance(entity, dict):
+                serialized_entities.append(
+                    dict(entity)
+                )
+
+        message = {
             "message_id": message_id,
             "direction": direction.value,
-            "text": text,
+            "text": text or "",
             "message_type": message_type.value,
-            "intent": intent.value if intent else None,
+            "intent": (
+                intent.value
+                if isinstance(intent, IntentType)
+                else intent
+            ),
             "intent_confidence": intent_confidence,
-            "entities": [e.model_dump() if hasattr(e, 'model_dump') else e for e in entities] if entities else [],
+            "entities": serialized_entities,
             "is_from_bot": is_from_bot,
             "bot_response_type": bot_response_type,
             "metadata": metadata or {},
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(
+                timezone.utc
+            ).isoformat(),
         }
 
-        self.message_history.append(msg)
+        self.message_history.append(message)
 
-        # Keep ConversationContext's private history synchronized with
-        # the session history so AI fallback and other context consumers
-        # can access the same conversation history.
-        self.context._message_history = self.message_history
+        if len(self.message_history) > MAX_MESSAGE_HISTORY:
+            self.message_history = self.message_history[
+                -MAX_MESSAGE_HISTORY:
+            ]
 
         self.context.message_count += 1
         self.last_updated = datetime.now(timezone.utc)
 
-        if len(self.message_history) > 20:
-            self.message_history = self.message_history[-20:]
-            self.context._message_history = self.message_history
+        self._synchronize_history()
 
-        # Keep only last 20 messages in memory
-        if len(self.message_history) > 20:
-            self.message_history = self.message_history[-20:]
+    def _synchronize_history(self) -> None:
+        """
+        Synchronize the private context history with the bounded session
+        history.
+
+        ConversationContext intentionally keeps this as a PrivateAttr, so
+        it is never persisted directly as part of the Pydantic model.
+        """
+
+        self.context._message_history = self.message_history
+
+    # ============================================================
+    # UNDERSTANDING / CONTEXT
+    # ============================================================
 
     def update_context_from_understanding(
         self,
-        understanding: MessageUnderstanding
+        understanding: MessageUnderstanding,
     ) -> None:
         """
-        Update conversation context from ML understanding.
+        Update conversation context from message understanding.
+
+        Search filters are merged rather than replaced so a follow-up such
+        as "M" can refine an earlier "black shirt" search.
         """
 
-        self.context.current_intent = understanding.intent
+        ConversationContextManager.update_from_understanding(
+            self.context,
+            understanding,
+        )
 
-        # Update entities in context
-        for entity in understanding.entities:
-            if entity.entity_type == EntityType.CATEGORY:
-                self.context.current_category = entity.normalized_value or entity.value
-
-        # Store last search if this was a product search. Merge with any
-        # previously captured filters so follow-up messages can refine the
-        # set instead of dropping the earlier context.
         if understanding.intent == IntentType.PRODUCT_SEARCH:
-            merged_filters = ConversationContextManager.merge_filters(
-                self.context.last_search_filters,
-                self._entities_to_filters(understanding.entities),
+            new_filters = (
+                ConversationContextManager.entities_to_filters(
+                    understanding.entities
+                )
             )
-            self.context.last_search_filters = merged_filters
 
-    def _entities_to_filters(self, entities: List[ExtractedEntity]) -> Dict[str, Any]:
-        """
-        Convert extracted entities to search filters.
-        """
+            self.context.last_search_filters = (
+                ConversationContextManager.merge_filters(
+                    self.context.last_search_filters,
+                    new_filters,
+                )
+            )
 
-        filters = {}
-        for entity in entities:
-            if entity.entity_type == EntityType.CATEGORY:
-                filters["category"] = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.PRODUCT:
-                filters["query"] = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.COLOR:
-                filters["color"] = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.SIZE:
-                filters["size"] = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.FIT:
-                filters["fit"] = entity.normalized_value or entity.value
-            elif entity.entity_type == EntityType.PRICE:
-                try:
-                    price = float(entity.normalized_value or entity.value)
-                    operator = (entity.metadata or {}).get("operator", "exact")
-                    if operator == "max":
-                        filters["max_price"] = price
-                    elif operator == "min":
-                        filters["min_price"] = price
-                    elif operator == "exact":
-                        filters["max_price"] = price
-                except (ValueError, TypeError):
-                    pass
+        self.last_updated = datetime.now(timezone.utc)
 
-        return filters
+    # Backwards-compatible helper retained for callers that used the
+    # previous private conversion method.
+    @staticmethod
+    def _entities_to_filters(
+        entities: List[ExtractedEntity],
+    ) -> Dict[str, Any]:
+        return ConversationContextManager.entities_to_filters(
+            entities
+        )
+
+    # ============================================================
+    # ACTIVE SEARCH
+    # ============================================================
 
     def store_active_search(
         self,
@@ -145,207 +194,579 @@ class ConversationSession:
         result_ids: List[str],
         offset: int = 0,
         total: Optional[int] = None,
-        page_size: int = 10,
+        page_size: int = DEFAULT_PAGE_SIZE,
     ) -> Dict[str, Any]:
         """
-        Persist the most recent active search state in the session cache.
+        Store the current search state.
+
+        The result list is bounded to avoid accidentally creating a very
+        large conversation document.
         """
 
-        total = total if total is not None else len(result_ids)
-        page = max(1, (offset // page_size) + 1) if page_size > 0 else 1
+        safe_page_size = max(
+            1,
+            int(page_size or DEFAULT_PAGE_SIZE),
+        )
+
+        safe_offset = max(
+            0,
+            int(offset or 0),
+        )
+
+        safe_result_ids = [
+            str(result_id)
+            for result_id in (result_ids or [])
+            if result_id is not None
+        ]
+
+        safe_total = (
+            int(total)
+            if total is not None
+            else len(safe_result_ids)
+        )
+
+        safe_total = max(
+            0,
+            safe_total,
+        )
+
+        page = (
+            safe_offset // safe_page_size
+        ) + 1
+
         page_state = {
             "search_key": search_key,
             "query": query,
-            "filters": filters or {},
-            "result_ids": result_ids,
-            "offset": offset,
-            "total": total,
+            "filters": dict(filters or {}),
+            "result_ids": safe_result_ids,
+            "offset": safe_offset,
+            "total": safe_total,
             "page": page,
-            "page_size": page_size,
+            "page_size": safe_page_size,
         }
 
         self.search_cache[search_key] = page_state
+
+        # Keep only the current active search in the cache. Old search
+        # states are stale and can otherwise grow indefinitely.
+        for key in list(self.search_cache.keys()):
+            if key != search_key:
+                del self.search_cache[key]
+
         self.context.active_search_key = search_key
-        self.context.active_search_offset = offset
-        self.context.active_search_total = total
+        self.context.active_search_offset = safe_offset
+        self.context.active_search_total = safe_total
         self.context.active_search_query = query
-        self.context.active_search_filters = filters or {}
-        self.context.active_search_results = result_ids
+        self.context.active_search_filters = dict(
+            filters or {}
+        )
+        self.context.active_search_results = safe_result_ids
         self.context.active_search_page = page
-        self.context.active_search_page_size = page_size
+        self.context.active_search_page_size = safe_page_size
+
+        self.last_updated = datetime.now(timezone.utc)
+
         return page_state
 
     def get_active_search(self) -> Optional[Dict[str, Any]]:
         """
-        Return the currently tracked active search state.
+        Return the currently active search state.
         """
 
         search_key = self.context.active_search_key
+
         if not search_key:
             return None
+
         return self.search_cache.get(search_key)
 
-    def advance_active_search(self, page_size: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def advance_active_search(
+        self,
+        page_size: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Advance the stored active search by one page using the cached result list.
+        Advance the active search by one page.
+
+        Does not move beyond the end of the result set.
         """
 
         active = self.get_active_search()
+
         if not active:
             return None
 
-        page_size = page_size or self.context.active_search_page_size or active.get("page_size", 10)
-        page = active.get("page", 1)
-        next_offset = min(active.get("offset", 0) + page_size, active.get("total", 0))
-        if next_offset < 0:
-            next_offset = 0
+        safe_page_size = max(
+            1,
+            int(
+                page_size
+                or self.context.active_search_page_size
+                or active.get(
+                    "page_size",
+                    DEFAULT_PAGE_SIZE,
+                )
+            ),
+        )
+
+        total = max(
+            0,
+            int(active.get("total", 0)),
+        )
+
+        current_offset = max(
+            0,
+            int(active.get("offset", 0)),
+        )
+
+        next_offset = min(
+            current_offset + safe_page_size,
+            total,
+        )
 
         active["offset"] = next_offset
-        active["page"] = max(1, (next_offset // page_size) + 1) if page_size > 0 else 1
-        active["page_size"] = page_size
+        active["page_size"] = safe_page_size
+        active["page"] = (
+            next_offset // safe_page_size
+        ) + 1
 
-        self.context.active_search_offset = active["offset"]
+        self.context.active_search_offset = next_offset
         self.context.active_search_page = active["page"]
-        self.context.active_search_page_size = page_size
+        self.context.active_search_page_size = safe_page_size
+
+        self.last_updated = datetime.now(timezone.utc)
+
         return active
 
-    def resolve_reply_context(self, incoming_text: str) -> Optional[str]:
+    def clear_active_search(self) -> None:
         """
-        Resolve a lightweight follow-up product-selection context from the
-        most recent outbound product-list response.
-
-        This is the minimal notebook-style reply-linking step: when the user
-        follows up with a selection phrase such as "this", "that", or "one",
-        the session reuses the most recent product list response as the
-        selected context.
+        Clear the active pagination/search state.
         """
 
-        text_lower = (incoming_text or "").lower()
-        selection_markers = {"this", "that", "this one", "that one"}
+        self.search_cache.clear()
+
+        self.context.active_search_key = None
+        self.context.active_search_offset = 0
+        self.context.active_search_total = 0
+        self.context.active_search_query = None
+        self.context.active_search_filters = {}
+        self.context.active_search_results = []
+        self.context.active_search_page = 1
+        self.context.active_search_page_size = DEFAULT_PAGE_SIZE
+
+        self.last_updated = datetime.now(timezone.utc)
+
+    # ============================================================
+    # PRODUCT REPLY CONTEXT
+    # ============================================================
+
+    def resolve_reply_context(
+        self,
+        incoming_text: str,
+    ) -> Optional[str]:
+        """
+        Resolve a lightweight product-selection reference.
+
+        This intentionally only resolves unambiguous first-result references
+        such as "this", "that", "this one", and "that one".
+
+        It does not claim that an arbitrary product in a list was selected.
+        """
+
+        text_lower = (
+            incoming_text or ""
+        ).strip().lower()
+
+        selection_patterns = (
+            r"\bthis\b",
+            r"\bthat\b",
+            r"\bthis\s+one\b",
+            r"\bthat\s+one\b",
+        )
+
         if not any(
-            re.search(rf"\b{re.escape(marker)}\b", text_lower)
-            for marker in selection_markers
+            re.search(
+                pattern,
+                text_lower,
+            )
+            for pattern in selection_patterns
         ):
             return None
 
-        for message in reversed(self.message_history):
-            if message.get("direction") != "outbound":
+        for message in reversed(
+            self.message_history
+        ):
+            if (
+                message.get("direction")
+                != MessageDirection.OUTBOUND.value
+            ):
                 continue
-            bot_type = message.get("bot_response_type")
-            metadata = message.get("metadata") or {}
-            product_ids = metadata.get("product_ids") or []
-            if bot_type in {"product_list", "product_card"} and product_ids:
-                selected_product = product_ids[0]
-                self.context.current_product = selected_product
-                self.context.last_search_results = product_ids
+
+            bot_type = message.get(
+                "bot_response_type"
+            )
+
+            metadata = (
+                message.get("metadata")
+                or {}
+            )
+
+            if bot_type not in {
+                "product_list",
+                "product_card",
+            }:
+                continue
+
+            product_ids = metadata.get(
+                "product_ids"
+            ) or []
+
+            if product_ids:
+                selected_product = str(
+                    product_ids[0]
+                )
+
+                self.context.current_product = (
+                    selected_product
+                )
+
+                self.context.last_search_results = [
+                    str(product_id)
+                    for product_id in product_ids
+                ]
+
+                self.last_updated = datetime.now(
+                    timezone.utc
+                )
+
                 return selected_product
 
-            selected_product = metadata.get("selected_product_id")
+            selected_product = metadata.get(
+                "selected_product_id"
+            )
+
             if selected_product:
-                self.context.current_product = selected_product
+                selected_product = str(
+                    selected_product
+                )
+
+                self.context.current_product = (
+                    selected_product
+                )
+
+                self.last_updated = datetime.now(
+                    timezone.utc
+                )
+
                 return selected_product
 
         return None
 
-    def get_context_for_response(self) -> Dict[str, Any]:
+    # ============================================================
+    # RESPONSE CONTEXT
+    # ============================================================
+
+    def get_context_for_response(
+        self,
+    ) -> Dict[str, Any]:
         """
-        Get context summary for response generation.
+        Return a serializable context summary for response generation.
         """
 
         return {
-            "current_intent": self.context.current_intent.value if self.context.current_intent else None,
-            "current_product": self.context.current_product,
-            "current_category": self.context.current_category,
-            "last_search_filters": self.context.last_search_filters,
-            "last_search_results": self.context.last_search_results,
-            "last_order_id": self.context.last_order_id,
-            "awaiting_entity": self.context.awaiting_entity.value if self.context.awaiting_entity else None,
-            "awaiting_confirmation": self.context.awaiting_confirmation,
-            "confirmation_context": self.context.confirmation_context,
+            "current_intent": (
+                self.context.current_intent.value
+                if self.context.current_intent
+                else None
+            ),
+            "current_product": (
+                self.context.current_product
+            ),
+            "current_category": (
+                self.context.current_category
+            ),
+            "last_search_filters": dict(
+                self.context.last_search_filters
+            ),
+            "last_search_results": list(
+                self.context.last_search_results
+            ),
+            "last_order_id": (
+                self.context.last_order_id
+            ),
+            "awaiting_entity": (
+                self.context.awaiting_entity.value
+                if self.context.awaiting_entity
+                else None
+            ),
+            "awaiting_confirmation": (
+                self.context.awaiting_confirmation
+            ),
+            "confirmation_context": dict(
+                self.context.confirmation_context
+            ),
             "language": self.context.language,
             "message_count": self.context.message_count,
-            "active_search_key": self.context.active_search_key,
-            "active_search_query": self.context.active_search_query,
-            "active_search_offset": self.context.active_search_offset,
-            "active_search_total": self.context.active_search_total,
-            "active_search_results": self.context.active_search_results,
-            "active_search_page": self.context.active_search_page,
-            "active_search_page_size": self.context.active_search_page_size,
+            "active_search_key": (
+                self.context.active_search_key
+            ),
+            "active_search_query": (
+                self.context.active_search_query
+            ),
+            "active_search_offset": (
+                self.context.active_search_offset
+            ),
+            "active_search_total": (
+                self.context.active_search_total
+            ),
+            "active_search_filters": dict(
+                self.context.active_search_filters
+            ),
+            "active_search_results": list(
+                self.context.active_search_results
+            ),
+            "active_search_page": (
+                self.context.active_search_page
+            ),
+            "active_search_page_size": (
+                self.context.active_search_page_size
+            ),
         }
 
-    def set_awaiting_entity(self, entity_type: EntityType) -> None:
+    # ============================================================
+    # CLARIFICATION / CONFIRMATION STATE
+    # ============================================================
+
+    def set_awaiting_entity(
+        self,
+        entity_type: EntityType,
+        *,
+        requirement: Optional[Dict[str, Any]] = None,
+        intent: IntentType = IntentType.PRODUCT_SEARCH,
+    ) -> None:
         """
-        Mark that we're waiting for a specific entity from user.
+        Mark the session as waiting for a specific entity.
         """
 
         self.context.awaiting_entity = entity_type
+        self.context.awaiting_confirmation = False
+
+        confirmation_context = dict(
+            self.context.confirmation_context
+        )
+
+        confirmation_context["intent"] = (
+            intent.value
+        )
+
+        if requirement:
+            confirmation_context[
+                "requirement"
+            ] = dict(requirement)
+
+        self.context.confirmation_context = (
+            confirmation_context
+        )
+
+        self.last_updated = datetime.now(
+            timezone.utc
+        )
 
     def clear_awaiting_entity(self) -> None:
         """
-        Clear awaiting entity state.
+        Clear pending entity collection state.
         """
 
         self.context.awaiting_entity = None
 
-    def set_awaiting_confirmation(self, context: Dict[str, Any]) -> None:
+        if (
+            self.context.confirmation_context
+        ):
+            self.context.confirmation_context.pop(
+                "requirement",
+                None,
+            )
+            self.context.confirmation_context.pop(
+                "missing_entities",
+                None,
+            )
+
+        self.last_updated = datetime.now(
+            timezone.utc
+        )
+
+    def set_awaiting_confirmation(
+        self,
+        context: Dict[str, Any],
+    ) -> None:
         """
-        Mark that we're waiting for user confirmation.
+        Mark that the session is waiting for confirmation.
         """
 
         self.context.awaiting_confirmation = True
-        self.context.confirmation_context = context
+        self.context.confirmation_context = dict(
+            context or {}
+        )
+
+        self.last_updated = datetime.now(
+            timezone.utc
+        )
 
     def clear_awaiting_confirmation(self) -> None:
         """
-        Clear awaiting confirmation state.
+        Clear confirmation state.
         """
 
         self.context.awaiting_confirmation = False
         self.context.confirmation_context = {}
 
+        self.last_updated = datetime.now(
+            timezone.utc
+        )
+
+    def clear_pending_state(self) -> None:
+        """
+        Clear both clarification and confirmation state.
+        """
+
+        self.context.awaiting_entity = None
+        self.context.awaiting_confirmation = False
+        self.context.confirmation_context = {}
+
+        self.last_updated = datetime.now(
+            timezone.utc
+        )
+
+    # ============================================================
+    # SERIALIZATION
+    # ============================================================
+
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serialize session for MongoDB storage.
+        Serialize the session for MongoDB persistence.
         """
+
+        context_data = (
+            self.context.model_dump()
+            if hasattr(
+                self.context,
+                "model_dump",
+            )
+            else self.context.__dict__.copy()
+        )
 
         return {
             "conversation_id": self.conversation_id,
             "tenant_id": self.tenant_id,
             "customer_id": self.customer_id,
-            "context": self.context.model_dump() if hasattr(self.context, 'model_dump') else self.context.__dict__,
-            "message_history": self.message_history,
-            "search_cache": self.search_cache,
+            "context": context_data,
+            "message_history": list(
+                self.message_history
+            ),
+            "search_cache": dict(
+                self.search_cache
+            ),
             "is_active": self.is_active,
-            "last_updated": self.last_updated.isoformat()
+            "last_updated": self.last_updated.isoformat(),
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConversationSession":
+    def from_dict(
+        cls,
+        data: Dict[str, Any],
+    ) -> "ConversationSession":
         """
-        Deserialize session from MongoDB.
+        Deserialize a persisted session.
+
+        Invalid/missing optional state is normalized rather than allowed to
+        corrupt the in-memory session.
         """
 
-        context_data = data.get("context", {})
-        context = ConversationContext(**context_data) if context_data else ConversationContext()
+        context_data = data.get(
+            "context"
+        ) or {}
 
-        session = cls(
-            conversation_id=data["conversation_id"],
-            tenant_id=data["tenant_id"],
-            customer_id=data["customer_id"],
-            context=context,
-            message_history=data.get("message_history", []),
-            search_cache=data.get("search_cache", {}),
-            is_active=data.get("is_active", True),
-            last_updated=(
-                datetime.fromisoformat(data["last_updated"])
-                if isinstance(data.get("last_updated"), str)
-                else data.get(
-                    "last_updated",
-                    datetime.now(timezone.utc),
-                )
-            ),
+        context = (
+            ConversationContext(
+                **context_data
+            )
+            if context_data
+            else ConversationContext()
         )
 
-        session.context._message_history = session.message_history
+        last_updated_raw = data.get(
+            "last_updated"
+        )
+
+        if isinstance(
+            last_updated_raw,
+            str,
+        ):
+            try:
+                last_updated = (
+                    datetime.fromisoformat(
+                        last_updated_raw
+                    )
+                )
+            except ValueError:
+                last_updated = datetime.now(
+                    timezone.utc
+                )
+        elif isinstance(
+            last_updated_raw,
+            datetime,
+        ):
+            last_updated = last_updated_raw
+        else:
+            last_updated = datetime.now(
+                timezone.utc
+            )
+
+        if last_updated.tzinfo is None:
+            last_updated = last_updated.replace(
+                tzinfo=timezone.utc
+            )
+
+        message_history = list(
+            data.get(
+                "message_history",
+                [],
+            )
+            or []
+        )
+
+        message_history = message_history[
+            -MAX_MESSAGE_HISTORY:
+        ]
+
+        search_cache = dict(
+            data.get(
+                "search_cache",
+                {},
+            )
+            or {}
+        )
+
+        session = cls(
+            conversation_id=str(
+                data["conversation_id"]
+            ),
+            tenant_id=str(
+                data["tenant_id"]
+            ),
+            customer_id=str(
+                data["customer_id"]
+            ),
+            context=context,
+            message_history=message_history,
+            search_cache=search_cache,
+            is_active=bool(
+                data.get(
+                    "is_active",
+                    True,
+                )
+            ),
+            last_updated=last_updated,
+        )
+
+        session._synchronize_history()
 
         return session

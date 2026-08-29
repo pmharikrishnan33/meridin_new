@@ -1,8 +1,8 @@
 """
 Intent Router - routes understood messages to appropriate handlers.
 
-Product-search requirement orchestration is intentionally delegated to
-ProductSearchHandler. That handler is the single authority for:
+Product-search requirement orchestration is delegated to
+ProductSearchHandler. The handler is the authority for:
 
 - metadata normalization
 - category resolution
@@ -10,11 +10,14 @@ ProductSearchHandler. That handler is the single authority for:
 - follow-up questions
 - product search
 - conversational search state
+
+The router owns generic routing, tenant feature checks, pending-state
+recovery, and final handler dispatch.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app.ai.fallback import ai_fallback
 from app.conversation.manager import conversation_manager
@@ -40,12 +43,16 @@ DISABLED_INTENTS = {
 
 
 PAGINATION_PHRASES = {
-    "show more",
     "more",
+    "show more",
+    "show_more",
     "next",
     "next page",
+    "next_page",
     "more products",
+    "more_products",
     "show me more",
+    "show_me_more",
 }
 
 
@@ -53,9 +60,8 @@ class IntentRouter:
     """
     Routes incoming messages to the appropriate handler.
 
-    Product search is deliberately delegated to ProductSearchHandler.
-    ProductSearchHandler owns the metadata-driven conversational
-    requirement workflow.
+    Product search itself is deliberately delegated to
+    ProductSearchHandler.
     """
 
     _HANDLER_MODULES: Dict[str, str] = {
@@ -73,7 +79,14 @@ class IntentRouter:
     }
 
     def __init__(self) -> None:
-        self._handler_cache: Dict[str, Any] = {}
+        self._handler_cache: Dict[
+            str,
+            Any,
+        ] = {}
+
+    # ============================================================
+    # PUBLIC ROUTER
+    # ============================================================
 
     async def route(
         self,
@@ -83,11 +96,7 @@ class IntentRouter:
         conversation_id: str,
     ) -> BotResponse:
         """
-        Route an understood message to the appropriate handler.
-
-        Product-search conversations are delegated directly to
-        ProductSearchHandler. The handler is responsible for all
-        metadata-driven requirement checks.
+        Route an understood message.
         """
 
         session = conversation_manager.get_session(
@@ -101,154 +110,45 @@ class IntentRouter:
         )
 
         normalized_text = (
-            understanding.normalized_text or ""
+            understanding.normalized_text
+            or understanding.original_text
+            or ""
         ).strip().lower()
 
-        if normalized_text in PAGINATION_PHRASES:
-            understanding.intent = IntentType.PAGINATION
+        # --------------------------------------------------------
+        # 1. PAGINATION COMMAND NORMALIZATION
+        # --------------------------------------------------------
 
-        # ============================================================
-        # 1. CONTINUE A PENDING ENTITY COLLECTION
-        # ============================================================
-        #
-        # Example:
-        #
-        #   Bot:
-        #       What size would you like?
-        #
-        #   User:
-        #       M
-        #
-        # The pending entity must be interpreted as the answer to the
-        # existing product-search requirement.
-        #
-        # IMPORTANT:
-        #
-        # We do NOT clear the previous search context here.
-        # ProductSearchHandler needs the previous filters so that:
-        #
-        #   black + shirt
-        #
-        # can become:
-        #
-        #   black + shirt + M
-        #
-        # ============================================================
+        if normalized_text in PAGINATION_PHRASES:
+            understanding.intent = (
+                IntentType.PAGINATION
+            )
+
+        # --------------------------------------------------------
+        # 2. PENDING ENTITY COLLECTION
+        # --------------------------------------------------------
 
         if (
             session is not None
             and context is not None
             and context.awaiting_entity is not None
         ):
-            awaiting_entity = context.awaiting_entity
-
-            extracted_entity = self._find_entity(
-                understanding.entities,
-                awaiting_entity,
+            pending_response = (
+                await self._handle_pending_entity(
+                    understanding=understanding,
+                    tenant_id=tenant_id,
+                    tenant_settings=tenant_settings,
+                    conversation_id=conversation_id,
+                    session=session,
+                )
             )
 
-            if extracted_entity is not None:
-                logger.info(
-                    "Resolved pending entity %s from "
-                    "follow-up message",
-                    awaiting_entity.value,
-                )
+            if pending_response is not None:
+                return pending_response
 
-                pending_intent = (
-                    context.confirmation_context.get(
-                        "intent"
-                    )
-                    if context.confirmation_context
-                    else None
-                )
-
-                if pending_intent:
-                    try:
-                        understanding.intent = IntentType(
-                            pending_intent
-                        )
-                    except ValueError:
-                        understanding.intent = (
-                            IntentType.PRODUCT_SEARCH
-                        )
-                else:
-                    understanding.intent = (
-                        IntentType.PRODUCT_SEARCH
-                    )
-
-                # Do not clear awaiting_entity here.
-                #
-                # ProductSearchHandler will:
-                #
-                # 1. merge the previous filters
-                # 2. add the new entity
-                # 3. normalize metadata
-                # 4. evaluate requirements
-                # 5. either ask the next question or search
-                #
-                # The handler clears the pending state only when
-                # appropriate.
-
-            else:
-                # The user did not provide an entity matching the
-                # requested requirement.
-                #
-                # Prefer the exact metadata-defined question stored
-                # in confirmation_context when available.
-                requirement = (
-                    context.confirmation_context.get(
-                        "requirement"
-                    )
-                    if context.confirmation_context
-                    else None
-                )
-
-                question = None
-
-                if isinstance(
-                    requirement,
-                    dict,
-                ) and requirement:
-                    try:
-                        from app.conversation.requirements import (
-                            conversation_requirement_engine,
-                        )
-
-                        question = (
-                            conversation_requirement_engine
-                            .question_for_requirement(
-                                requirement
-                            )
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "Could not rebuild pending "
-                            "requirement question: %s",
-                            exc,
-                        )
-
-                if not question:
-                    question = (
-                        self._fallback_question_for_entity(
-                            awaiting_entity
-                        )
-                    )
-
-                return BotResponse(
-                    response_type="text",
-                    text=question,
-                    metadata={
-                        "needs_clarification": True,
-                        "missing": awaiting_entity.value,
-                        "awaiting_entity": (
-                            awaiting_entity.value
-                        ),
-                    },
-                )
-
-        # ============================================================
-        # 2. DISABLED INTENTS
-        # ============================================================
+        # --------------------------------------------------------
+        # 3. DISABLED INTENTS
+        # --------------------------------------------------------
 
         intent = understanding.intent
 
@@ -261,9 +161,9 @@ class IntentRouter:
             intent = IntentType.UNKNOWN
             understanding.intent = intent
 
-        # ============================================================
-        # 3. SMART SEARCH OVERRIDE
-        # ============================================================
+        # --------------------------------------------------------
+        # 4. SMART SEARCH OVERRIDE
+        # --------------------------------------------------------
 
         config = get_intent_config(
             intent
@@ -278,7 +178,10 @@ class IntentRouter:
             IntentType.PRODUCT_INQUIRY,
             IntentType.AVAILABILITY,
         }:
-            if EntityType.PRICE in extracted_types:
+            if (
+                EntityType.PRICE
+                in extracted_types
+            ):
                 logger.info(
                     "Smart override: switched %s to "
                     "product_search because a price filter "
@@ -286,37 +189,24 @@ class IntentRouter:
                     intent.value,
                 )
 
-                intent = IntentType.PRODUCT_SEARCH
+                intent = (
+                    IntentType.PRODUCT_SEARCH
+                )
+
                 understanding.intent = intent
 
                 config = get_intent_config(
                     intent
                 )
 
-        # ============================================================
-        # 4. PRODUCT SEARCH
-        # ============================================================
-        #
-        # There is intentionally NO requirement evaluation here.
-        #
-        # ProductSearchHandler owns the complete product-search
-        # workflow because it has access to:
-        #
-        #   tenant metadata
-        #   category IDs
-        #   category requirements
-        #   normalized filters
-        #   conversation context
-        #
-        # This prevents the router from accidentally evaluating:
-        #
-        #   requirements = []
-        #
-        # and incorrectly deciding that a search is ready.
-        #
-        # ============================================================
+        # --------------------------------------------------------
+        # 5. PRODUCT SEARCH
+        # --------------------------------------------------------
 
-        if intent == IntentType.PRODUCT_SEARCH:
+        if (
+            intent
+            == IntentType.PRODUCT_SEARCH
+        ):
             return await self._execute_product_search(
                 understanding=understanding,
                 tenant_id=tenant_id,
@@ -324,9 +214,9 @@ class IntentRouter:
                 conversation_id=conversation_id,
             )
 
-        # ============================================================
-        # 5. NORMAL INTENT CONFIDENCE CHECK
-        # ============================================================
+        # --------------------------------------------------------
+        # 6. INTENT CONFIDENCE
+        # --------------------------------------------------------
 
         logger.info(
             "Routing intent: %s (confidence: %.2f)",
@@ -346,26 +236,26 @@ class IntentRouter:
             )
 
             if config.fallback_intent:
-                intent = config.fallback_intent
-                understanding.intent = intent
-
-                config = get_intent_config(
-                    intent
+                intent = (
+                    config.fallback_intent
                 )
             else:
                 intent = IntentType.UNKNOWN
-                understanding.intent = intent
 
-                config = get_intent_config(
-                    intent
-                )
+            understanding.intent = intent
 
-        # ============================================================
-        # 6. TENANT FEATURE FLAGS
-        # ============================================================
+            config = get_intent_config(
+                intent
+            )
+
+        # --------------------------------------------------------
+        # 7. TENANT FEATURE FLAGS
+        # --------------------------------------------------------
 
         if config.allowed_tenant_features:
-            for feature in config.allowed_tenant_features:
+            for feature in (
+                config.allowed_tenant_features
+            ):
                 if not check_tenant_feature(
                     tenant_settings,
                     feature,
@@ -376,25 +266,25 @@ class IntentRouter:
                     )
 
                     if config.fallback_intent:
-                        intent = config.fallback_intent
-                        understanding.intent = intent
-
-                        config = get_intent_config(
-                            intent
+                        intent = (
+                            config.fallback_intent
                         )
                     else:
-                        intent = IntentType.UNKNOWN
-                        understanding.intent = intent
-
-                        config = get_intent_config(
-                            intent
+                        intent = (
+                            IntentType.UNKNOWN
                         )
+
+                    understanding.intent = intent
+
+                    config = get_intent_config(
+                        intent
+                    )
 
                     break
 
-        # ============================================================
-        # 7. GENERIC REQUIRED ENTITY VALIDATION
-        # ============================================================
+        # --------------------------------------------------------
+        # 8. GENERIC REQUIRED ENTITIES
+        # --------------------------------------------------------
 
         required_entities = (
             config.required_entities
@@ -421,9 +311,9 @@ class IntentRouter:
                 conversation_id=conversation_id,
             )
 
-        # ============================================================
-        # 8. EXECUTE NORMAL HANDLER
-        # ============================================================
+        # --------------------------------------------------------
+        # 9. NORMAL HANDLER
+        # --------------------------------------------------------
 
         handler = await self._get_handler(
             config.handler_class
@@ -442,8 +332,10 @@ class IntentRouter:
             )
 
         try:
-            session = conversation_manager.get_session(
-                conversation_id
+            session = (
+                conversation_manager.get_session(
+                    conversation_id
+                )
             )
 
             context = (
@@ -452,11 +344,8 @@ class IntentRouter:
                 else None
             )
 
-            if (
-                session is not None
-                and context is not None
-            ):
-                context._message_history = (
+            if session is not None:
+                session.context._message_history = (
                     session.message_history
                 )
 
@@ -467,14 +356,13 @@ class IntentRouter:
                 conversation_context=context,
             )
 
-            response.metadata.update(
-                {
-                    "intent": intent.value,
-                    "handler": config.handler_class,
-                    "confidence": (
-                        understanding.intent_confidence
-                    ),
-                }
+            self._add_routing_metadata(
+                response=response,
+                intent=intent,
+                handler=config.handler_class,
+                confidence=(
+                    understanding.intent_confidence
+                ),
             )
 
             return response
@@ -492,6 +380,141 @@ class IntentRouter:
                 understanding.original_text,
             )
 
+    # ============================================================
+    # PENDING ENTITY HANDLING
+    # ============================================================
+
+    async def _handle_pending_entity(
+        self,
+        *,
+        understanding: MessageUnderstanding,
+        tenant_id: str,
+        tenant_settings: Dict[str, Any],
+        conversation_id: str,
+        session: Any,
+    ) -> Optional[BotResponse]:
+        """
+        Resolve a pending entity collection state.
+
+        If the requested entity was extracted, route the message back into
+        the original intent. If it was not extracted, return the exact
+        metadata-defined question rather than allowing the normal intent
+        router to misclassify the answer.
+        """
+
+        context = session.context
+
+        awaiting_entity = (
+            context.awaiting_entity
+        )
+
+        if awaiting_entity is None:
+            return None
+
+        extracted_entity = self._find_entity(
+            understanding.entities,
+            awaiting_entity,
+        )
+
+        if extracted_entity is None:
+            requirement = (
+                context.confirmation_context.get(
+                    "requirement"
+                )
+                if context.confirmation_context
+                else None
+            )
+
+            question = (
+                self._question_from_requirement(
+                    requirement
+                )
+            )
+
+            if not question:
+                question = (
+                    self._fallback_question_for_entity(
+                        awaiting_entity
+                    )
+                )
+
+            return BotResponse(
+                response_type="text",
+                text=question,
+                metadata={
+                    "needs_clarification": True,
+                    "missing": (
+                        awaiting_entity.value
+                    ),
+                    "awaiting_entity": (
+                        awaiting_entity.value
+                    ),
+                },
+            )
+
+        pending_intent = (
+            context.confirmation_context.get(
+                "intent"
+            )
+            if context.confirmation_context
+            else None
+        )
+
+        if pending_intent:
+            try:
+                understanding.intent = (
+                    IntentType(
+                        pending_intent
+                    )
+                )
+            except ValueError:
+                understanding.intent = (
+                    IntentType.PRODUCT_SEARCH
+                )
+        else:
+            understanding.intent = (
+                IntentType.PRODUCT_SEARCH
+            )
+
+        # ProductSearchHandler will merge the entity with previous filters.
+        # Do not clear the pending state before it has validated the complete
+        # metadata requirement chain.
+        if (
+            understanding.intent
+            == IntentType.PRODUCT_SEARCH
+        ):
+            return await self._execute_product_search(
+                understanding=understanding,
+                tenant_id=tenant_id,
+                tenant_settings=tenant_settings,
+                conversation_id=conversation_id,
+            )
+
+        return None
+
+    @staticmethod
+    def _question_from_requirement(
+        requirement: Any,
+    ) -> Optional[str]:
+        if not isinstance(
+            requirement,
+            dict,
+        ):
+            return None
+
+        question = str(
+            requirement.get(
+                "question",
+                "",
+            )
+        ).strip()
+
+        return question or None
+
+    # ============================================================
+    # PRODUCT SEARCH
+    # ============================================================
+
     async def _execute_product_search(
         self,
         *,
@@ -503,29 +526,22 @@ class IntentRouter:
         """
         Execute ProductSearchHandler.
 
-        Requirement checking is intentionally not performed here.
-        ProductSearchHandler performs:
-
-            entity extraction
-                ↓
-            previous-context merge
-                ↓
-            metadata normalization
-                ↓
-            category requirement lookup
-                ↓
-            missing requirement question
-                ↓
-            search
+        Requirement evaluation remains entirely inside the product-search
+        handler.
         """
 
         config = get_intent_config(
             IntentType.PRODUCT_SEARCH
         )
 
-        # Respect tenant feature flags for product search.
+        # --------------------------------------------------------
+        # TENANT PRODUCT-SEARCH FEATURE CHECK
+        # --------------------------------------------------------
+
         if config.allowed_tenant_features:
-            for feature in config.allowed_tenant_features:
+            for feature in (
+                config.allowed_tenant_features
+            ):
                 if not check_tenant_feature(
                     tenant_settings,
                     feature,
@@ -552,7 +568,7 @@ class IntentRouter:
                             )
                         )
 
-                        if fallback_handler is not None:
+                        if fallback_handler:
                             session = (
                                 conversation_manager.get_session(
                                     conversation_id
@@ -576,6 +592,10 @@ class IntentRouter:
                         tenant_settings
                     )
 
+        # --------------------------------------------------------
+        # LOAD HANDLER
+        # --------------------------------------------------------
+
         handler = await self._get_handler(
             config.handler_class
         )
@@ -592,8 +612,10 @@ class IntentRouter:
                 understanding.original_text,
             )
 
-        session = conversation_manager.get_session(
-            conversation_id
+        session = (
+            conversation_manager.get_session(
+                conversation_id
+            )
         )
 
         context = (
@@ -602,11 +624,8 @@ class IntentRouter:
             else None
         )
 
-        if (
-            session is not None
-            and context is not None
-        ):
-            context._message_history = (
+        if session is not None:
+            session.context._message_history = (
                 session.message_history
             )
 
@@ -618,16 +637,57 @@ class IntentRouter:
                 conversation_context=context,
             )
 
-            response.metadata.update(
-                {
-                    "intent": (
-                        IntentType.PRODUCT_SEARCH.value
-                    ),
-                    "handler": config.handler_class,
-                    "confidence": (
-                        understanding.intent_confidence
-                    ),
-                }
+            # ----------------------------------------------------
+            # PERSIST PENDING REQUIREMENT STATE
+            # ----------------------------------------------------
+            #
+            # This was a major workflow hole in the supplied code:
+            # ProductSearchHandler returned "missing=size", but nothing
+            # stored awaiting_entity=size. Therefore the next "M" could
+            # enter the normal intent pipeline instead of continuing the
+            # requirement conversation.
+            #
+            # The router persists the state because it already owns the
+            # conversation manager.
+            # ----------------------------------------------------
+
+            if (
+                session is not None
+                and response.metadata.get(
+                    "needs_clarification"
+                )
+            ):
+                self._persist_product_search_clarification(
+                    session=session,
+                    understanding=understanding,
+                    response=response,
+                )
+
+                await conversation_manager.save_session(
+                    session
+                )
+
+            elif session is not None:
+                # A successful search completes any previous clarification
+                # state.
+                if response.metadata.get(
+                    "search_performed"
+                ):
+                    session.context.awaiting_entity = None
+                    session.context.awaiting_confirmation = False
+                    session.context.confirmation_context = {}
+
+                    await conversation_manager.save_session(
+                        session
+                    )
+
+            self._add_routing_metadata(
+                response=response,
+                intent=IntentType.PRODUCT_SEARCH,
+                handler=config.handler_class,
+                confidence=(
+                    understanding.intent_confidence
+                ),
             )
 
             return response
@@ -644,19 +704,85 @@ class IntentRouter:
                 understanding.original_text,
             )
 
+    def _persist_product_search_clarification(
+        self,
+        *,
+        session: Any,
+        understanding: MessageUnderstanding,
+        response: BotResponse,
+    ) -> None:
+        """
+        Persist the first missing product-search requirement.
+        """
+
+        missing = response.metadata.get(
+            "missing"
+        )
+
+        if not missing:
+            return
+
+        try:
+            entity_type = EntityType(
+                str(missing)
+            )
+        except ValueError:
+            logger.warning(
+                "Product search returned unknown "
+                "missing requirement: %s",
+                missing,
+            )
+            return
+
+        requirement = (
+            response.metadata.get(
+                "requirement"
+            )
+            or {
+                "key": str(
+                    missing
+                ),
+                "question": response.text
+                or "",
+            }
+        )
+
+        session.context.awaiting_entity = (
+            entity_type
+        )
+
+        session.context.awaiting_confirmation = (
+            False
+        )
+
+        session.context.confirmation_context = {
+            "intent": IntentType.PRODUCT_SEARCH.value,
+            "requirement": requirement,
+            "missing_entities": [
+                str(missing)
+            ],
+        }
+
+    # ============================================================
+    # GENERIC ENTITY VALIDATION
+    # ============================================================
+
     @staticmethod
     def _find_entity(
-        entities,
+        entities: Any,
         entity_type: EntityType,
-    ) -> ExtractedEntity | None:
+    ) -> Optional[ExtractedEntity]:
         """
-        Find the highest-confidence entity of the requested type.
+        Return the highest-confidence matching entity.
         """
 
         candidates = [
             entity
-            for entity in entities
-            if entity.entity_type == entity_type
+            for entity in (
+                entities or []
+            )
+            if entity.entity_type
+            == entity_type
         ]
 
         if not candidates:
@@ -666,7 +792,11 @@ class IntentRouter:
             candidates,
             key=lambda entity: (
                 entity.confidence,
-                entity.end_pos - entity.start_pos,
+                max(
+                    0,
+                    entity.end_pos
+                    - entity.start_pos,
+                ),
             ),
         )
 
@@ -675,10 +805,7 @@ class IntentRouter:
         entity_type: EntityType,
     ) -> str:
         """
-        Fallback question for a pending entity.
-
-        Metadata-defined questions are preferred. This is only used
-        when the pending metadata requirement is unavailable.
+        Fallback question when metadata does not contain a question.
         """
 
         questions = {
@@ -741,15 +868,18 @@ class IntentRouter:
         self,
         understanding: MessageUnderstanding,
         required_entities: list,
-        context=None,
+        context: Any = None,
     ) -> list:
         """
-        Check whether generic required entities are available.
+        Check generic handler-level entity requirements.
         """
 
         available_entities = {
             entity.entity_type
-            for entity in understanding.entities
+            for entity in (
+                understanding.entities
+                or []
+            )
         }
 
         if (
@@ -762,8 +892,11 @@ class IntentRouter:
 
         return [
             entity_type
-            for entity_type in required_entities
-            if entity_type not in available_entities
+            for entity_type in (
+                required_entities or []
+            )
+            if entity_type
+            not in available_entities
         ]
 
     async def _handle_missing_entities(
@@ -774,30 +907,37 @@ class IntentRouter:
         conversation_id: str,
     ) -> BotResponse:
         """
-        Handle generic missing entities.
+        Persist generic missing-entity state.
         """
 
-        session = conversation_manager.get_session(
-            conversation_id
+        session = (
+            conversation_manager.get_session(
+                conversation_id
+            )
         )
 
         if (
             session is not None
             and missing_entities
         ):
-            missing_entity = missing_entities[0]
+            missing_entity = (
+                missing_entities[0]
+            )
 
             session.context.awaiting_entity = (
                 missing_entity
             )
 
-            session.context.awaiting_confirmation = False
+            session.context.awaiting_confirmation = (
+                False
+            )
 
             session.context.confirmation_context = {
                 "intent": understanding.intent.value,
                 "missing_entities": [
                     entity.value
-                    for entity in missing_entities
+                    for entity
+                    in missing_entities
                 ],
             }
 
@@ -826,7 +966,9 @@ class IntentRouter:
 
         questions = []
 
-        for entity in missing_entities:
+        for entity in (
+            missing_entities
+        ):
             entity_name = entity_names.get(
                 entity.value,
                 entity.value,
@@ -836,37 +978,43 @@ class IntentRouter:
                 f"Could you please specify {entity_name}?"
             )
 
-        clarification = " ".join(
-            questions
-        )
-
         return BotResponse(
             response_type="text",
-            text=clarification,
+            text=" ".join(questions),
             metadata={
                 "needs_clarification": True,
                 "missing_entities": [
                     entity.value
-                    for entity in missing_entities
+                    for entity
+                    in missing_entities
                 ],
             },
         )
+
+    # ============================================================
+    # HANDLER LOADING
+    # ============================================================
 
     async def _get_handler(
         self,
         handler_class: str,
     ):
         """
-        Dynamically load a handler class.
+        Dynamically load and cache a handler instance.
         """
 
-        if handler_class in self._handler_cache:
+        if (
+            handler_class
+            in self._handler_cache
+        ):
             return self._handler_cache[
                 handler_class
             ]
 
-        module_path = self._HANDLER_MODULES.get(
-            handler_class
+        module_path = (
+            self._HANDLER_MODULES.get(
+                handler_class
+            )
         )
 
         if module_path is None:
@@ -879,7 +1027,9 @@ class IntentRouter:
         try:
             module = __import__(
                 module_path,
-                fromlist=[handler_class],
+                fromlist=[
+                    handler_class
+                ],
             )
 
             handler_cls = getattr(
@@ -887,7 +1037,9 @@ class IntentRouter:
                 handler_class,
             )
 
-            handler_instance = handler_cls()
+            handler_instance = (
+                handler_cls()
+            )
 
             self._handler_cache[
                 handler_class
@@ -918,12 +1070,37 @@ class IntentRouter:
             )
             return None
 
+    # ============================================================
+    # RESPONSE HELPERS
+    # ============================================================
+
+    @staticmethod
+    def _add_routing_metadata(
+        *,
+        response: BotResponse,
+        intent: IntentType,
+        handler: str,
+        confidence: float,
+    ) -> None:
+        """
+        Add routing information without replacing handler-generated
+        metadata.
+        """
+
+        response.metadata.update(
+            {
+                "intent": intent.value,
+                "handler": handler,
+                "confidence": confidence,
+            }
+        )
+
     def _fallback_response(
         self,
         tenant_settings: Dict[str, Any],
     ) -> BotResponse:
         """
-        Generate static fallback response.
+        Generate static tenant-configured fallback.
         """
 
         fallback_msg = tenant_settings.get(
@@ -970,8 +1147,10 @@ class IntentRouter:
             )
 
         try:
-            session = conversation_manager.get_session(
-                conversation_id
+            session = (
+                conversation_manager.get_session(
+                    conversation_id
+                )
             )
 
             history = None
@@ -1006,11 +1185,13 @@ class IntentRouter:
                         }
                     )
 
-            understanding = MessageUnderstanding(
-                original_text=user_text,
-                normalized_text=user_text,
-                intent=IntentType.UNKNOWN,
-                intent_confidence=0.0,
+            understanding = (
+                MessageUnderstanding(
+                    original_text=user_text,
+                    normalized_text=user_text,
+                    intent=IntentType.UNKNOWN,
+                    intent_confidence=0.0,
+                )
             )
 
             return await ai_fallback.generate(

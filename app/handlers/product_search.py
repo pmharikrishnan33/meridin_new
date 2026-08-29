@@ -10,6 +10,7 @@ from app.models.schemas import (
     BotResponse,
     ConversationContext,
     EntityType,
+    IntentType,
     MessageUnderstanding,
     ProductSearchFilters,
 )
@@ -38,37 +39,45 @@ class ProductSearchHandler(BaseHandler):
             ↓
         entity extraction
             ↓
-        filter construction
+        previous-context merge
             ↓
-        catalog metadata normalization
+        metadata normalization
+            ↓
+        category resolution
             ↓
         required-attribute check
             ↓
-        clarification if required
+        clarification
             ↓
         product search
             ↓
-        zero-result relaxation
+        safe zero-result relaxation
             ↓
         ranked results
             ↓
         pagination state
             ↓
-        WhatsApp product response
+        response
 
-    The handler intentionally does not search until all metadata-defined
-    required attributes for the selected category are available.
+    The handler does not perform generic intent routing. It owns the
+    metadata-driven product-search workflow.
     """
 
     MAX_PRODUCTS_PER_RESPONSE = 3
     DEFAULT_PRODUCTS_PER_RESPONSE = 3
-
-    # Fetch enough candidates for ranking and pagination.
     SEARCH_LIMIT = 100
 
-    # =========================================================
+    # These fields represent filters that should normally not be removed
+    # automatically when trying to relax a zero-result search.
+    HARD_FILTER_KEYS = {
+        "department_id",
+        "category_id",
+        "category",
+    }
+
+    # ============================================================
     # PUBLIC HANDLER
-    # =========================================================
+    # ============================================================
 
     async def handle(
         self,
@@ -80,9 +89,9 @@ class ProductSearchHandler(BaseHandler):
         ],
     ) -> BotResponse:
 
-        # =====================================================
-        # 1. BUILD INITIAL FILTERS
-        # =====================================================
+        # --------------------------------------------------------
+        # 1. BUILD FILTERS FROM CURRENT MESSAGE
+        # --------------------------------------------------------
 
         filters = (
             product_service.entities_to_filters(
@@ -90,27 +99,9 @@ class ProductSearchHandler(BaseHandler):
             )
         )
 
-        # =====================================================
-        # 2. MERGE FOLLOW-UP FILTERS
-        # =====================================================
-        #
-        # Example:
-        #
-        # First message:
-        #     "I need a black shirt"
-        #
-        # Stored:
-        #     category = shirts
-        #     color = black
-        #
-        # Follow-up:
-        #     "M"
-        #
-        # New filters:
-        #     size = M
-        #
-        # We merge them before checking requirements.
-        #
+        # --------------------------------------------------------
+        # 2. MERGE FOLLOW-UP SEARCH FILTERS
+        # --------------------------------------------------------
 
         if (
             conversation_context
@@ -119,11 +110,8 @@ class ProductSearchHandler(BaseHandler):
                 filters
             )
         ):
-
-            filters_dict = (
-                filters.model_dump(
-                    exclude_none=True
-                )
+            filters_dict = filters.model_dump(
+                exclude_none=True
             )
 
             merged = (
@@ -134,12 +122,14 @@ class ProductSearchHandler(BaseHandler):
             )
 
             filters = ProductSearchFilters(
-                **merged
+                **self._sanitize_filter_dict(
+                    merged
+                )
             )
 
-        # =====================================================
-        # 3. NORMALIZE AGAINST CATALOG METADATA
-        # =====================================================
+        # --------------------------------------------------------
+        # 3. NORMALIZE AGAINST TENANT CATALOG
+        # --------------------------------------------------------
 
         filters, size_clarification = (
             await catalog_metadata_service.normalize_filters(
@@ -150,7 +140,6 @@ class ProductSearchHandler(BaseHandler):
         )
 
         if size_clarification:
-
             return BotResponse(
                 response_type="text",
                 text=size_clarification,
@@ -163,16 +152,15 @@ class ProductSearchHandler(BaseHandler):
                 },
             )
 
-        # =====================================================
-        # 4. RECOVER CATEGORY FROM PREVIOUS CONTEXT
-        # =====================================================
+        # --------------------------------------------------------
+        # 4. RECOVER CATEGORY FROM CONTEXT
+        # --------------------------------------------------------
 
         if (
             not filters.category
             and conversation_context
             and conversation_context.current_category
         ):
-
             filters.category = (
                 conversation_context.current_category
             )
@@ -186,7 +174,6 @@ class ProductSearchHandler(BaseHandler):
             )
 
             if size_clarification:
-
                 return BotResponse(
                     response_type="text",
                     text=size_clarification,
@@ -196,14 +183,13 @@ class ProductSearchHandler(BaseHandler):
                     },
                 )
 
-        # =====================================================
-        # 5. DETERMINE CATEGORY
-        # =====================================================
+        # --------------------------------------------------------
+        # 5. CATEGORY IS REQUIRED TO SELECT REQUIREMENTS
+        # --------------------------------------------------------
 
         category = filters.category
 
         if not category:
-
             return BotResponse(
                 response_type="text",
                 text=(
@@ -215,27 +201,15 @@ class ProductSearchHandler(BaseHandler):
                 metadata={
                     "needs_clarification": True,
                     "missing": "category",
+                    "intent": (
+                        IntentType.PRODUCT_SEARCH.value
+                    ),
                 },
             )
 
-        # =====================================================
-        # 6. CHECK METADATA-DEFINED REQUIREMENTS
-        # =====================================================
-        #
-        # Your inventory_metadata now defines requirements such as:
-        #
-        # men/shirts:
-        #     color required
-        #     size required
-        #
-        # women/dresses:
-        #     dress_style required
-        #     color required
-        #     size required
-        #
-        # The handler converts the requirement keys into the values
-        # available in ProductSearchFilters.
-        #
+        # --------------------------------------------------------
+        # 6. GET METADATA REQUIREMENTS
+        # --------------------------------------------------------
 
         required_attributes = (
             await catalog_metadata_service
@@ -254,19 +228,17 @@ class ProductSearchHandler(BaseHandler):
         )
 
         if missing_requirements:
-
             return self._build_requirement_response(
                 category=category,
                 missing_requirements=missing_requirements,
                 filters=filters,
             )
 
-        # =====================================================
-        # 7. SAVE CURRENT FILTER STATE BEFORE SEARCH
-        # =====================================================
+        # --------------------------------------------------------
+        # 7. SEARCH STATE BEFORE SEARCH
+        # --------------------------------------------------------
 
         if conversation_context:
-
             conversation_context.current_category = (
                 category
             )
@@ -277,53 +249,25 @@ class ProductSearchHandler(BaseHandler):
                 )
             )
 
-        # =====================================================
-        # 8. DETERMINE PAGE SIZE
-        # =====================================================
+            # A completed search requirement means the previous
+            # clarification state is no longer valid.
+            conversation_context.awaiting_entity = None
+            conversation_context.awaiting_confirmation = False
+            conversation_context.confirmation_context = {}
 
-        feature_flags = (
-            tenant_settings.get(
-                "feature_flags",
-                {},
-            )
-            or {}
+        # --------------------------------------------------------
+        # 8. PAGE SIZE
+        # --------------------------------------------------------
+
+        page_size = self._get_page_size(
+            tenant_settings
         )
 
-        configured_page_size = (
-            feature_flags.get(
-                "max_products_per_response",
-                self.DEFAULT_PRODUCTS_PER_RESPONSE,
-            )
-        )
-
-        try:
-
-            page_size = max(
-                1,
-                min(
-                    int(
-                        configured_page_size
-                    ),
-                    self.MAX_PRODUCTS_PER_RESPONSE,
-                ),
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
-            page_size = (
-                self.DEFAULT_PRODUCTS_PER_RESPONSE
-            )
-
-        # =====================================================
+        # --------------------------------------------------------
         # 9. SEARCH
-        # =====================================================
+        # --------------------------------------------------------
 
-        search_limit = (
-            self.SEARCH_LIMIT
-        )
+        search_limit = self.SEARCH_LIMIT
 
         filters.limit = search_limit
         filters.offset = 0
@@ -338,12 +282,11 @@ class ProductSearchHandler(BaseHandler):
 
         response_text: Optional[str] = None
 
-        # =====================================================
-        # 10. ZERO-RESULT RELAXATION
-        # =====================================================
+        # --------------------------------------------------------
+        # 10. SAFE ZERO-RESULT RELAXATION
+        # --------------------------------------------------------
 
         if not products:
-
             filters_dict = (
                 filters.model_dump(
                     exclude_none=True
@@ -363,10 +306,15 @@ class ProductSearchHandler(BaseHandler):
             async def search_fn(
                 relaxed_filters_dict: Dict[str, Any],
             ):
+                safe_relaxed = (
+                    self._sanitize_filter_dict(
+                        relaxed_filters_dict
+                    )
+                )
 
                 relaxed_filters = (
                     ProductSearchFilters(
-                        **relaxed_filters_dict
+                        **safe_relaxed
                     )
                 )
 
@@ -375,7 +323,6 @@ class ProductSearchHandler(BaseHandler):
                 )
 
                 relaxed_filters.offset = 0
-
                 relaxed_filters.in_stock_only = True
 
                 return (
@@ -385,22 +332,44 @@ class ProductSearchHandler(BaseHandler):
                     )
                 )
 
-            best_key = (
-                await find_best_relaxation(
-                    query=understanding.original_text,
-                    filters=filters_dict,
-                    search_fn=search_fn,
+            # Never relax category/department identity automatically.
+            relaxable_filters = {
+                key: value
+                for key, value in filters_dict.items()
+                if (
+                    key
+                    not in self.HARD_FILTER_KEYS
                 )
-            )
+            }
 
-            if best_key:
+            best_key = None
 
+            if relaxable_filters:
+                best_key = (
+                    await find_best_relaxation(
+                        query=understanding.original_text,
+                        filters=relaxable_filters,
+                        search_fn=search_fn,
+                    )
+                )
+
+            if (
+                best_key
+                and best_key
+                not in self.HARD_FILTER_KEYS
+            ):
                 relaxed_dict = {
                     key: value
                     for key, value
                     in filters_dict.items()
                     if key != best_key
                 }
+
+                relaxed_dict = (
+                    self._sanitize_filter_dict(
+                        relaxed_dict
+                    )
+                )
 
                 relaxed_filters = (
                     ProductSearchFilters(
@@ -413,7 +382,6 @@ class ProductSearchHandler(BaseHandler):
                 )
 
                 relaxed_filters.offset = 0
-
                 relaxed_filters.in_stock_only = True
 
                 products = (
@@ -424,29 +392,33 @@ class ProductSearchHandler(BaseHandler):
                 )
 
                 if products:
+                    filters = relaxed_filters
 
-                    filters = (
-                        relaxed_filters
+                    response_text = (
+                        build_relaxation_message(
+                            query=understanding.original_text,
+                            filters=filters_dict,
+                            removed_key=best_key,
+                            removed_value=(
+                                filters_dict.get(
+                                    best_key
+                                )
+                            ),
+                        )
                     )
 
-                response_text = (
-                    build_relaxation_message(
-                        query=understanding.original_text,
-                        filters=filters_dict,
-                        removed_key=best_key,
-                        removed_value=(
-                            filters_dict[
-                                best_key
-                            ]
-                        ),
-                    )
-                )
-
-        # =====================================================
+        # --------------------------------------------------------
         # 11. STILL NO PRODUCTS
-        # =====================================================
+        # --------------------------------------------------------
 
         if not products:
+            if conversation_context:
+                conversation_context.last_search_results = []
+                conversation_context.active_search_key = None
+                conversation_context.active_search_offset = 0
+                conversation_context.active_search_total = 0
+                conversation_context.active_search_results = []
+                conversation_context.active_search_page = 1
 
             return BotResponse(
                 response_type="text",
@@ -473,13 +445,14 @@ class ProductSearchHandler(BaseHandler):
                 },
             )
 
-        # =====================================================
+        # --------------------------------------------------------
         # 12. BUILD PAGINATION STATE
-        # =====================================================
+        # --------------------------------------------------------
 
         result_ids = [
-            product.id
+            str(product.id)
             for product in products
+            if product.id is not None
         ]
 
         page = (
@@ -492,18 +465,17 @@ class ProductSearchHandler(BaseHandler):
             )
         )
 
-        # =====================================================
-        # 13. SAVE CONVERSATION SEARCH STATE
-        # =====================================================
+        # --------------------------------------------------------
+        # 13. SAVE SEARCH CONTEXT
+        # --------------------------------------------------------
+
+        filter_dict = (
+            filters.model_dump(
+                exclude_none=True
+            )
+        )
 
         if conversation_context:
-
-            filter_dict = (
-                filters.model_dump(
-                    exclude_none=True
-                )
-            )
-
             conversation_context.last_search_filters = (
                 filter_dict
             )
@@ -513,7 +485,9 @@ class ProductSearchHandler(BaseHandler):
             )
 
             conversation_context.current_product = (
-                products[0].id
+                result_ids[0]
+                if result_ids
+                else None
             )
 
             conversation_context.active_search_key = (
@@ -536,7 +510,9 @@ class ProductSearchHandler(BaseHandler):
                 filter_dict
             )
 
-            conversation_context.active_search_page = 1
+            conversation_context.active_search_page = (
+                page["page"]
+            )
 
             conversation_context.active_search_page_size = (
                 page_size
@@ -546,23 +522,26 @@ class ProductSearchHandler(BaseHandler):
                 result_ids
             )
 
-        # =====================================================
-        # 14. BUILD RESPONSE PRODUCTS
-        # =====================================================
+            conversation_context.awaiting_entity = None
+            conversation_context.awaiting_confirmation = False
+            conversation_context.confirmation_context = {}
+
+        # --------------------------------------------------------
+        # 14. RESPONSE PRODUCTS
+        # --------------------------------------------------------
 
         response_products = [
             product_service.product_to_response(
                 product
             )
-            for product
-            in products[
+            for product in products[
                 :page_size
             ]
         ]
 
-        # =====================================================
+        # --------------------------------------------------------
         # 15. PAGINATION
-        # =====================================================
+        # --------------------------------------------------------
 
         has_more = (
             len(products)
@@ -574,7 +553,6 @@ class ProductSearchHandler(BaseHandler):
         ] = []
 
         if has_more:
-
             quick_replies.append(
                 {
                     "label": "Show more",
@@ -582,27 +560,23 @@ class ProductSearchHandler(BaseHandler):
                 }
             )
 
-        # =====================================================
+        # --------------------------------------------------------
         # 16. RESPONSE TEXT
-        # =====================================================
+        # --------------------------------------------------------
 
         if response_text is None:
-
             if len(products) == 1:
-
                 response_text = (
                     "I found this item for you:"
                 )
-
             else:
-
                 response_text = (
                     "I found these products for you:"
                 )
 
-        # =====================================================
-        # 17. FINAL STRUCTURED RESPONSE
-        # =====================================================
+        # --------------------------------------------------------
+        # 17. FINAL RESPONSE
+        # --------------------------------------------------------
 
         return BotResponse(
             response_type="product_list",
@@ -612,21 +586,66 @@ class ProductSearchHandler(BaseHandler):
             metadata={
                 "search_performed": True,
                 "results_count": len(products),
-                "filters_applied": (
-                    filters.model_dump(
-                        exclude_none=True
-                    )
-                ),
+                "filters_applied": filter_dict,
                 "page": 1,
                 "page_size": page_size,
                 "has_more": has_more,
                 "total_results": len(products),
+                "product_ids": result_ids[
+                    :page_size
+                ],
             },
         )
 
-    # =========================================================
+    # ============================================================
+    # PAGE SIZE
+    # ============================================================
+
+    def _get_page_size(
+        self,
+        tenant_settings: Dict[str, Any],
+    ) -> int:
+        """
+        Resolve tenant-configured response size while enforcing the
+        WhatsApp/application maximum.
+        """
+
+        feature_flags = (
+            tenant_settings.get(
+                "feature_flags",
+                {},
+            )
+            or {}
+        )
+
+        configured = feature_flags.get(
+            "max_products_per_response",
+            self.DEFAULT_PRODUCTS_PER_RESPONSE,
+        )
+
+        try:
+            configured = int(
+                configured
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            configured = (
+                self.DEFAULT_PRODUCTS_PER_RESPONSE
+            )
+
+        return max(
+            1,
+            min(
+                configured,
+                self.MAX_PRODUCTS_PER_RESPONSE,
+            ),
+        )
+
+    # ============================================================
     # REQUIREMENT WORKFLOW
-    # =========================================================
+    # ============================================================
 
     @staticmethod
     def _find_missing_requirements(
@@ -640,61 +659,59 @@ class ProductSearchHandler(BaseHandler):
     ]:
         """
         Determine which metadata-defined attributes are missing.
-
-        Returns:
-
-            [
-                ("size", "What size would you like?")
-            ]
-
-        or:
-
-            [
-                ("dress_style", "What style of dress are you looking for?"),
-                ("size", "What size would you like?")
-            ]
         """
 
         if not required_attributes:
             return []
 
-        # Build values from both the current filters and entities.
         entity_values: Dict[
             str,
-            str
+            str,
         ] = {}
 
-        for entity in understanding.entities:
-
+        for entity in (
+            understanding.entities or []
+        ):
             value = (
                 entity.normalized_value
                 or entity.value
             )
 
+            if value is None:
+                continue
+
+            value = str(value).strip()
+
             if not value:
                 continue
 
-            normalized_value = (
-                str(value).strip()
+            entity_key = (
+                entity.entity_type.value
             )
 
-            if not normalized_value:
-                continue
+            existing = entity_values.get(
+                entity_key
+            )
 
-            entity_values[
-                entity.entity_type.value
-            ] = normalized_value
+            if (
+                existing is None
+                or entity.confidence >= 0
+            ):
+                entity_values[
+                    entity_key
+                ] = value
 
         missing: List[
             Tuple[str, str]
         ] = []
 
-        for requirement in required_attributes:
-
+        for requirement in (
+            required_attributes
+        ):
             key = str(
                 requirement.get(
                     "key",
-                    ""
+                    "",
                 )
             ).strip()
 
@@ -706,7 +723,6 @@ class ProductSearchHandler(BaseHandler):
                 filters=filters,
                 entity_values=entity_values,
             ):
-
                 question = str(
                     requirement.get(
                         "question",
@@ -715,7 +731,6 @@ class ProductSearchHandler(BaseHandler):
                 ).strip()
 
                 if not question:
-
                     label = str(
                         requirement.get(
                             "label",
@@ -746,58 +761,67 @@ class ProductSearchHandler(BaseHandler):
         entity_values: Dict[str, str],
     ) -> bool:
         """
-        Map metadata requirement keys to the current search filters/entities.
+        Resolve metadata requirement names against current filters/entities.
         """
 
         normalized_key = (
             key.strip().lower()
         )
 
-        # Direct filter mappings.
         direct_filter_map = {
             "color": filters.color,
+            "colour": filters.color,
             "size": filters.size,
             "brand": filters.brand,
             "material": filters.material,
             "fit": filters.fit,
             "gender": filters.gender,
             "type": filters.type,
+            "style": filters.style,
+            "pattern": filters.pattern,
+            "occasion": filters.occasion,
+            "season": filters.season,
+            "sleeve": filters.sleeve,
+            "neck": filters.neck,
         }
 
         if normalized_key in direct_filter_map:
-
             return bool(
                 direct_filter_map[
                     normalized_key
                 ]
             )
 
-        # Dress style is represented by ProductSearchFilters.type
-        # because the current Product schema exposes `type`.
         if normalized_key in {
             "dress_style",
-            "style",
+            "dressstyle",
         }:
-
-            if filters.type:
-                return True
-
-            if (
-                entity_values.get(
+            return bool(
+                filters.style
+                or filters.type
+                or entity_values.get(
                     "style"
                 )
-            ):
-                return True
+            )
 
-            return False
+        if normalized_key in {
+            "product_type",
+        }:
+            return bool(
+                filters.type
+                or filters.style
+                or entity_values.get(
+                    "style"
+                )
+            )
 
-        # Check an entity with the exact requirement name.
-        if entity_values.get(
-            normalized_key
-        ):
-            return True
+        if normalized_key in entity_values:
+            return bool(
+                entity_values[
+                    normalized_key
+                ]
+            )
 
-        # Common aliases between metadata requirements and entity types.
         aliases = {
             "colour": "color",
             "dressstyle": "style",
@@ -811,7 +835,8 @@ class ProductSearchHandler(BaseHandler):
         if mapped:
             if mapped == "style":
                 return bool(
-                    filters.type
+                    filters.style
+                    or filters.type
                     or entity_values.get(
                         "style"
                     )
@@ -834,18 +859,11 @@ class ProductSearchHandler(BaseHandler):
         filters: ProductSearchFilters,
     ) -> BotResponse:
         """
-        Build a focused clarification response.
+        Ask for exactly one missing requirement.
 
-        Only the first missing requirement is asked at a time.
-        This creates the intended conversational workflow:
-
-            "I need a black shirt"
-                ↓
-            "What size would you like?"
-                ↓
-            "M"
-                ↓
-            search
+        The router will persist the pending requirement after receiving this
+        response. This prevents the handler from depending on persistence
+        infrastructure.
         """
 
         key, question = (
@@ -861,8 +879,7 @@ class ProductSearchHandler(BaseHandler):
                 "missing": key,
                 "missing_requirements": [
                     item[0]
-                    for item
-                    in missing_requirements
+                    for item in missing_requirements
                 ],
                 "category": category,
                 "filters_collected": (
@@ -870,34 +887,25 @@ class ProductSearchHandler(BaseHandler):
                         exclude_none=True
                     )
                 ),
+                "requirement": {
+                    "key": key,
+                    "question": question,
+                },
             },
         )
 
-    # =========================================================
+    # ============================================================
     # CONTEXT REFINEMENT
-    # =========================================================
+    # ============================================================
 
     @staticmethod
     def _should_refine_previous_search(
         filters: ProductSearchFilters,
     ) -> bool:
         """
-        Determine whether the current message should refine
-        the previous product search.
+        A bare refinement such as "M" inherits the previous search.
 
-        A message such as:
-
-            "M"
-
-        should inherit the previous:
-
-            shirt + black
-
-        while a new query such as:
-
-            "I need a dress"
-
-        should not inherit unrelated filters.
+        A new product/category/type query starts a fresh search.
         """
 
         return not any(
@@ -907,3 +915,27 @@ class ProductSearchHandler(BaseHandler):
                 filters.type,
             )
         )
+
+    # ============================================================
+    # FILTER SAFETY
+    # ============================================================
+
+    @staticmethod
+    def _sanitize_filter_dict(
+        filters: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Keep only fields supported by ProductSearchFilters.
+        """
+
+        allowed = set(
+            ProductSearchFilters.model_fields.keys()
+        )
+
+        return {
+            key: value
+            for key, value in (
+                filters or {}
+            ).items()
+            if key in allowed
+        }

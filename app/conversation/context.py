@@ -2,6 +2,8 @@
 Conversation context management utilities.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, List, Optional
 
 from app.models.schemas import (
@@ -15,7 +17,11 @@ from app.models.schemas import (
 
 class ConversationContextManager:
     """
-    Manages conversation context updates based on message understanding.
+    Stateless helpers for updating and reading conversation context.
+
+    Product-search requirement decisions belong to ProductSearchHandler and
+    the metadata requirement engine. This class only performs generic state
+    transformations.
     """
 
     @staticmethod
@@ -24,15 +30,34 @@ class ConversationContextManager:
         understanding: MessageUnderstanding,
     ) -> ConversationContext:
         """
-        Update context from message understanding.
+        Update generic conversation context from message understanding.
         """
 
-        context.current_intent = understanding.intent
+        context.current_intent = (
+            understanding.intent
+        )
 
         for entity in understanding.entities:
             ConversationContextManager._apply_entity(
                 context,
                 entity,
+            )
+
+        if (
+            understanding.intent
+            == IntentType.PRODUCT_SEARCH
+        ):
+            new_filters = (
+                ConversationContextManager.entities_to_filters(
+                    understanding.entities
+                )
+            )
+
+            context.last_search_filters = (
+                ConversationContextManager.merge_filters(
+                    context.last_search_filters,
+                    new_filters,
+                )
             )
 
         return context
@@ -43,7 +68,12 @@ class ConversationContextManager:
         entity: ExtractedEntity,
     ) -> None:
         """
-        Apply a single entity to context.
+        Apply one extracted entity to generic context.
+
+        PRODUCT is not treated as a confirmed product selection here.
+        Entity extraction cannot know whether "shirt" refers to a product,
+        category-like search term, or actual catalog ID. The product search
+        workflow owns that interpretation.
         """
 
         value = (
@@ -51,20 +81,24 @@ class ConversationContextManager:
             or entity.value
         )
 
+        if value is None:
+            return
+
+        value = str(value).strip()
+
         if not value:
             return
 
-        if entity.entity_type == EntityType.CATEGORY:
+        if (
+            entity.entity_type
+            == EntityType.CATEGORY
+        ):
             context.current_category = value
 
-        elif entity.entity_type == EntityType.PRODUCT:
-            # Product-category keywords such as "shirt" may currently
-            # arrive as PRODUCT from the extractor. Preserve them as
-            # current_product while also allowing search filters to use
-            # them as query terms.
-            context.current_product = value
-
-        elif entity.entity_type == EntityType.ORDER_ID:
+        elif (
+            entity.entity_type
+            == EntityType.ORDER_ID
+        ):
             context.last_order_id = value
 
     @staticmethod
@@ -72,84 +106,213 @@ class ConversationContextManager:
         entities: List[ExtractedEntity],
     ) -> Dict[str, Any]:
         """
-        Convert extracted entities to search filters.
+        Convert extracted entities into ProductSearchFilters-compatible
+        dictionary fields.
+
+        Multiple entities of the same type use the highest-confidence entity
+        rather than depending on extractor ordering.
         """
 
         filters: Dict[str, Any] = {}
 
-        for entity in entities:
+        best_entities: Dict[
+            EntityType,
+            ExtractedEntity,
+        ] = {}
+
+        for entity in entities or []:
             value = (
                 entity.normalized_value
                 or entity.value
             )
 
+            if value is None:
+                continue
+
+            value = str(value).strip()
+
             if not value:
                 continue
 
-            if entity.entity_type == EntityType.CATEGORY:
+            previous = best_entities.get(
+                entity.entity_type
+            )
+
+            if (
+                previous is None
+                or entity.confidence
+                > previous.confidence
+            ):
+                best_entities[
+                    entity.entity_type
+                ] = entity
+
+        for entity_type, entity in (
+            best_entities.items()
+        ):
+            value = (
+                entity.normalized_value
+                or entity.value
+            )
+
+            if value is None:
+                continue
+
+            value = str(value).strip()
+
+            if not value:
+                continue
+
+            if (
+                entity_type
+                == EntityType.CATEGORY
+            ):
                 filters["category"] = value
 
-            elif entity.entity_type == EntityType.PRODUCT:
+            elif (
+                entity_type
+                == EntityType.PRODUCT
+            ):
                 filters["query"] = value
 
-            elif entity.entity_type == EntityType.COLOR:
+            elif (
+                entity_type
+                == EntityType.COLOR
+            ):
                 filters["color"] = value
 
-            elif entity.entity_type == EntityType.SIZE:
+            elif (
+                entity_type
+                == EntityType.SIZE
+            ):
                 filters["size"] = value
 
-            elif entity.entity_type == EntityType.FIT:
+            elif (
+                entity_type
+                == EntityType.FIT
+            ):
                 filters["fit"] = value
 
-            elif entity.entity_type == EntityType.PRICE:
-                try:
-                    price = float(value)
+            elif (
+                entity_type
+                == EntityType.PRICE
+            ):
+                ConversationContextManager._apply_price_filter(
+                    filters,
+                    entity,
+                    value,
+                )
 
-                    operator = (
-                        entity.metadata or {}
-                    ).get(
-                        "operator",
-                        "exact",
-                    )
-
-                    if operator == "max":
-                        filters["max_price"] = price
-                    elif operator == "min":
-                        filters["min_price"] = price
-                    else:
-                        filters["max_price"] = price
-
-                except (ValueError, TypeError):
-                    pass
-
-            elif entity.entity_type == EntityType.BRAND:
+            elif (
+                entity_type
+                == EntityType.BRAND
+            ):
                 filters["brand"] = value
 
-            elif entity.entity_type == EntityType.MATERIAL:
+            elif (
+                entity_type
+                == EntityType.MATERIAL
+            ):
                 filters["material"] = value
 
-            elif entity.entity_type == EntityType.GENDER:
+            elif (
+                entity_type
+                == EntityType.GENDER
+            ):
                 filters["gender"] = value
 
-            elif entity.entity_type == EntityType.PATTERN:
+            elif (
+                entity_type
+                == EntityType.PATTERN
+            ):
                 filters["pattern"] = value
 
-            elif entity.entity_type == EntityType.STYLE:
+            elif (
+                entity_type
+                == EntityType.STYLE
+            ):
                 filters["style"] = value
 
-            elif entity.entity_type == EntityType.OCCASION:
+            elif (
+                entity_type
+                == EntityType.OCCASION
+            ):
                 filters["occasion"] = value
 
-            elif entity.entity_type == EntityType.SEASON:
+            elif (
+                entity_type
+                == EntityType.SEASON
+            ):
                 filters["season"] = value
 
-            elif entity.entity_type == EntityType.SLEEVE:
+            elif (
+                entity_type
+                == EntityType.SLEEVE
+            ):
                 filters["sleeve"] = value
 
-            elif entity.entity_type == EntityType.NECK:
+            elif (
+                entity_type
+                == EntityType.NECK
+            ):
                 filters["neck"] = value
 
         return filters
+
+    @staticmethod
+    def _apply_price_filter(
+        filters: Dict[str, Any],
+        entity: ExtractedEntity,
+        value: str,
+    ) -> None:
+        """
+        Convert a price entity into a deterministic price filter.
+
+        Exact price means min_price == max_price. It must not silently become
+        only a maximum-price filter.
+        """
+
+        try:
+            price = float(value)
+        except (
+            ValueError,
+            TypeError,
+        ):
+            return
+
+        if price < 0:
+            return
+
+        operator = str(
+            (entity.metadata or {}).get(
+                "operator",
+                "exact",
+            )
+        ).strip().lower()
+
+        if operator in {
+            "max",
+            "lte",
+            "less_than",
+            "less_than_or_equal",
+            "under",
+            "below",
+        }:
+            filters["max_price"] = price
+
+        elif operator in {
+            "min",
+            "gte",
+            "greater_than",
+            "greater_than_or_equal",
+            "above",
+            "over",
+        }:
+            filters["min_price"] = price
+
+        else:
+            filters["min_price"] = price
+            filters["max_price"] = price
 
     @staticmethod
     def merge_filters(
@@ -157,18 +320,39 @@ class ConversationContextManager:
         new: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Merge new filters with existing filters.
+        Merge search filters.
 
-        New non-empty values take precedence.
+        New meaningful values replace old values. Empty values never erase
+        an already-known filter.
         """
 
-        merged = dict(existing or {})
+        merged = dict(
+            existing or {}
+        )
 
-        for key, value in (new or {}).items():
+        for key, value in (
+            new or {}
+        ).items():
+
             if value is None:
                 continue
 
-            if isinstance(value, str) and not value.strip():
+            if (
+                isinstance(
+                    value,
+                    str,
+                )
+                and not value.strip()
+            ):
+                continue
+
+            if (
+                isinstance(
+                    value,
+                    list,
+                )
+                and not value
+            ):
                 continue
 
             merged[key] = value
@@ -180,20 +364,25 @@ class ConversationContextManager:
         context: ConversationContext,
         intent: IntentType,
         entities: List[ExtractedEntity],
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[
+        bool,
+        Optional[str],
+    ]:
         """
-        Determine whether the conversation is missing information.
+        Determine whether generic intent handling is missing information.
 
-        Product search requirements are intentionally handled by the
-        dedicated requirement engine. This method remains for compatibility
-        with existing callers and handles generic intent requirements.
+        Product-search category requirements are deliberately excluded from
+        this method because ProductSearchHandler owns metadata-driven
+        requirements.
         """
 
         if context.awaiting_entity:
             return (
                 True,
-                f"Please provide the "
-                f"{context.awaiting_entity.value}.",
+                (
+                    "Please provide the "
+                    f"{context.awaiting_entity.value}."
+                ),
             )
 
         required_entities = {
@@ -212,7 +401,9 @@ class ConversationContextManager:
 
         found_types = {
             entity.entity_type
-            for entity in entities
+            for entity in (
+                entities or []
+            )
         }
 
         if context.current_product:
@@ -221,11 +412,16 @@ class ConversationContextManager:
             )
 
         for required_entity in required:
-            if required_entity not in found_types:
+            if (
+                required_entity
+                not in found_types
+            ):
                 return (
                     True,
-                    f"Could you please specify "
-                    f"the {required_entity.value}?",
+                    (
+                        "Could you please specify "
+                        f"the {required_entity.value}?"
+                    ),
                 )
 
         return False, None
