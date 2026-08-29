@@ -135,7 +135,6 @@ class CatalogMetadataService:
         candidates: List[Tuple[int, str, str]] = []
 
         for canonical, values in aliases.items():
-
             canonical_value = str(canonical).strip().lower()
 
             candidates.append(
@@ -152,7 +151,6 @@ class CatalogMetadataService:
                 aliases_for_value = [values]
 
             for alias in aliases_for_value:
-
                 alias_value = (
                     str(alias)
                     .strip()
@@ -174,7 +172,6 @@ class CatalogMetadataService:
         )
 
         for _, candidate, canonical_value in candidates:
-
             pattern = (
                 rf"(?<!\w)"
                 rf"{re.escape(candidate)}"
@@ -223,7 +220,6 @@ class CatalogMetadataService:
             dict,
         ):
             for canonical, aliases in explicit_aliases.items():
-
                 canonical_value = (
                     str(canonical)
                     .strip()
@@ -258,7 +254,6 @@ class CatalogMetadataService:
             dict,
         ):
             for canonical, aliases in legacy_categories.items():
-
                 canonical_value = (
                     str(canonical)
                     .strip()
@@ -315,7 +310,6 @@ class CatalogMetadataService:
             dict,
         ):
             for department in departments.values():
-
                 if not isinstance(
                     department,
                     dict,
@@ -336,7 +330,6 @@ class CatalogMetadataService:
                     continue
 
                 for category_key in categories:
-
                     canonical_value = (
                         str(category_key)
                         .strip()
@@ -362,7 +355,6 @@ class CatalogMetadataService:
         for canonical, aliases in list(
             result.items()
         ):
-
             unique_aliases = sorted(
                 {
                     str(alias).strip().lower()
@@ -376,23 +368,28 @@ class CatalogMetadataService:
         return result
 
     @staticmethod
-    def _resolve_category_id(
+    def _get_matching_category_ids(
         metadata: Dict[str, Any],
         category: Optional[str],
-    ) -> Optional[int]:
+    ) -> List[int]:
         """
-        Resolve a canonical category to its numeric category ID.
+        Return every category ID matching the canonical category.
+
+        A category can legitimately exist under multiple departments.
 
         Example:
 
-            shirts + men -> 201
+            shirts:
+                women -> 103
+                men   -> 201
+                boys  -> 401
 
-        If department is not known, the first matching category ID
-        is returned. Product filtering can still use the category name.
+        We must not arbitrarily select the first one because category
+        requirements can exist for a different department.
         """
 
         if not category:
-            return None
+            return []
 
         normalized_category = (
             category.strip().lower()
@@ -403,31 +400,67 @@ class CatalogMetadataService:
             or {}
         )
 
-        if isinstance(
+        if not isinstance(
             category_ids,
             dict,
         ):
-            for department_map in category_ids.values():
+            return []
 
-                if not isinstance(
-                    department_map,
-                    dict,
+        result: List[int] = []
+
+        for department_map in category_ids.values():
+            if not isinstance(
+                department_map,
+                dict,
+            ):
+                continue
+
+            for key, value in department_map.items():
+                if (
+                    str(key).strip().lower()
+                    != normalized_category
                 ):
                     continue
 
-                for key, value in department_map.items():
+                try:
+                    category_id = int(value)
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
 
-                    if (
-                        str(key).strip().lower()
-                        == normalized_category
-                    ):
-                        try:
-                            return int(value)
-                        except (
-                            TypeError,
-                            ValueError,
-                        ):
-                            return None
+                if category_id not in result:
+                    result.append(category_id)
+
+        return result
+
+    @staticmethod
+    def _resolve_category_id(
+        metadata: Dict[str, Any],
+        category: Optional[str],
+    ) -> Optional[int]:
+        """
+        Resolve a category to a numeric ID only when exactly one
+        category ID exists.
+
+        If a category belongs to multiple departments, returning an
+        arbitrary department's ID is unsafe. In that situation this
+        method returns None.
+
+        Requirement lookup uses _get_matching_category_ids() instead.
+        """
+
+        matching_ids = (
+            CatalogMetadataService
+            ._get_matching_category_ids(
+                metadata,
+                category,
+            )
+        )
+
+        if len(matching_ids) == 1:
+            return matching_ids[0]
 
         return None
 
@@ -441,19 +474,6 @@ class CatalogMetadataService:
     ) -> Dict[str, List[str]]:
         """
         Convert the canonical color_map into aliases.
-
-        The new metadata contains canonical values such as:
-
-            navy blue
-            olive green
-            baby blue
-            baby pink
-            mustard yellow
-            charcoal grey
-            chocolate brown
-
-        Add common short forms so both ML and metadata normalization
-        resolve them to the same canonical value.
         """
 
         color_map = (
@@ -513,16 +533,13 @@ class CatalogMetadataService:
         }
 
         for canonical in color_map:
-
             canonical_value = (
                 str(canonical)
                 .strip()
                 .lower()
             )
 
-            aliases[
-                canonical_value
-            ] = list(
+            aliases[canonical_value] = list(
                 known_aliases.get(
                     canonical_value,
                     [],
@@ -541,15 +558,6 @@ class CatalogMetadataService:
     ) -> Dict[str, Any]:
         """
         Return metadata type aliases.
-
-        The metadata uses:
-
-            formal
-            casual
-            slim_fit
-            regular_fit
-            oversized
-            relaxed_fit
         """
 
         types = (
@@ -579,15 +587,6 @@ class CatalogMetadataService:
         Resolve the size group for a category.
 
         Handles singular/plural mismatches.
-
-        Example:
-
-            category = "shirts"
-
-        while metadata contains:
-
-            shirt -> alpha
-
         """
 
         if not category:
@@ -614,9 +613,7 @@ class CatalogMetadataService:
             normalized_category,
         ]
 
-        if normalized_category.endswith(
-            "s"
-        ):
+        if normalized_category.endswith("s"):
             candidates.append(
                 normalized_category[:-1]
             )
@@ -633,7 +630,6 @@ class CatalogMetadataService:
         )
 
         for canonical, values in aliases.items():
-
             if (
                 normalized_category
                 == canonical
@@ -646,9 +642,7 @@ class CatalogMetadataService:
                 candidates.extend(values)
 
         for candidate in candidates:
-
             if candidate in category_size_map:
-
                 return str(
                     category_size_map[
                         candidate
@@ -674,9 +668,7 @@ class CatalogMetadataService:
         if not size:
             return None, None
 
-        requested_size = (
-            size.strip()
-        )
+        requested_size = size.strip()
 
         if not requested_size:
             return None, None
@@ -733,7 +725,6 @@ class CatalogMetadataService:
         )
 
         if normalized_upper not in canonical_by_upper:
-
             choices = ", ".join(
                 str(key)
                 for key in size_group.keys()
@@ -771,12 +762,13 @@ class CatalogMetadataService:
         """
         Return requirements for a numeric category ID.
 
-        New metadata format:
+        Supports:
 
-            category_requirements:
-                "201":
-                    attributes: [...]
+            "201": {
+                "attributes": [...]
+            }
 
+        and the older direct-list format.
         """
 
         if category_id is None:
@@ -836,13 +828,113 @@ class CatalogMetadataService:
 
         return []
 
+    @staticmethod
+    def _merge_category_requirements(
+        requirement_lists: List[
+            List[Dict[str, Any]]
+        ],
+    ) -> List[Dict[str, Any]]:
+        """
+        Merge requirements from multiple department-specific category IDs.
+
+        This is important when the user says only:
+
+            "I need a black shirt"
+
+        because "shirts" exists under multiple departments.
+
+        If any matching category definition requires an attribute, that
+        attribute is treated as required until the department is known.
+        """
+
+        merged: Dict[str, Dict[str, Any]] = {}
+
+        for requirements in requirement_lists:
+            for requirement in requirements:
+                if not isinstance(
+                    requirement,
+                    dict,
+                ):
+                    continue
+
+                key = str(
+                    requirement.get(
+                        "key",
+                        ""
+                    )
+                ).strip().lower()
+
+                if not key:
+                    continue
+
+                existing = merged.get(key)
+
+                if existing is None:
+                    merged[key] = dict(
+                        requirement
+                    )
+                    continue
+
+                # Preserve the existing definition while making the
+                # attribute required if any department requires it.
+                if requirement.get(
+                    "required",
+                    False,
+                ):
+                    existing["required"] = True
+
+                if not existing.get("label") and requirement.get(
+                    "label"
+                ):
+                    existing["label"] = requirement["label"]
+
+                if not existing.get("question") and requirement.get(
+                    "question"
+                ):
+                    existing["question"] = requirement["question"]
+
+                if not existing.get("value_type") and requirement.get(
+                    "value_type"
+                ):
+                    existing["value_type"] = requirement["value_type"]
+
+                if not existing.get("options") and requirement.get(
+                    "options"
+                ):
+                    existing["options"] = requirement["options"]
+
+        return list(
+            merged.values()
+        )
+
     async def get_category_requirements(
         self,
         tenant_id: str,
         category: Optional[str],
     ) -> List[Dict[str, Any]]:
         """
-        Get metadata-driven required attributes for a category.
+        Get metadata-driven requirements for a category.
+
+        IMPORTANT:
+
+        A category may appear under multiple departments.
+
+        Example:
+
+            shirts:
+                women -> 103
+                men   -> 201
+                boys  -> 401
+
+        We therefore inspect every matching category ID instead of
+        arbitrarily selecting the first department.
+
+        This prevents:
+
+            "black shirt"
+
+        from accidentally selecting women's category 103 when the
+        available requirement definition exists under men's category 201.
         """
 
         if not category:
@@ -866,16 +958,38 @@ class CatalogMetadataService:
             aliases,
         )
 
-        category_id = (
-            self._resolve_category_id(
+        matching_category_ids = (
+            self._get_matching_category_ids(
                 metadata,
                 canonical_category,
             )
         )
 
-        return self._category_requirements_for_id(
-            metadata,
-            category_id,
+        if not matching_category_ids:
+            return []
+
+        requirement_lists: List[
+            List[Dict[str, Any]]
+        ] = []
+
+        for category_id in matching_category_ids:
+            requirements = (
+                self._category_requirements_for_id(
+                    metadata,
+                    category_id,
+                )
+            )
+
+            if requirements:
+                requirement_lists.append(
+                    requirements
+                )
+
+        if not requirement_lists:
+            return []
+
+        return self._merge_category_requirements(
+            requirement_lists
         )
 
     async def get_required_category_attributes(
@@ -944,14 +1058,11 @@ class CatalogMetadataService:
         )
 
         if filters.category:
-
             filters.category = self._canonical(
                 filters.category,
                 category_aliases,
             )
-
         else:
-
             filters.category = (
                 self._find_alias_in_text(
                     source_text,
@@ -970,14 +1081,11 @@ class CatalogMetadataService:
         )
 
         if filters.color:
-
             filters.color = self._canonical(
                 filters.color,
                 color_aliases,
             )
-
         else:
-
             filters.color = (
                 self._find_alias_in_text(
                     source_text,
@@ -996,14 +1104,11 @@ class CatalogMetadataService:
         )
 
         if filters.type:
-
             filters.type = self._canonical(
                 filters.type,
                 type_aliases,
             )
-
         else:
-
             filters.type = (
                 self._find_alias_in_text(
                     source_text,
