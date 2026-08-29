@@ -1,4 +1,5 @@
-import asyncio
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -20,37 +21,54 @@ class EntityExtractionResult:
 
 class EntityExtractor:
     """
-    Extracts entities from user messages.
+    Extract entities from customer messages.
 
-    Uses the trained ML model when available and combines it with
-    deterministic regex/vocabulary extraction for reliable clothing
-    search terms.
+    Extraction layers:
+
+        1. ML NER model
+        2. deterministic regex extraction
+        3. catalog-independent keyword extraction
+
+    The deterministic layers intentionally remain active even when
+    the ML model is available. This protects important commerce
+    entities such as colors, sizes, prices and categories from a
+    low-confidence NER prediction.
     """
 
     PATTERNS = {
         EntityType.SIZE: [
-            r"\b(xs|s|m|l|xl|xxl|3xl|4xl|xxxxl|xxxl)\b",
-            r"\bsize\s+(xs|s|m|l|xl|xxl|3xl|4xl|xxxxl|xxxl)\b",
+            r"\b(?:size\s+)?(xs|xxxl|xxl|xl|l|m|s|3xl|4xl|5xl)\b",
+            r"\b(size)\s*[:\-]?\s*(xs|xxxl|xxl|xl|l|m|s|3xl|4xl|5xl)\b",
         ],
+
         EntityType.PRICE: [
             (
-                r"(?:under|below|less than|max|maximum|budget|"
-                r"above|over|more than|min|minimum)\s*"
+                r"(?:under|below|less than|max|maximum|budget)"
+                r"\s*(?:rs\.?|inr|₹)?\s*"
+                r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
+            ),
+            (
+                r"(?:above|over|more than|min|minimum)"
+                r"\s*(?:rs\.?|inr|₹)?\s*"
+                r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
+            ),
+            (
+                r"(?:rs\.?|inr|₹)\s*"
+                r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
+            ),
+            (
+                r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
+                r"\s*(?:rs\.?|inr|₹)"
+            ),
+            (
+                r"price\s*"
                 r"(?:rs\.?|inr|₹)?\s*"
                 r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
             ),
-            r"(?:rs\.?|inr|₹)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)",
-            (
-                r"(\d+(?:,\d{3})*(?:\.\d{2})?)\s*"
-                r"(?:rs\.?|inr|₹)"
-            ),
-            (
-                r"price\s*(?:rs\.?|inr|₹)?\s*"
-                r"(\d+(?:,\d{3})*(?:\.\d{2})?)"
-            ),
         ],
+
         EntityType.ORDER_ID: [
-            r"\b(?:order|ord)[\s#:-]*([A-Z0-9]{6,})\b",
+            r"\b(?:order|ord)[\s#:\-]*([A-Z0-9]{6,})\b",
             r"\b([A-Z]{2,3}\d{6,})\b",
         ],
     }
@@ -70,23 +88,42 @@ class EntityExtractor:
         "brown",
         "beige",
         "navy",
+        "navy blue",
         "maroon",
+        "burgundy",
         "teal",
         "olive",
+        "olive green",
         "gold",
         "silver",
         "cream",
         "ivory",
         "charcoal",
+        "charcoal grey",
+        "charcoal gray",
         "khaki",
+        "baby blue",
+        "baby pink",
+        "sky blue",
+        "emerald green",
+        "mustard yellow",
+        "peach",
+        "coral",
+        "lavender",
+        "chocolate brown",
     ]
 
     FITS = [
+        "regular fit",
         "regular",
+        "slim fit",
         "slim",
         "skinny",
         "oversized",
+        "oversize",
+        "loose fit",
         "loose",
+        "relaxed fit",
         "relaxed",
         "tapered",
         "straight",
@@ -96,26 +133,48 @@ class EntityExtractor:
     ]
 
     PRODUCTS = [
-        "hoodie",
         "t-shirt",
+        "tshirts",
         "tshirt",
         "shirt",
+        "shirts",
         "jeans",
         "pants",
+        "trouser",
         "trousers",
         "shorts",
         "jacket",
+        "jackets",
         "coat",
         "sweater",
         "sweatshirt",
+        "sweatshirts",
         "cardigan",
         "kurta",
+        "kurtas",
+        "kurti",
+        "kurtis",
         "top",
+        "tops",
         "dress",
+        "dresses",
         "skirt",
+        "skirts",
         "leggings",
         "joggers",
         "cargo",
+        "cargo pants",
+        "track pants",
+        "polo",
+        "polos",
+        "saree",
+        "sarees",
+        "co-ord",
+        "co-ords",
+        "set",
+        "sets",
+        "hoodie",
+        "hoodies",
     ]
 
     BRANDS = [
@@ -134,6 +193,33 @@ class EntityExtractor:
         "sparx",
     ]
 
+    GENDERS = [
+        "women",
+        "woman",
+        "womens",
+        "women's",
+        "female",
+        "ladies",
+        "lady",
+        "men",
+        "man",
+        "mens",
+        "men's",
+        "male",
+        "gentlemen",
+        "girls",
+        "girl",
+        "girl's",
+        "girls'",
+        "boys",
+        "boy",
+        "boy's",
+        "boys'",
+        "unisex",
+        "gender neutral",
+        "gender-neutral",
+    ]
+
     MATERIALS = [
         "cotton",
         "linen",
@@ -145,62 +231,27 @@ class EntityExtractor:
         "viscose",
         "nylon",
         "leather",
+        "velvet",
+        "chiffon",
+        "georgette",
+        "corduroy",
     ]
 
-    GENDERS = [
-        "men",
-        "mens",
-        "male",
-        "women",
-        "womens",
-        "female",
-        "unisex",
-        "boys",
-        "girls",
-        "kids",
-    ]
-
-    STYLES = [
-        "casual",
-        "formal",
-        "party",
-        "streetwear",
-        "traditional",
-        "western",
-        "ethnic",
-    ]
-
-    PATTERNS_LIST = [
-        "plain",
-        "printed",
-        "print",
-        "striped",
-        "stripe",
-        "checked",
-        "checkered",
-        "floral",
-        "graphic",
-        "solid",
-        "polka",
+    DRESS_STYLES = [
+        "maxi",
+        "midi",
+        "mini",
+        "a-line",
+        "a line",
+        "bodycon",
     ]
 
     def __init__(self) -> None:
         pass
 
-    async def extract_async(
-        self,
-        text: str,
-        intent: Optional[str] = None,
-    ) -> EntityExtractionResult:
-        """
-        Run synchronous extraction in a worker thread.
-        """
-
-        return await asyncio.to_thread(
-            self.extract,
-            text,
-            intent,
-        )
+    # =========================================================
+    # PUBLIC EXTRACTION
+    # =========================================================
 
     def extract(
         self,
@@ -208,7 +259,7 @@ class EntityExtractor:
         intent: Optional[str] = None,
     ) -> EntityExtractionResult:
         """
-        Extract all entities from text.
+        Extract entities from text.
         """
 
         if not text or not text.strip():
@@ -219,21 +270,37 @@ class EntityExtractor:
 
         entities: List[ExtractedEntity] = []
 
+        # -----------------------------------------------------
+        # ML
+        # -----------------------------------------------------
+
         if (
-            model_loader.entity_model
-            and model_loader.entity_vectorizer
+            model_loader.entity_model is not None
+            and model_loader.entity_vectorizer is not None
         ):
             entities.extend(
                 self._extract_ml(text)
             )
 
+        # -----------------------------------------------------
+        # REGEX
+        # -----------------------------------------------------
+
         entities.extend(
             self._extract_regex(text)
         )
 
+        # -----------------------------------------------------
+        # KEYWORDS
+        # -----------------------------------------------------
+
         entities.extend(
             self._extract_keywords(text)
         )
+
+        # -----------------------------------------------------
+        # DEDUPLICATION
+        # -----------------------------------------------------
 
         entities = self._deduplicate(
             entities
@@ -242,16 +309,19 @@ class EntityExtractor:
         extracted_dict: Dict[str, Any] = {}
 
         for entity in entities:
+
             key = entity.entity_type.value
 
             if key not in extracted_dict:
+
                 extracted_dict[key] = (
                     entity.normalized_value
                     or entity.value
                 )
 
         logger.debug(
-            f"Extracted entities: {extracted_dict}"
+            "Extracted entities: %s",
+            extracted_dict,
         )
 
         return EntityExtractionResult(
@@ -259,12 +329,16 @@ class EntityExtractor:
             extracted_dict=extracted_dict,
         )
 
+    # =========================================================
+    # ML EXTRACTION
+    # =========================================================
+
     def _extract_ml(
         self,
         text: str,
     ) -> List[ExtractedEntity]:
         """
-        Extract entities using the trained NER model.
+        Extract entities using the trained token-level NER model.
         """
 
         if (
@@ -274,6 +348,7 @@ class EntityExtractor:
             return []
 
         try:
+
             tokens = list(
                 re.finditer(
                     r"\S+",
@@ -313,6 +388,16 @@ class EntityExtractor:
                     )
                 )
 
+            classes = []
+
+            if hasattr(
+                model_loader.entity_model,
+                "classes_",
+            ):
+                classes = list(
+                    model_loader.entity_model.classes_
+                )
+
             entities: List[ExtractedEntity] = []
 
             current_type: Optional[EntityType] = None
@@ -322,6 +407,7 @@ class EntityExtractor:
             confidences: List[float] = []
 
             def flush_current() -> None:
+
                 nonlocal current_type
                 nonlocal current_tokens
                 nonlocal current_start
@@ -332,6 +418,7 @@ class EntityExtractor:
                     current_type is None
                     or current_start is None
                     or current_end is None
+                    or not current_tokens
                 ):
                     return
 
@@ -343,7 +430,7 @@ class EntityExtractor:
                     sum(confidences)
                     / len(confidences)
                     if confidences
-                    else 0.0
+                    else 1.0
                 )
 
                 entities.append(
@@ -368,31 +455,33 @@ class EntityExtractor:
                 current_end = None
                 confidences = []
 
-            classes = []
-
-            if probabilities is not None:
-                classes = list(
-                    model_loader.entity_model.classes_
-                )
-
             for index, (
-                token,
-                label,
+                token_match,
+                raw_label,
             ) in enumerate(
-                zip(tokens, labels)
+                zip(
+                    tokens,
+                    labels,
+                )
             ):
-                label = str(label)
+
+                label = str(
+                    raw_label
+                )
 
                 if (
                     label == "O"
-                    or "-" not in label
+                    or "-"
+                    not in label
                 ):
                     flush_current()
                     continue
 
-                prefix, raw_type = label.split(
-                    "-",
-                    1,
+                prefix, raw_type = (
+                    label.split(
+                        "-",
+                        1,
+                    )
                 )
 
                 try:
@@ -405,14 +494,19 @@ class EntityExtractor:
 
                 confidence = 1.0
 
-                if probabilities is not None:
+                if (
+                    probabilities is not None
+                    and classes
+                ):
                     try:
                         class_index = classes.index(
                             label
                         )
 
                         confidence = float(
-                            probabilities[index][
+                            probabilities[
+                                index
+                            ][
                                 class_index
                             ]
                         )
@@ -423,32 +517,49 @@ class EntityExtractor:
                     ):
                         confidence = 0.0
 
+                token_value = (
+                    token_match.group(0)
+                )
+
                 if (
-                    prefix == "B"
+                    prefix.upper() == "B"
                     or entity_type != current_type
                 ):
+
                     flush_current()
 
                     current_type = entity_type
                     current_tokens = [
-                        token.group(0)
+                        token_value
                     ]
-                    current_start = token.start()
-                    current_end = token.end()
+                    current_start = (
+                        token_match.start()
+                    )
+                    current_end = (
+                        token_match.end()
+                    )
                     confidences = [
                         confidence
                     ]
 
-                elif prefix == "I":
+                elif (
+                    prefix.upper() == "I"
+                ):
+
                     current_tokens.append(
-                        token.group(0)
+                        token_value
                     )
-                    current_end = token.end()
+
+                    current_end = (
+                        token_match.end()
+                    )
+
                     confidences.append(
                         confidence
                     )
 
                 else:
+
                     flush_current()
 
             flush_current()
@@ -456,20 +567,28 @@ class EntityExtractor:
             return entities
 
         except Exception as exc:
+
             logger.warning(
-                f"ML entity extraction failed: {exc}"
+                "ML entity extraction failed: %s",
+                exc,
             )
+
             return []
+
+    # =========================================================
+    # REGEX EXTRACTION
+    # =========================================================
 
     def _extract_regex(
         self,
         text: str,
     ) -> List[ExtractedEntity]:
         """
-        Extract entities using regex patterns.
+        Extract deterministic entities using regular expressions.
         """
 
         entities: List[ExtractedEntity] = []
+
         text_lower = text.lower()
 
         for (
@@ -478,74 +597,91 @@ class EntityExtractor:
         ) in self.PATTERNS.items():
 
             for pattern in patterns:
-                matches = re.finditer(
+
+                for match in re.finditer(
                     pattern,
                     text_lower,
                     re.IGNORECASE,
-                )
+                ):
 
-                for match in matches:
-                    captured_groups = [
+                    value = None
+
+                    # Prefer the final captured group because
+                    # some patterns contain helper groups such as
+                    # "size".
+                    captured = [
                         group
                         for group in match.groups()
                         if group is not None
                     ]
 
-                    value = (
-                        captured_groups[-1]
-                        if captured_groups
-                        else match.group(0)
-                    )
+                    if captured:
+                        value = captured[-1]
+                    else:
+                        value = match.group(0)
 
                     if not value:
                         continue
 
                     metadata: Dict[str, Any] = {}
 
-                    if entity_type == EntityType.PRICE:
+                    if (
+                        entity_type
+                        == EntityType.PRICE
+                    ):
+
                         full_match = (
-                            match.group(0).lower()
+                            match.group(0)
+                            .lower()
                         )
 
                         if any(
                             keyword in full_match
-                            for keyword in [
+                            for keyword in (
                                 "under",
                                 "below",
                                 "less than",
                                 "max",
                                 "maximum",
                                 "budget",
-                            ]
+                            )
                         ):
-                            metadata["operator"] = "max"
+                            metadata[
+                                "operator"
+                            ] = "max"
 
                         elif any(
                             keyword in full_match
-                            for keyword in [
+                            for keyword in (
                                 "above",
                                 "over",
                                 "more than",
                                 "min",
                                 "minimum",
-                            ]
+                            )
                         ):
-                            metadata["operator"] = "min"
+                            metadata[
+                                "operator"
+                            ] = "min"
 
                         else:
-                            metadata["operator"] = "exact"
+                            metadata[
+                                "operator"
+                            ] = "exact"
 
                     entities.append(
                         ExtractedEntity(
                             entity_type=entity_type,
-                            value=value.strip(),
+                            value=str(
+                                value
+                            ).strip(),
                             confidence=0.90,
                             start_pos=match.start(),
                             end_pos=match.end(),
                             normalized_value=(
                                 self._normalize_value(
                                     entity_type,
-                                    value,
+                                    str(value),
                                 )
                             ),
                             metadata=metadata,
@@ -554,24 +690,53 @@ class EntityExtractor:
 
         return entities
 
+    # =========================================================
+    # KEYWORD EXTRACTION
+    # =========================================================
+
     def _extract_keywords(
         self,
         text: str,
     ) -> List[ExtractedEntity]:
         """
-        Extract entities using deterministic vocabulary matching.
+        Extract deterministic commerce entities from known vocabulary.
         """
 
         entities: List[ExtractedEntity] = []
+
         text_lower = text.lower()
 
         def add_keyword_entities(
             keywords: List[str],
             entity_type: EntityType,
         ) -> None:
-            for keyword in keywords:
+
+            # Longest terms first so:
+            #
+            # "navy blue"
+            #
+            # wins over:
+            #
+            # "blue"
+            #
+            for keyword in sorted(
+                keywords,
+                key=len,
+                reverse=True,
+            ):
+
+                normalized_keyword = (
+                    keyword.lower()
+                )
+
+                pattern = (
+                    rf"(?<!\w)"
+                    rf"{re.escape(normalized_keyword)}"
+                    rf"(?!\w)"
+                )
+
                 match = re.search(
-                    rf"\b{re.escape(keyword.lower())}\b",
+                    pattern,
                     text_lower,
                 )
 
@@ -615,62 +780,67 @@ class EntityExtractor:
         )
 
         add_keyword_entities(
-            self.MATERIALS,
-            EntityType.MATERIAL,
-        )
-
-        add_keyword_entities(
             self.GENDERS,
             EntityType.GENDER,
         )
 
         add_keyword_entities(
-            self.STYLES,
-            EntityType.STYLE,
+            self.MATERIALS,
+            EntityType.MATERIAL,
         )
 
+        # Dress-specific styles from the new category requirements.
         add_keyword_entities(
-            self.PATTERNS_LIST,
-            EntityType.PATTERN,
+            self.DRESS_STYLES,
+            EntityType.STYLE,
         )
 
         return entities
 
+    # =========================================================
+    # NORMALIZATION
+    # =========================================================
+
+    @staticmethod
     def _normalize_value(
-        self,
         entity_type: EntityType,
         value: str,
     ) -> str:
         """
-        Normalize extracted value.
+        Normalize extracted entity values.
         """
 
-        value = value.strip().lower()
+        normalized = (
+            value.strip().lower()
+        )
 
         if entity_type == EntityType.SIZE:
+
             size_map = {
                 "xs": "XS",
                 "s": "S",
                 "m": "M",
                 "l": "L",
                 "xl": "XL",
-                "xxl": "XXL",
-                "3xl": "3XL",
+                "xxl": "2XL",
                 "xxxl": "3XL",
-                "4xl": "4XL",
+                "3xl": "3XL",
                 "xxxxl": "4XL",
+                "4xl": "4XL",
+                "5xl": "5XL",
             }
 
             return size_map.get(
-                value,
-                value.upper(),
+                normalized,
+                normalized.upper(),
             )
 
         if entity_type == EntityType.PRICE:
+
             numeric = re.sub(
                 r"[^\d.]",
                 "",
-                value,
+                normalized,
             )
 
             try:
@@ -678,29 +848,98 @@ class EntityExtractor:
                     float(numeric)
                 )
             except ValueError:
-                return value
+                return normalized
 
-        if entity_type in {
-            EntityType.COLOR,
-            EntityType.FIT,
-            EntityType.PRODUCT,
-            EntityType.CATEGORY,
-            EntityType.BRAND,
-            EntityType.MATERIAL,
-            EntityType.GENDER,
-            EntityType.STYLE,
-            EntityType.PATTERN,
-        }:
-            return value.capitalize()
+        if entity_type == EntityType.COLOR:
 
-        return value
+            aliases = {
+                "gray": "Grey",
+                "navy": "Navy",
+                "olive": "Olive",
+                "charcoal": "Charcoal",
+                "mustard": "Mustard Yellow",
+                "emerald": "Emerald Green",
+                "skyblue": "Sky Blue",
+                "babyblue": "Baby Blue",
+                "babypink": "Baby Pink",
+                "chocolate": "Chocolate Brown",
+            }
 
+            if normalized in aliases:
+                return aliases[
+                    normalized
+                ]
+
+            return normalized.title()
+
+        if entity_type == EntityType.FIT:
+            return normalized.title()
+
+        if entity_type == EntityType.PRODUCT:
+            return normalized.lower()
+
+        if entity_type == EntityType.BRAND:
+            return normalized.title()
+
+        if entity_type == EntityType.GENDER:
+            gender_aliases = {
+                "woman": "women",
+                "womens": "women",
+                "women's": "women",
+                "female": "women",
+                "ladies": "women",
+                "lady": "women",
+                "man": "men",
+                "mens": "men",
+                "men's": "men",
+                "male": "men",
+                "gentlemen": "men",
+                "girl": "girls",
+                "girl's": "girls",
+                "girls'": "girls",
+                "boy": "boys",
+                "boy's": "boys",
+                "boys'": "boys",
+                "gender neutral": "unisex",
+                "gender-neutral": "unisex",
+            }
+
+            return gender_aliases.get(
+                normalized,
+                normalized,
+            )
+
+        if entity_type == EntityType.STYLE:
+
+            style_aliases = {
+                "a line": "a-line",
+            }
+
+            return style_aliases.get(
+                normalized,
+                normalized,
+            )
+
+        return normalized
+
+    # =========================================================
+    # DEDUPLICATION
+    # =========================================================
+
+    @staticmethod
     def _deduplicate(
-        self,
         entities: List[ExtractedEntity],
     ) -> List[ExtractedEntity]:
         """
-        Remove duplicate and overlapping entities.
+        Remove duplicate/overlapping entities.
+
+        Priority:
+
+        1. higher confidence
+        2. longer span
+        3. earlier occurrence
+
+        Different non-overlapping entity types are preserved.
         """
 
         if not entities:
@@ -723,14 +962,32 @@ class EntityExtractor:
         ] = []
 
         for candidate in sorted_entities:
+
+            candidate_start = (
+                candidate.start_pos
+            )
+
+            candidate_end = (
+                candidate.end_pos
+            )
+
             duplicate = False
 
             for existing in selected:
+
+                existing_start = (
+                    existing.start_pos
+                )
+
+                existing_end = (
+                    existing.end_pos
+                )
+
                 overlaps = (
-                    candidate.start_pos
-                    < existing.end_pos
-                    and candidate.end_pos
-                    > existing.start_pos
+                    candidate_start
+                    < existing_end
+                    and candidate_end
+                    > existing_start
                 )
 
                 if not overlaps:
@@ -744,22 +1001,29 @@ class EntityExtractor:
                 candidate_value = (
                     candidate.normalized_value
                     or candidate.value
-                ).strip().lower()
+                )
 
                 existing_value = (
                     existing.normalized_value
                     or existing.value
-                ).strip().lower()
+                )
 
                 same_value = (
                     candidate_value
-                    == existing_value
+                    .strip()
+                    .lower()
+                    ==
+                    existing_value
+                    .strip()
+                    .lower()
                 )
 
                 if same_type or same_value:
                     duplicate = True
                     break
 
+                # Do not allow a lower-confidence overlapping
+                # entity to replace a stronger entity.
                 if (
                     candidate.confidence
                     <= existing.confidence
@@ -774,7 +1038,10 @@ class EntityExtractor:
 
         return sorted(
             selected,
-            key=lambda entity: entity.start_pos,
+            key=lambda entity: (
+                entity.start_pos,
+                entity.end_pos,
+            ),
         )
 
 
