@@ -792,13 +792,18 @@ class ProductSearchHandler(BaseHandler):
                 ]
             )
 
-        attributes = getattr(filters, "attributes", {}) or {}
-        if normalized_key in attributes:
-            return bool(attributes.get(normalized_key))
+        dynamic_value = (
+            getattr(filters, "attributes", {}) or {}
+        ).get(normalized_key)
+        if dynamic_value is not None:
+            return bool(str(dynamic_value).strip())
 
-        if normalized_key in {"dress_style", "dressstyle"}:
+        if normalized_key in {
+            "dress_style",
+            "dressstyle",
+        }:
             return bool(
-                attributes.get("dress_style")
+                (getattr(filters, "attributes", {}) or {}).get("dress_style")
                 or filters.style
                 or entity_values.get("style")
             )

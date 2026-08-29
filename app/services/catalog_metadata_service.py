@@ -33,11 +33,11 @@ class CatalogMetadataService:
         """
         Return catalog metadata.
 
-        Tenant-scoped metadata is authoritative. A global document is used
-        only as a fallback when no tenant-specific document exists.
+        Tenant metadata is authoritative. A global document may be used only
+        when no tenant-specific document exists.
         """
 
-        if not mongodb.is_connected:
+        if not mongodb.is_connected or not tenant_id:
             return {}
 
         document = await collections.inventory_metadata.find_one(
@@ -1017,6 +1017,90 @@ class CatalogMetadataService:
     # FILTER NORMALIZATION
     # =========================================================
 
+    @staticmethod
+    def _resolve_department_id(
+        metadata: Dict[str, Any],
+        department: Optional[str],
+    ) -> Optional[int]:
+        if not department:
+            return None
+
+        aliases = metadata.get("department_aliases") or {}
+        normalized = str(department).strip().lower()
+
+        for canonical, values in aliases.items():
+            candidates = [canonical]
+            if isinstance(values, list):
+                candidates.extend(values)
+            elif values:
+                candidates.append(values)
+            if any(normalized == str(v).strip().lower() for v in candidates):
+                try:
+                    return int((metadata.get("department_ids") or {}).get(canonical))
+                except (TypeError, ValueError):
+                    return None
+        try:
+            return int((metadata.get("department_ids") or {}).get(normalized))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _resolve_color_id(
+        metadata: Dict[str, Any],
+        color: Optional[str],
+    ) -> Optional[int]:
+        if not color:
+            return None
+        aliases = CatalogMetadataService._build_color_aliases(metadata)
+        canonical = CatalogMetadataService._canonical(color, aliases)
+        try:
+            return int((metadata.get("color_map") or {}).get(canonical))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _resolve_size_id(
+        metadata: Dict[str, Any],
+        category: Optional[str],
+        size: Optional[str],
+    ) -> Tuple[Optional[str], Optional[int]]:
+        if not size:
+            return None, None
+
+        group = CatalogMetadataService._resolve_size_group(metadata, category)
+        if not group:
+            return str(size).strip().upper(), None
+
+        groups = metadata.get("size_groups") or {}
+        values = groups.get(group) if isinstance(groups, dict) else None
+        if not isinstance(values, dict):
+            return str(size).strip().upper(), None
+
+        requested = str(size).strip().upper()
+        for key, value in values.items():
+            if str(key).strip().upper() == requested:
+                try:
+                    return str(key), int(value)
+                except (TypeError, ValueError):
+                    return str(key), None
+        return None, None
+
+    @staticmethod
+    def _find_requirement_value(
+        source_text: str,
+        requirement: Dict[str, Any],
+    ) -> Optional[str]:
+        options = requirement.get("options") or {}
+        if not isinstance(options, dict):
+            return None
+        aliases: Dict[str, List[str]] = {}
+        for key in options:
+            canonical = str(key).strip().lower()
+            aliases[canonical] = [canonical]
+            if canonical == "a-line":
+                aliases[canonical].append("a line")
+        return CatalogMetadataService._find_alias_in_text(source_text, aliases)
+
     async def normalize_filters(
         self,
         tenant_id: str,
@@ -1052,17 +1136,22 @@ class CatalogMetadataService:
         )
 
         if filters.category:
-            filters.category = self._canonical(
-                filters.category,
-                category_aliases,
-            )
+            filters.category = self._canonical(filters.category, category_aliases)
         else:
-            filters.category = (
-                self._find_alias_in_text(
-                    source_text,
-                    category_aliases,
-                )
+            filters.category = self._find_alias_in_text(source_text, category_aliases)
+
+        # A bare product keyword such as "shirt" is also a category alias.
+        # Once metadata identifies it as a category, it must not remain as the
+        # free-text query because the canonical category ID is authoritative.
+        if filters.query and filters.category:
+            query_normalized = filters.query.strip().lower()
+            category_candidates = {filters.category}
+            category_candidates.update(
+                str(v).strip().lower()
+                for v in category_aliases.get(filters.category, [])
             )
+            if query_normalized in category_candidates:
+                filters.query = None
 
         # -----------------------------------------------------
         # COLOR
@@ -1075,17 +1164,12 @@ class CatalogMetadataService:
         )
 
         if filters.color:
-            filters.color = self._canonical(
-                filters.color,
-                color_aliases,
-            )
+            filters.color = self._canonical(filters.color, color_aliases)
         else:
-            filters.color = (
-                self._find_alias_in_text(
-                    source_text,
-                    color_aliases,
-                )
-            )
+            filters.color = self._find_alias_in_text(source_text, color_aliases)
+
+        if filters.color:
+            filters.color_id = self._resolve_color_id(metadata, filters.color)
 
         # -----------------------------------------------------
         # TYPE
@@ -1114,101 +1198,71 @@ class CatalogMetadataService:
         # SIZE
         # -----------------------------------------------------
 
-        normalized_size, clarification = (
-            self._normalize_size(
-                metadata,
-                filters.category,
-                filters.size,
-            )
+        normalized_size, size_id = self._resolve_size_id(
+            metadata, filters.category, filters.size
         )
 
-        if clarification:
-            return (
-                filters,
-                clarification,
+        if filters.size and normalized_size is None:
+            size_group = self._resolve_size_group(metadata, filters.category)
+            choices = list((metadata.get("size_groups") or {}).get(size_group, {}).keys()) if size_group else []
+            return filters, (
+                f"For {filters.category or 'this category'}, available sizes are {', '.join(map(str, choices))}. Which size would you like?"
             )
 
         if normalized_size:
             filters.size = normalized_size
+            filters.size_id = size_id
+            filters.size_group = self._resolve_size_group(metadata, filters.category)
 
-        # Resolve canonical department ID.
+        # Resolve department from the already-normalized gender field.
         if filters.gender and filters.department_id is None:
-            department_ids = metadata.get("department_ids") or {}
-            gender_key = str(filters.gender).strip().lower()
-            if isinstance(department_ids, dict) and gender_key in department_ids:
-                try:
-                    filters.department_id = int(department_ids[gender_key])
-                except (TypeError, ValueError):
-                    pass
+            filters.department_id = self._resolve_department_id(metadata, filters.gender)
 
-        # Resolve canonical category ID when the department makes it unique.
-        if filters.category_id is None and filters.category:
-            matching = self._get_matching_category_ids(
-                metadata, filters.category
-            )
-            if filters.department_id is not None:
-                category_ids = metadata.get("category_ids") or {}
-                for dept_name, mapping in category_ids.items():
-                    dept_id = (metadata.get("department_ids") or {}).get(dept_name)
-                    try:
-                        if int(dept_id) != int(filters.department_id):
-                            continue
-                    except (TypeError, ValueError):
-                        continue
-                    if isinstance(mapping, dict):
-                        value = mapping.get(filters.category)
-                        if value is not None:
+        # Resolve category IDs after department resolution.
+        matching_category_ids = self._get_matching_category_ids(metadata, filters.category)
+        if filters.department_id is not None and filters.category:
+            category_map = (metadata.get("category_ids") or {})
+            for department, mapping in category_map.items():
+                if not isinstance(mapping, dict):
+                    continue
+                try:
+                    department_id = int((metadata.get("department_ids") or {}).get(department))
+                except (TypeError, ValueError):
+                    continue
+                if department_id == filters.department_id:
+                    for key, value in mapping.items():
+                        if str(key).strip().lower() == filters.category:
                             try:
                                 filters.category_id = int(value)
+                                filters.category_ids = [filters.category_id]
                             except (TypeError, ValueError):
                                 pass
+                            break
                     break
-            elif len(matching) == 1:
-                filters.category_id = matching[0]
+        elif matching_category_ids:
+            filters.category_ids = matching_category_ids
+            if len(matching_category_ids) == 1:
+                filters.category_id = matching_category_ids[0]
 
-        # Resolve canonical color ID.
-        if filters.color_id is None and filters.color:
-            color_map = metadata.get("color_map") or {}
-            if isinstance(color_map, dict):
-                value = color_map.get(filters.color)
-                if value is not None:
-                    try:
-                        filters.color_id = int(value)
-                    except (TypeError, ValueError):
-                        pass
-
-        # Resolve canonical size ID using the category's size group.
-        if filters.size_id is None and filters.size:
-            size_group_name = filters.size_group or self._resolve_size_group(
-                metadata, filters.category
-            )
-            size_groups = metadata.get("size_groups") or {}
-            if size_group_name and isinstance(size_groups, dict):
-                group = size_groups.get(size_group_name) or {}
-                if isinstance(group, dict):
-                    value = group.get(filters.size)
-                    if value is None:
-                        value = group.get(str(filters.size).upper())
-                    if value is not None:
-                        try:
-                            filters.size_id = int(value)
-                            filters.size_group = str(size_group_name)
-                        except (TypeError, ValueError):
-                            pass
-
-        # Map fixed entity fields into the generic metadata attribute bag.
-        attributes = dict(filters.attributes or {})
-        for key in ("style", "pattern", "occasion", "season", "sleeve", "neck"):
-            value = getattr(filters, key, None)
-            if value:
-                attributes[key] = value
-
-        # dress_style is a category-specific requirement in the supplied catalog.
-        if filters.category == "dresses" and filters.style:
-            attributes["dress_style"] = filters.style
-            filters.type = filters.type if filters.type not in {None, filters.style} else None
-
-        filters.attributes = attributes
+        # Resolve metadata-defined category attributes such as dress_style.
+        if filters.category:
+            category_ids = filters.category_ids or ([filters.category_id] if filters.category_id is not None else [])
+            requirements: List[Dict[str, Any]] = []
+            for category_id in category_ids:
+                requirements.extend(self._category_requirements_for_id(metadata, category_id))
+            for requirement in requirements:
+                key = str(requirement.get("key", "")).strip().lower()
+                if not key or key in filters.attributes:
+                    continue
+                value = self._find_requirement_value(source_text, requirement)
+                if value:
+                    options = requirement.get("options") or {}
+                    canonical = next((str(option).strip().lower() for option in options if str(option).strip().lower() == value), value)
+                    filters.attributes[key] = canonical
+                    if key == "style":
+                        filters.style = canonical
+                    elif key in {"dress_style", "dressstyle"}:
+                        filters.attributes["dress_style"] = canonical
 
         return filters, None
 

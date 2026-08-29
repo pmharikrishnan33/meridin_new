@@ -132,49 +132,22 @@ class EntityExtractor:
         "athletic",
     ]
 
+    # Clothing category vocabulary mirrors inventory_metadata.category_aliases.
+    CATEGORIES = [
+        "dresses", "dress", "gown", "frock", "tops", "top",
+        "shirts", "shirt", "button-down", "button down", "button-up", "button up",
+        "t-shirts", "t-shirt", "tshirts", "tshirt", "tee", "tees", "t shirt", "t shirts",
+        "kurtis", "kurti", "kurtas", "kurta", "ethnic-wear", "ethnic wear", "ethnic", "traditional wear",
+        "sarees", "saree", "skirts", "skirt", "jeans", "jean", "pants", "pant",
+        "shorts", "short", "co-ords", "co-ord", "coord", "coords", "co ord", "co ords", "matching set",
+        "jackets", "jacket", "polos", "polo", "polo shirt", "polo shirts", "chinos", "chino",
+        "cargo pants", "cargo pant", "cargo", "track pants", "track pant", "tracksuit pants",
+        "hoodies", "hoodie", "sweatshirts", "sweatshirt", "sets", "set", "co-ord set",
+    ]
+
+    # Non-category product terms remain PRODUCT entities.
     PRODUCTS = [
-        "t-shirt",
-        "tshirts",
-        "tshirt",
-        "shirt",
-        "shirts",
-        "jeans",
-        "pants",
-        "trouser",
-        "trousers",
-        "shorts",
-        "jacket",
-        "jackets",
-        "coat",
-        "sweater",
-        "sweatshirt",
-        "sweatshirts",
-        "cardigan",
-        "kurta",
-        "kurtas",
-        "kurti",
-        "kurtis",
-        "top",
-        "tops",
-        "dress",
-        "dresses",
-        "skirt",
-        "skirts",
-        "leggings",
-        "joggers",
-        "cargo",
-        "cargo pants",
-        "track pants",
-        "polo",
-        "polos",
-        "saree",
-        "sarees",
-        "co-ord",
-        "co-ords",
-        "set",
-        "sets",
-        "hoodie",
-        "hoodies",
+        "coat", "sweater", "cardigan", "leggings", "joggers",
     ]
 
     BRANDS = [
@@ -770,6 +743,11 @@ class EntityExtractor:
         )
 
         add_keyword_entities(
+            self.CATEGORIES,
+            EntityType.CATEGORY,
+        )
+
+        add_keyword_entities(
             self.PRODUCTS,
             EntityType.PRODUCT,
         )
@@ -1019,6 +997,23 @@ class EntityExtractor:
                 )
 
                 if same_type or same_value:
+                    duplicate = True
+                    break
+
+                # Clothing category vocabulary is authoritative for overlapping
+                # product/category terms such as "shirt". Prefer CATEGORY so
+                # the downstream metadata resolver can produce category IDs.
+                if (
+                    candidate.entity_type == EntityType.CATEGORY
+                    and existing.entity_type == EntityType.PRODUCT
+                ):
+                    selected.remove(existing)
+                    break
+
+                if (
+                    candidate.entity_type == EntityType.PRODUCT
+                    and existing.entity_type == EntityType.CATEGORY
+                ):
                     duplicate = True
                     break
 

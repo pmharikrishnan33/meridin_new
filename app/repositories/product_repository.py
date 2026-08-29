@@ -483,16 +483,22 @@ class ProductRepository:
         # CANONICAL CATEGORY ID
         # --------------------------------------------------
 
-        category_id_condition = (
-            self._build_id_condition(
-                "category_id",
-                getattr(
-                    filters,
-                    "category_id",
-                    None,
-                ),
+        category_ids = list(getattr(filters, "category_ids", []) or [])
+        if filters.category_id is not None and filters.category_id not in category_ids:
+            category_ids.insert(0, filters.category_id)
+
+        if len(category_ids) > 1:
+            category_id_condition = {
+                "category_id": {
+                    "$in": [int(value) for value in category_ids]
+                }
+            }
+        elif category_ids:
+            category_id_condition = self._build_id_condition(
+                "category_id", category_ids[0]
             )
-        )
+        else:
+            category_id_condition = None
 
         category_text_condition = (
             self._build_exact_text_condition(
@@ -822,30 +828,26 @@ class ProductRepository:
             )
 
         # --------------------------------------------------
-        # METADATA-DRIVEN CATEGORY ATTRIBUTES
+        # METADATA-DEFINED CATEGORY ATTRIBUTES
         # --------------------------------------------------
 
-        for key, value in (getattr(filters, "attributes", {}) or {}).items():
-            if value is None or (isinstance(value, str) and not value.strip()):
-                continue
-            if isinstance(value, (list, tuple, set)):
-                normalized_values = [str(v).strip().lower() for v in value if str(v).strip()]
-                if normalized_values:
-                    conditions.append({
-                        "attributes": {
-                            "$elemMatch": {
-                                "key": key,
-                                "value": {"$in": normalized_values},
-                            }
-                        }
-                    })
-                continue
-            conditions.append({
-                "$or": [
-                    {f"attributes.{key}": {"$regex": "^" + re.escape(str(value).strip()) + "$", "$options": "i"}},
-                    {f"{key}": {"$regex": "^" + re.escape(str(value).strip()) + "$", "$options": "i"}},
-                ]
-            })
+        dynamic_attributes = getattr(filters, "attributes", {}) or {}
+        if isinstance(dynamic_attributes, dict):
+            for field, value in dynamic_attributes.items():
+                if not isinstance(field, str) or not field.strip():
+                    continue
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    continue
+
+                field_name = field.strip()
+                if isinstance(value, str):
+                    conditions.append(
+                        self._build_exact_text_condition(field_name, value)
+                    )
+                elif isinstance(value, (int, float, bool)):
+                    conditions.append({field_name: value})
+                elif isinstance(value, list) and value:
+                    conditions.append({field_name: {"$in": value}})
 
         # --------------------------------------------------
         # TAGS

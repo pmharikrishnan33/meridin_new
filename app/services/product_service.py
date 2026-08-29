@@ -425,20 +425,6 @@ class ProductService:
                 if product_fit == fit:
                     score += 45
 
-            # Metadata-driven attributes.
-            product_attributes = {
-                str(k).strip().lower(): v
-                for k, v in (getattr(product, "attributes", {}) or {}).items()
-            }
-            for key, requested in (getattr(filters, "attributes", {}) or {}).items():
-                if requested is None:
-                    continue
-                actual = product_attributes.get(str(key).strip().lower())
-                if actual is None:
-                    actual = getattr(product, str(key), None)
-                if actual is not None and str(actual).strip().lower() == str(requested).strip().lower():
-                    score += 55
-
             # -------------------------------------------------
             # GENDER / DEPARTMENT
             # -------------------------------------------------
@@ -490,6 +476,22 @@ class ProductService:
 
                     elif token in product_brand:
                         score += 15
+
+            # -------------------------------------------------
+            # METADATA-DEFINED ATTRIBUTES
+            # -------------------------------------------------
+
+            for attribute_key, requested_value in (
+                (getattr(filters, "attributes", {}) or {}).items()
+            ):
+                if requested_value is None:
+                    continue
+                product_attributes = getattr(product, "attributes", {}) or {}
+                actual_value = product_attributes.get(attribute_key)
+                if actual_value is None:
+                    actual_value = getattr(product, attribute_key, None)
+                if actual_value is not None and str(actual_value).strip().lower() == str(requested_value).strip().lower():
+                    score += 80
 
             # -------------------------------------------------
             # STOCK
@@ -1402,8 +1404,21 @@ class ProductService:
                     ).strip().lower()
 
             elif entity_type == EntityType.STYLE:
+                # Style is a metadata-defined attribute (for example
+                # dress_style=maxi), not the product type.
                 filters.style = value.lower()
                 filters.attributes["style"] = value.lower()
+
+            elif entity_type in {
+                EntityType.PATTERN,
+                EntityType.OCCASION,
+                EntityType.SEASON,
+                EntityType.SLEEVE,
+                EntityType.NECK,
+            }:
+                key = entity_type.value
+                filters.attributes[key] = value.lower()
+                setattr(filters, key, value.lower())
 
             elif entity_type == EntityType.BRAND:
                 filters.brand = value.lower()
