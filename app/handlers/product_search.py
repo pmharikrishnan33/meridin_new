@@ -8,7 +8,6 @@ from app.handlers.base_handler import BaseHandler
 from app.models.schemas import (
     BotResponse,
     ConversationContext,
-    EntityType,
     IntentType,
     MessageUnderstanding,
     ProductSearchFilters,
@@ -48,10 +47,6 @@ def _rank_products(
     def score(product):
         title = (
             product.title or ""
-        ).lower()
-
-        description = (
-            product.description or ""
         ).lower()
 
         searchable_text = " ".join(
@@ -211,13 +206,16 @@ class ProductSearchHandler(BaseHandler):
     """
     Handles PRODUCT_SEARCH.
 
-    Important:
+    This handler is the single authority for the product-search
+    conversation workflow.
 
-    This handler does NOT hardcode:
-        - every search requiring size
-        - every dress requiring a particular attribute
-        - any specific category
-        - any specific question
+    It does not hardcode:
+
+        - which category requires which attribute
+        - which dress type should be requested
+        - which shirt size should be requested
+        - category-specific questions
+        - category-specific options
 
     Those rules come from inventory_metadata.category_requirements.
     """
@@ -235,7 +233,7 @@ class ProductSearchHandler(BaseHandler):
     ) -> BotResponse:
 
         # =========================================================
-        # 1. BUILD FILTERS FROM ENTITIES
+        # 1. BUILD FILTERS FROM CURRENT MESSAGE
         # =========================================================
 
         filters = (
@@ -247,6 +245,32 @@ class ProductSearchHandler(BaseHandler):
         # =========================================================
         # 2. MERGE PREVIOUS CONVERSATION FILTERS
         # =========================================================
+        #
+        # IMPORTANT:
+        #
+        # query/category represent a new product scope.
+        #
+        # type, color, size, gender, fit, etc. can be refinements
+        # or answers to metadata requirements and therefore MUST
+        # inherit the previous search context.
+        #
+        # Example:
+        #
+        #   black dress
+        #
+        # followed by:
+        #
+        #   maxi
+        #
+        # must become:
+        #
+        #   black + dress + maxi
+        #
+        # NOT:
+        #
+        #   maxi only
+        #
+        # =========================================================
 
         if (
             conversation_context
@@ -256,7 +280,6 @@ class ProductSearchHandler(BaseHandler):
                 (
                     filters.query,
                     filters.category,
-                    filters.type,
                 )
             )
 
@@ -285,6 +308,23 @@ class ProductSearchHandler(BaseHandler):
         # =========================================================
         # 3. NORMALIZE METADATA
         # =========================================================
+        #
+        # This resolves:
+        #
+        #   department
+        #   category
+        #   category_id
+        #   department_id
+        #   color
+        #   color_id
+        #   size
+        #   size_id
+        #   size_group
+        #   type aliases
+        #
+        # using the tenant's inventory_metadata document.
+        #
+        # =========================================================
 
         (
             filters,
@@ -298,7 +338,28 @@ class ProductSearchHandler(BaseHandler):
         )
 
         # =========================================================
-        # 4. CATEGORY REQUIREMENTS
+        # 4. LOAD CATEGORY-SPECIFIC REQUIREMENTS
+        # =========================================================
+        #
+        # This is the critical step.
+        #
+        # The category ID is resolved first and then metadata is
+        # queried for the requirements belonging to that category.
+        #
+        # Example metadata:
+        #
+        # category_requirements["201"]
+        #
+        # can define:
+        #
+        #   size -> required
+        #
+        # while another category can define:
+        #
+        #   type -> required
+        #
+        # No category is hardcoded here.
+        #
         # =========================================================
 
         requirements = (
@@ -308,6 +369,10 @@ class ProductSearchHandler(BaseHandler):
                 category=filters.category,
             )
         )
+
+        # =========================================================
+        # 5. CHECK REQUIREMENTS
+        # =========================================================
 
         (
             ready_to_search,
@@ -376,11 +441,23 @@ class ProductSearchHandler(BaseHandler):
                     ),
                 }
 
+                # Save the normalized filters so the next user
+                # message can refine this exact search.
                 conversation_context.last_search_filters = (
                     filters.model_dump(
                         exclude_none=True
                     )
                 )
+
+                if filters.category:
+                    conversation_context.current_category = (
+                        filters.category
+                    )
+
+                if filters.query:
+                    conversation_context.current_product = (
+                        filters.query
+                    )
 
             return BotResponse(
                 response_type="text",
@@ -410,7 +487,7 @@ class ProductSearchHandler(BaseHandler):
             )
 
         # =========================================================
-        # 5. SAVE COMPLETE SEARCH STATE
+        # 6. REQUIREMENTS COMPLETE
         # =========================================================
 
         if conversation_context:
@@ -430,8 +507,12 @@ class ProductSearchHandler(BaseHandler):
                     filters.query
                 )
 
+            conversation_context.awaiting_entity = None
+            conversation_context.awaiting_confirmation = False
+            conversation_context.confirmation_context = {}
+
         # =========================================================
-        # 6. TENANT RESPONSE LIMIT
+        # 7. TENANT RESPONSE LIMIT
         # =========================================================
 
         feature_flags = (
@@ -468,7 +549,7 @@ class ProductSearchHandler(BaseHandler):
             )
 
         # =========================================================
-        # 7. SEARCH
+        # 8. SEARCH
         # =========================================================
 
         filters.limit = self.SEARCH_LIMIT
@@ -490,7 +571,7 @@ class ProductSearchHandler(BaseHandler):
         response_text: Optional[str] = None
 
         # =========================================================
-        # 8. ZERO-RESULT RELAXATION
+        # 9. ZERO-RESULT RELAXATION
         # =========================================================
 
         if not products:
@@ -601,7 +682,7 @@ class ProductSearchHandler(BaseHandler):
                     )
 
         # =========================================================
-        # 9. STILL NO PRODUCTS
+        # 10. STILL NO PRODUCTS
         # =========================================================
 
         if not products:
@@ -631,7 +712,7 @@ class ProductSearchHandler(BaseHandler):
             )
 
         # =========================================================
-        # 10. PAGINATION
+        # 11. PAGINATION
         # =========================================================
 
         page = (
@@ -648,7 +729,7 @@ class ProductSearchHandler(BaseHandler):
         )
 
         # =========================================================
-        # 11. SAVE CONVERSATION STATE
+        # 12. SAVE CONVERSATION STATE
         # =========================================================
 
         if conversation_context:
@@ -663,9 +744,12 @@ class ProductSearchHandler(BaseHandler):
                 for product in products
             ]
 
-            conversation_context.current_product = (
-                products[0].id
-            )
+            # Keep current_product as the user's search product
+            # when available. Do not replace it with a product ID.
+            if filters.query:
+                conversation_context.current_product = (
+                    filters.query
+                )
 
             conversation_context.active_search_key = (
                 page["search_key"]
@@ -705,7 +789,7 @@ class ProductSearchHandler(BaseHandler):
             conversation_context.confirmation_context = {}
 
         # =========================================================
-        # 12. BUILD PRODUCT RESPONSE
+        # 13. BUILD PRODUCT RESPONSE
         # =========================================================
 
         response_products = [
@@ -743,7 +827,7 @@ class ProductSearchHandler(BaseHandler):
             )
 
         # =========================================================
-        # 13. FINAL RESPONSE
+        # 14. FINAL RESPONSE
         # =========================================================
 
         return BotResponse(
@@ -771,21 +855,26 @@ class ProductSearchHandler(BaseHandler):
         filters: ProductSearchFilters,
     ) -> bool:
         """
-        Compatibility helper.
+        Determine whether the current message is a refinement.
 
-        A message containing only a refinement such as:
-            "M"
-            "black"
-            "maxi"
+        A message such as:
 
-        can inherit the previous product search.
+            M
+            black
+            maxi
+            casual
+            slim fit
+
+        should normally refine the existing search.
+
+        A message containing a new query/category represents a new
+        product scope.
         """
 
         return not any(
             (
                 filters.query,
                 filters.category,
-                filters.type,
             )
         )
 
