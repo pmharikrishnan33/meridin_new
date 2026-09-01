@@ -1093,13 +1093,136 @@ class CatalogMetadataService:
         options = requirement.get("options") or {}
         if not isinstance(options, dict):
             return None
+
         aliases: Dict[str, List[str]] = {}
         for key in options:
             canonical = str(key).strip().lower()
             aliases[canonical] = [canonical]
             if canonical == "a-line":
                 aliases[canonical].append("a line")
-        return CatalogMetadataService._find_alias_in_text(source_text, aliases)
+
+        return CatalogMetadataService._find_alias_in_text(
+            source_text,
+            aliases,
+        )
+
+    @staticmethod
+    def _resolve_requirement_option_id(
+        requirement: Dict[str, Any],
+        value: Optional[str],
+    ) -> Optional[int]:
+        """Resolve an enum requirement value to its metadata ID."""
+        if not value:
+            return None
+
+        options = requirement.get("options") or {}
+        if not isinstance(options, dict):
+            return None
+
+        normalized = str(value).strip().lower()
+
+        for option_name, option_id in options.items():
+            canonical = str(option_name).strip().lower()
+            aliases = [canonical]
+            if canonical == "a-line":
+                aliases.append("a line")
+
+            if normalized not in aliases:
+                continue
+
+            try:
+                return int(option_id)
+            except (TypeError, ValueError):
+                return None
+
+        return None
+
+    @staticmethod
+    def _resolve_requirement_option_name(
+        requirement: Dict[str, Any],
+        option_id: Any,
+    ) -> Optional[str]:
+        """Resolve an enum metadata ID back to its canonical name."""
+        options = requirement.get("options") or {}
+        if not isinstance(options, dict):
+            return None
+
+        try:
+            requested_id = int(option_id)
+        except (TypeError, ValueError):
+            return None
+
+        for option_name, value in options.items():
+            try:
+                if int(value) == requested_id:
+                    return str(option_name).strip().lower()
+            except (TypeError, ValueError):
+                continue
+
+        return None
+
+    async def get_display_maps(
+        self,
+        tenant_id: str,
+    ) -> Dict[str, Dict[Any, str]]:
+        """
+        Build ID-to-name maps used when ID-only inventory documents are
+        converted into customer-facing WhatsApp product cards.
+        """
+        metadata = await self.get_metadata(tenant_id)
+        if not metadata:
+            return {}
+
+        color_map: Dict[Any, str] = {}
+        for name, value in (metadata.get("color_map") or {}).items():
+            try:
+                color_map[int(value)] = str(name)
+            except (TypeError, ValueError):
+                continue
+
+        size_map: Dict[Any, str] = {}
+        sizes_by_group: Dict[str, Dict[int, str]] = {}
+        for group_name, group in (metadata.get("size_groups") or {}).items():
+            if not isinstance(group, dict):
+                continue
+            group_map: Dict[int, str] = {}
+            for name, value in group.items():
+                try:
+                    numeric_id = int(value)
+                except (TypeError, ValueError):
+                    continue
+                group_map[numeric_id] = str(name)
+                # Keep a non-authoritative fallback only when the ID is unique.
+                if numeric_id not in size_map:
+                    size_map[numeric_id] = str(name)
+                else:
+                    size_map[numeric_id] = ""
+            sizes_by_group[str(group_name)] = group_map
+
+        category_map: Dict[Any, str] = {}
+        for department in (metadata.get("category_ids") or {}).values():
+            if not isinstance(department, dict):
+                continue
+            for name, value in department.items():
+                try:
+                    category_map[int(value)] = str(name)
+                except (TypeError, ValueError):
+                    continue
+
+        department_map: Dict[Any, str] = {}
+        for name, value in (metadata.get("department_ids") or {}).items():
+            try:
+                department_map[int(value)] = str(name)
+            except (TypeError, ValueError):
+                continue
+
+        return {
+            "colors": color_map,
+            "sizes": size_map,
+            "sizes_by_group": sizes_by_group,
+            "categories": category_map,
+            "departments": department_map,
+        }
 
     async def normalize_filters(
         self,
@@ -1245,24 +1368,84 @@ class CatalogMetadataService:
                 filters.category_id = matching_category_ids[0]
 
         # Resolve metadata-defined category attributes such as dress_style.
+        # The customer-facing canonical value and the inventory-facing numeric
+        # ID are both retained. For example:
+        #   attributes.dress_style = "midi"
+        #   attributes.dress_style_id = 2
         if filters.category:
-            category_ids = filters.category_ids or ([filters.category_id] if filters.category_id is not None else [])
+            category_ids = (
+                filters.category_ids
+                or ([filters.category_id] if filters.category_id is not None else [])
+            )
             requirements: List[Dict[str, Any]] = []
             for category_id in category_ids:
-                requirements.extend(self._category_requirements_for_id(metadata, category_id))
+                requirements.extend(
+                    self._category_requirements_for_id(
+                        metadata,
+                        category_id,
+                    )
+                )
+
             for requirement in requirements:
                 key = str(requirement.get("key", "")).strip().lower()
-                if not key or key in filters.attributes:
+                if not key:
                     continue
-                value = self._find_requirement_value(source_text, requirement)
-                if value:
-                    options = requirement.get("options") or {}
-                    canonical = next((str(option).strip().lower() for option in options if str(option).strip().lower() == value), value)
-                    filters.attributes[key] = canonical
-                    if key == "style":
-                        filters.style = canonical
-                    elif key in {"dress_style", "dressstyle"}:
-                        filters.attributes["dress_style"] = canonical
+
+                # If an ID was already collected from an entity or previous
+                # turn, recover its canonical value instead of discarding it.
+                id_key = f"{key}_id"
+                existing_id = filters.attributes.get(id_key)
+                if existing_id is not None and key not in filters.attributes:
+                    canonical = self._resolve_requirement_option_name(
+                        requirement,
+                        existing_id,
+                    )
+                    if canonical:
+                        filters.attributes[key] = canonical
+                        if key in {"style", "dress_style", "dressstyle"}:
+                            filters.style = canonical
+
+                if key in filters.attributes:
+                    option_id = self._resolve_requirement_option_id(
+                        requirement,
+                        filters.attributes.get(key),
+                    )
+                    if option_id is not None:
+                        filters.attributes[id_key] = option_id
+                    continue
+
+                value = self._find_requirement_value(
+                    source_text,
+                    requirement,
+                )
+                if not value:
+                    continue
+
+                options = requirement.get("options") or {}
+                canonical = next(
+                    (
+                        str(option).strip().lower()
+                        for option in options
+                        if str(option).strip().lower() == value
+                    ),
+                    value,
+                )
+
+                filters.attributes[key] = canonical
+
+                if key == "style":
+                    filters.style = canonical
+                elif key in {"dress_style", "dressstyle"}:
+                    filters.attributes["dress_style"] = canonical
+
+                option_id = self._resolve_requirement_option_id(
+                    requirement,
+                    canonical,
+                )
+                if option_id is not None:
+                    filters.attributes[id_key] = option_id
+
+        return filters, None
 
         return filters, None
 

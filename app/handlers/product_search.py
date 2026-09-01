@@ -530,9 +530,14 @@ class ProductSearchHandler(BaseHandler):
         # 14. RESPONSE PRODUCTS
         # --------------------------------------------------------
 
+        display_maps = await catalog_metadata_service.get_display_maps(
+            tenant_id
+        )
+
         response_products = [
             product_service.product_to_response(
-                product
+                product,
+                display_maps=display_maps,
             )
             for product in products[
                 :page_size
@@ -802,8 +807,10 @@ class ProductSearchHandler(BaseHandler):
             "dress_style",
             "dressstyle",
         }:
+            attributes = getattr(filters, "attributes", {}) or {}
             return bool(
-                (getattr(filters, "attributes", {}) or {}).get("dress_style")
+                attributes.get("dress_style")
+                or attributes.get("dress_style_id")
                 or filters.style
                 or entity_values.get("style")
             )

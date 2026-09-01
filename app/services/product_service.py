@@ -28,6 +28,9 @@ from app.models.schemas import (
 from app.repositories.product_repository import (
     product_repository,
 )
+from app.services.catalog_metadata_service import (
+    catalog_metadata_service,
+)
 from app.utils.logger import logger
 
 
@@ -88,6 +91,12 @@ class ProductService:
 
         if not products:
             return []
+
+        for product in products:
+            await self._enrich_product_metadata(
+                product,
+                tenant_id,
+            )
 
         ranked = self.rank_products(
             products=products,
@@ -573,12 +582,20 @@ class ProductService:
         if not product_id:
             return None
 
-        return await (
+        product = await (
             self.product_repository.find_by_id(
                 tenant_id=tenant_id,
                 product_id=product_id,
             )
         )
+
+        if product:
+            await self._enrich_product_metadata(
+                product,
+                tenant_id,
+            )
+
+        return product
 
     async def get_products_by_ids(
         self,
@@ -604,12 +621,20 @@ class ProductService:
         if not valid_ids:
             return []
 
-        return await (
+        products = await (
             self.product_repository.find_by_ids(
                 tenant_id=tenant_id,
                 product_ids=valid_ids,
             )
         )
+
+        for product in products:
+            await self._enrich_product_metadata(
+                product,
+                tenant_id,
+            )
+
+        return products
 
     async def get_product_by_reference(
         self,
@@ -635,12 +660,152 @@ class ProductService:
         if product:
             return product
 
-        return await (
+        product = await (
             self.product_repository.find_by_title(
                 tenant_id=tenant_id,
                 title=reference,
             )
         )
+
+        if product:
+            await self._enrich_product_metadata(
+                product,
+                tenant_id,
+            )
+
+        return product
+
+    # =========================================================
+    # METADATA DISPLAY ENRICHMENT
+    # =========================================================
+
+    @staticmethod
+    async def _enrich_product_metadata(
+        product: Product,
+        tenant_id: str,
+    ) -> Product:
+        """
+        Resolve canonical metadata IDs into human-readable product values.
+
+        Inventory documents may intentionally store only numeric IDs for
+        colors and sizes. Search can use those IDs directly, but the
+        WhatsApp response needs the corresponding names. This enrichment
+        happens after repository retrieval so the repository remains
+        responsible only for persistence/querying.
+        """
+
+        metadata = await catalog_metadata_service.get_metadata(
+            tenant_id
+        )
+
+        if not metadata:
+            return product
+
+        # -----------------------------------------------------
+        # COLOR ID -> COLOR NAME
+        # -----------------------------------------------------
+
+        color_map = metadata.get("color_map") or {}
+        color_by_id: Dict[int, str] = {}
+
+        if isinstance(color_map, dict):
+            for name, raw_id in color_map.items():
+                try:
+                    color_by_id[int(raw_id)] = str(name).strip()
+                except (TypeError, ValueError):
+                    continue
+
+        existing_colors = [
+            str(value).strip()
+            for value in (product.color or [])
+            if str(value).strip()
+        ]
+
+        if not existing_colors and product.color_ids:
+            for raw_id in product.color_ids:
+                try:
+                    name = color_by_id.get(int(raw_id))
+                except (TypeError, ValueError):
+                    name = None
+                if name:
+                    existing_colors.append(name)
+
+        product.color = list(dict.fromkeys(existing_colors))
+
+        # -----------------------------------------------------
+        # SIZE ID -> SIZE NAME
+        # -----------------------------------------------------
+
+        size_groups = metadata.get("size_groups") or {}
+        size_group_name = product.size_group
+
+        if not size_group_name:
+            size_group_name = catalog_metadata_service._resolve_size_group(
+                metadata,
+                product.category,
+            )
+
+        size_by_id: Dict[int, str] = {}
+        if isinstance(size_groups, dict) and size_group_name:
+            group = size_groups.get(size_group_name)
+            if isinstance(group, dict):
+                for name, raw_id in group.items():
+                    try:
+                        size_by_id[int(raw_id)] = str(name).strip()
+                    except (TypeError, ValueError):
+                        continue
+
+        existing_sizes = [
+            str(value).strip()
+            for value in (product.size or [])
+            if str(value).strip()
+        ]
+
+        if not existing_sizes and product.size_ids:
+            for raw_id in product.size_ids:
+                try:
+                    name = size_by_id.get(int(raw_id))
+                except (TypeError, ValueError):
+                    name = None
+                if name:
+                    existing_sizes.append(name)
+
+        product.size = list(dict.fromkeys(existing_sizes))
+        if size_group_name:
+            product.size_group = str(size_group_name)
+
+        # -----------------------------------------------------
+        # VARIANT ID -> NAME ENRICHMENT
+        # -----------------------------------------------------
+
+        enriched_variants: List[Dict[str, Any]] = []
+
+        for raw_variant in product.variants or []:
+            variant = dict(raw_variant) if isinstance(raw_variant, dict) else {}
+            if not variant:
+                continue
+
+            if not str(variant.get("color") or "").strip():
+                try:
+                    color_name = color_by_id.get(int(variant.get("color_id")))
+                except (TypeError, ValueError):
+                    color_name = None
+                if color_name:
+                    variant["color"] = color_name
+
+            if not str(variant.get("size") or "").strip():
+                try:
+                    size_name = size_by_id.get(int(variant.get("size_id")))
+                except (TypeError, ValueError):
+                    size_name = None
+                if size_name:
+                    variant["size"] = size_name
+
+            enriched_variants.append(variant)
+
+        product.variants = enriched_variants
+
+        return product
 
     # =========================================================
     # VARIANT HELPERS

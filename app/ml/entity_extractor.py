@@ -219,6 +219,33 @@ class EntityExtractor:
         "bodycon",
     ]
 
+    # Numeric sizes defined by the current clothing metadata for
+    # numeric_pants categories. These are handled deterministically
+    # because a token-level NER model can easily miss bare numbers.
+    NUMERIC_PANTS_SIZES = {
+        "30",
+        "32",
+        "34",
+        "36",
+    }
+
+    NUMERIC_SIZE_CATEGORIES = {
+        "jean",
+        "jeans",
+        "pant",
+        "pants",
+        "trouser",
+        "trousers",
+        "chino",
+        "chinos",
+        "cargo",
+        "cargo pant",
+        "cargo pants",
+        "track pant",
+        "track pants",
+        "tracksuit pants",
+    }
+
     def __init__(self) -> None:
         pass
 
@@ -661,6 +688,52 @@ class EntityExtractor:
                         )
                     )
 
+        # -----------------------------------------------------
+        # NUMERIC PANTS SIZES
+        # -----------------------------------------------------
+        # A bare value such as "32" is ambiguous globally. Treat it as a
+        # size only when a numeric-size clothing category is present and
+        # the number is not clearly being used as a price bound.
+        has_numeric_category = any(
+            re.search(
+                rf"(?<!\w){re.escape(category)}(?!\w)",
+                text_lower,
+            )
+            for category in sorted(
+                self.NUMERIC_SIZE_CATEGORIES,
+                key=len,
+                reverse=True,
+            )
+        )
+
+        if has_numeric_category:
+            for match in re.finditer(
+                r"(?<!\w)(30|32|34|36)(?!\w)",
+                text_lower,
+            ):
+                before = text_lower[max(0, match.start() - 25):match.start()]
+                if re.search(
+                    r"(?:under|below|less than|max|maximum|budget|above|over|more than|min|minimum|price)\s*(?:rs\.?|inr|₹)?\s*$",
+                    before,
+                    re.IGNORECASE,
+                ):
+                    continue
+
+                entities.append(
+                    ExtractedEntity(
+                        entity_type=EntityType.SIZE,
+                        value=match.group(1),
+                        confidence=0.95,
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        normalized_value=match.group(1),
+                        metadata={
+                            "numeric_size_candidate": True,
+                            "size_group": "numeric_pants",
+                        },
+                    )
+                )
+
         return entities
 
     # =========================================================
@@ -807,6 +880,9 @@ class EntityExtractor:
                 "4xl": "4XL",
                 "5xl": "5XL",
             }
+
+            if normalized in self.NUMERIC_PANTS_SIZES:
+                return normalized
 
             return size_map.get(
                 normalized,

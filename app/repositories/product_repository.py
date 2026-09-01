@@ -595,10 +595,21 @@ class ProductRepository:
                 }
             }
 
+        color_variant_id_condition = None
+        if color_id is not None:
+            color_variant_id_condition = {
+                "variants": {
+                    "$elemMatch": {
+                        "color_id": int(color_id)
+                    }
+                }
+            }
+
         color_conditions = [
             color_id_condition,
             color_text_condition,
             color_variant_condition,
+            color_variant_id_condition,
         ]
 
         color_condition = self._or_condition(
@@ -664,10 +675,21 @@ class ProductRepository:
                 }
             }
 
+        size_variant_id_condition = None
+        if size_id is not None:
+            size_variant_id_condition = {
+                "variants": {
+                    "$elemMatch": {
+                        "size_id": int(size_id)
+                    }
+                }
+            }
+
         size_conditions = [
             size_id_condition,
             size_text_condition,
             size_variant_condition,
+            size_variant_id_condition,
         ]
 
         size_condition = self._or_condition(
@@ -703,29 +725,48 @@ class ProductRepository:
 
             variant_pair = None
 
+            variant_pair_conditions = []
+
             if color_value and size_value:
-                variant_pair = {
+                variant_pair_conditions.append(
+                    {
+                        "variants": {
+                            "$elemMatch": {
+                                "color": {
+                                    "$regex": (
+                                        "^"
+                                        + re.escape(color_value)
+                                        + "$"
+                                    ),
+                                    "$options": "i",
+                                },
+                                "size": {
+                                    "$regex": (
+                                        "^"
+                                        + re.escape(size_value)
+                                        + "$"
+                                    ),
+                                    "$options": "i",
+                                },
+                            }
+                        }
+                    }
+                )
+
+            variant_pair_conditions.append(
+                {
                     "variants": {
                         "$elemMatch": {
-                            "color": {
-                                "$regex": (
-                                    "^"
-                                    + re.escape(color_value)
-                                    + "$"
-                                ),
-                                "$options": "i",
-                            },
-                            "size": {
-                                "$regex": (
-                                    "^"
-                                    + re.escape(size_value)
-                                    + "$"
-                                ),
-                                "$options": "i",
-                            },
+                            "color_id": int(color_id),
+                            "size_id": int(size_id),
                         }
                     }
                 }
+            )
+
+            variant_pair = {
+                "$or": variant_pair_conditions
+            }
 
             pair_conditions = [
                 canonical_pair,
@@ -840,14 +881,19 @@ class ProductRepository:
                     continue
 
                 field_name = field.strip()
+                mongo_field = f"attributes.{field_name}"
+
                 if isinstance(value, str):
                     conditions.append(
-                        self._build_exact_text_condition(field_name, value)
+                        self._build_exact_text_condition(
+                            mongo_field,
+                            value,
+                        )
                     )
                 elif isinstance(value, (int, float, bool)):
-                    conditions.append({field_name: value})
+                    conditions.append({mongo_field: value})
                 elif isinstance(value, list) and value:
-                    conditions.append({field_name: {"$in": value}})
+                    conditions.append({mongo_field: {"$in": value}})
 
         # --------------------------------------------------
         # TAGS
