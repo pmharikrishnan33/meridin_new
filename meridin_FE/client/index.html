@@ -52,6 +52,12 @@
                 Leads
             </a>
 
+            <div class="nav-title">Assistant</div>
+
+            <a href="#settings" class="nav-link">
+                AI & Business Settings
+            </a>
+
             <div class="nav-title">Insights</div>
 
             <a href="#analytics" class="nav-link">
@@ -273,6 +279,174 @@
             >
                 Loading...
             </div>
+
+        </section>
+
+        <section
+            id="settings"
+            class="dashboard-section"
+        >
+
+            <div class="section-header">
+                <div>
+                    <h2>AI & Business Settings</h2>
+                    <p>Control the business information and communication style used by your WhatsApp assistant.</p>
+                </div>
+            </div>
+
+            <form id="settingsForm" class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Business profile</h3>
+                        <p>This information is available to the AI for this tenant only.</p>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsShopName">Shop name *</label>
+                        <input id="settingsShopName" type="text" maxlength="200" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsCity">City</label>
+                        <input id="settingsCity" type="text" maxlength="100">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="settingsDescription">Business description</label>
+                    <textarea id="settingsDescription" rows="3" maxlength="1000"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsPhone">Phone</label>
+                        <input id="settingsPhone" type="text" maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsEmail">Email</label>
+                        <input id="settingsEmail" type="email" maxlength="200">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsWebsite">Website</label>
+                        <input id="settingsWebsite" type="url" maxlength="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsInstagram">Instagram</label>
+                        <input id="settingsInstagram" type="text" maxlength="200">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="settingsAddress">Address</label>
+                    <textarea id="settingsAddress" rows="2" maxlength="500"></textarea>
+                </div>
+
+                <div class="panel-header" style="margin-top: 24px;">
+                    <div>
+                        <h3>Customer support information</h3>
+                        <p>Only enter information the assistant is allowed to tell customers.</p>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsHours">Business hours</label>
+                        <textarea id="settingsHours" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsDelivery">Delivery information</label>
+                        <textarea id="settingsDelivery" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsShipping">Shipping policy</label>
+                        <textarea id="settingsShipping" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsReturns">Return policy</label>
+                        <textarea id="settingsReturns" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsExchange">Exchange policy</label>
+                        <textarea id="settingsExchange" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsCancellation">Cancellation policy</label>
+                        <textarea id="settingsCancellation" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsPayments">Payment methods</label>
+                        <textarea id="settingsPayments" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsCod">Cash on delivery</label>
+                        <select id="settingsCod">
+                            <option value="">Not specified</option>
+                            <option value="true">Available</option>
+                            <option value="false">Not available</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="panel-header" style="margin-top: 24px;">
+                    <div>
+                        <h3>AI assistant</h3>
+                        <p>These preferences apply only to this client's assistant.</p>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settingsTone">Tone</label>
+                        <select id="settingsTone">
+                            <option value="friendly">Friendly</option>
+                            <option value="professional">Professional</option>
+                            <option value="casual">Casual</option>
+                            <option value="luxury">Luxury</option>
+                            <option value="minimal">Minimal</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsLanguage">Language</label>
+                        <input id="settingsLanguage" type="text" maxlength="50" placeholder="English">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsLength">Response length</label>
+                        <select id="settingsLength">
+                            <option value="short">Short</option>
+                            <option value="medium">Medium</option>
+                            <option value="long">Long</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="settingsGreeting">Preferred greeting</label>
+                    <textarea id="settingsGreeting" rows="2" maxlength="500"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="settingsInstructions">Custom AI instructions</label>
+                    <textarea id="settingsInstructions" rows="5" maxlength="3000" placeholder="Example: Keep replies concise. Mention our free shipping above ₹999 when relevant."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="submit" class="primary-button">Save AI & Business Settings</button>
+                    <span id="settingsStatus" class="muted"></span>
+                </div>
+            </form>
 
         </section>
 

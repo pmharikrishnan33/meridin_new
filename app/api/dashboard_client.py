@@ -11,6 +11,7 @@ from app.core.dashboard_security import get_current_client
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.repositories.product_repository import product_repository
+from app.models.schemas import TenantAISettings, TenantBusinessProfile, TenantCustomerSupport
 
 
 router = APIRouter(
@@ -177,6 +178,107 @@ async def overview(
             "active_conversations": active_conversations,
         },
         "recent_messages": recent_messages,
+    }
+
+
+class AISettingsUpdateRequest(BaseModel):
+    business_profile: TenantBusinessProfile = Field(default_factory=TenantBusinessProfile)
+    customer_support: TenantCustomerSupport = Field(default_factory=TenantCustomerSupport)
+    ai: TenantAISettings = Field(default_factory=TenantAISettings)
+
+
+@router.get("/settings")
+async def get_settings(
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    tenant_id = _client_id(user)
+
+    if not mongodb.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable.",
+        )
+
+    document = await collections.clients.find_one(
+        {"tenant_id": tenant_id, "is_active": True},
+        {
+            "business_name": 1,
+            "welcome_message": 1,
+            "fallback_message": 1,
+            "settings.business_profile": 1,
+            "settings.customer_support": 1,
+            "settings.ai": 1,
+        },
+    )
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client settings not found.",
+        )
+
+    settings = document.get("settings") or {}
+    return {
+        "business_name": document.get("business_name", ""),
+        "welcome_message": document.get("welcome_message"),
+        "fallback_message": document.get("fallback_message"),
+        "business_profile": settings.get("business_profile") or {
+            "shop_name": document.get("business_name", ""),
+        },
+        "customer_support": settings.get("customer_support") or {},
+        "ai": settings.get("ai") or {},
+    }
+
+
+@router.put("/settings")
+async def update_settings(
+    payload: AISettingsUpdateRequest,
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    tenant_id = _client_id(user)
+
+    if not mongodb.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable.",
+        )
+
+    profile = payload.business_profile.model_dump(exclude_none=True)
+    support = payload.customer_support.model_dump(exclude_none=True)
+    ai = payload.ai.model_dump(exclude_none=True)
+
+    if not profile.get("shop_name"):
+        current = await collections.clients.find_one(
+            {"tenant_id": tenant_id, "is_active": True},
+            {"business_name": 1},
+        )
+        if current and current.get("business_name"):
+            profile["shop_name"] = current["business_name"]
+
+    result = await collections.clients.update_one(
+        {"tenant_id": tenant_id, "is_active": True},
+        {
+            "$set": {
+                "settings.business_profile": profile,
+                "settings.customer_support": support,
+                "settings.ai": ai,
+                "updated_at": datetime.now(timezone.utc),
+                **({"business_name": profile["shop_name"]} if profile.get("shop_name") else {}),
+            }
+        },
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client settings not found.",
+        )
+
+    return {
+        "saved": True,
+        "business_profile": profile,
+        "customer_support": support,
+        "ai": ai,
     }
 
 

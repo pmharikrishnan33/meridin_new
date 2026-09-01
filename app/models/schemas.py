@@ -146,8 +146,47 @@ class IncomingMessage(BaseModel):
     )
 
 
+class TenantAISettings(BaseModel):
+    tone: str = "friendly"
+    language: str = "English"
+    response_length: str = "short"
+    greeting: Optional[str] = None
+    custom_instructions: str = ""
+
+
+class TenantBusinessProfile(BaseModel):
+    shop_name: Optional[str] = None
+    description: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    instagram: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+
+
+class TenantCustomerSupport(BaseModel):
+    business_hours: Optional[str] = None
+    shipping_policy: Optional[str] = None
+    return_policy: Optional[str] = None
+    exchange_policy: Optional[str] = None
+    cancellation_policy: Optional[str] = None
+    payment_methods: Optional[str] = None
+    cod_available: Optional[bool] = None
+    delivery_information: Optional[str] = None
+
+
 class TenantSettings(BaseModel):
     webhook_secret: Optional[str] = None
+    business_profile: TenantBusinessProfile = Field(
+        default_factory=TenantBusinessProfile
+    )
+    customer_support: TenantCustomerSupport = Field(
+        default_factory=TenantCustomerSupport
+    )
+    ai: TenantAISettings = Field(
+        default_factory=TenantAISettings
+    )
 
 
 class TenantFeatureFlags(BaseModel):

@@ -11,6 +11,7 @@ import httpx
 
 from app.core.config import settings
 from app.utils.logger import logger
+from app.ai.prompts import build_fallback_messages
 
 
 class OpenRouterClient:
@@ -127,29 +128,22 @@ class OpenRouterClient:
         self,
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        tenant_settings: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Generate a contextual fallback response using the LLM.
+        """Generate a tenant-aware contextual fallback response."""
+        from app.models.schemas import IntentType, MessageUnderstanding
 
-        This is used when the keyword-based intent classifier is uncertain
-        and the tenant has AI responses enabled.
-        """
-        messages: List[Dict[str, str]] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are Meridin, a helpful WhatsApp shopping assistant. "
-                    "Respond concisely and helpfully. If you don't understand "
-                    "the user, ask a clarifying question."
-                ),
-            }
-        ]
-
-        if conversation_history:
-            messages.extend(conversation_history[-10:])  # last 10 messages
-
-        messages.append({"role": "user", "content": user_message})
-
+        understanding = MessageUnderstanding(
+            original_text=user_message,
+            normalized_text=user_message,
+            intent=IntentType.UNKNOWN,
+            intent_confidence=0.0,
+        )
+        messages = build_fallback_messages(
+            user_message,
+            tenant_settings=tenant_settings,
+            conversation_history=conversation_history,
+        )
         return await self.chat(messages, temperature=0.7, max_tokens=300)
 
 

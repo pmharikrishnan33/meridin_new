@@ -50,7 +50,8 @@ class AIFallbackGenerator:
         try:
             messages = build_fallback_messages(
                 understanding.original_text,
-                conversation_history,
+                tenant_settings=tenant_settings,
+                conversation_history=conversation_history,
             )
             text = await self._client.chat(messages, temperature=0.7, max_tokens=300)
         except Exception as e:

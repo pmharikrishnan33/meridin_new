@@ -507,6 +507,100 @@ function showAnalytics() {
 }
 
 
+async function loadSettings() {
+    try {
+        const data = await apiRequest("/dashboard/client/settings");
+        const profile = data.business_profile || {};
+        const support = data.customer_support || {};
+        const ai = data.ai || {};
+
+        document.getElementById("settingsShopName").value = profile.shop_name || data.business_name || "";
+        document.getElementById("settingsDescription").value = profile.description || "";
+        document.getElementById("settingsPhone").value = profile.phone || "";
+        document.getElementById("settingsEmail").value = profile.email || "";
+        document.getElementById("settingsWebsite").value = profile.website || "";
+        document.getElementById("settingsInstagram").value = profile.instagram || "";
+        document.getElementById("settingsAddress").value = profile.address || "";
+        document.getElementById("settingsCity").value = profile.city || "";
+
+        document.getElementById("settingsHours").value = support.business_hours || "";
+        document.getElementById("settingsDelivery").value = support.delivery_information || "";
+        document.getElementById("settingsShipping").value = support.shipping_policy || "";
+        document.getElementById("settingsReturns").value = support.return_policy || "";
+        document.getElementById("settingsExchange").value = support.exchange_policy || "";
+        document.getElementById("settingsCancellation").value = support.cancellation_policy || "";
+        document.getElementById("settingsPayments").value = support.payment_methods || "";
+        document.getElementById("settingsCod").value = support.cod_available == null ? "" : String(support.cod_available);
+
+        document.getElementById("settingsTone").value = ai.tone || "friendly";
+        document.getElementById("settingsLanguage").value = ai.language || "English";
+        document.getElementById("settingsLength").value = ai.response_length || "short";
+        document.getElementById("settingsGreeting").value = ai.greeting || "";
+        document.getElementById("settingsInstructions").value = ai.custom_instructions || "";
+    } catch (error) {
+        const status = document.getElementById("settingsStatus");
+        if (status) status.textContent = error.message || "Failed to load settings.";
+    }
+}
+
+
+document.getElementById("settingsForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const status = document.getElementById("settingsStatus");
+    status.textContent = "Saving...";
+
+    const codValue = document.getElementById("settingsCod").value;
+
+    const payload = {
+        business_profile: {
+            shop_name: document.getElementById("settingsShopName").value.trim(),
+            description: document.getElementById("settingsDescription").value.trim() || null,
+            phone: document.getElementById("settingsPhone").value.trim() || null,
+            email: document.getElementById("settingsEmail").value.trim() || null,
+            website: document.getElementById("settingsWebsite").value.trim() || null,
+            instagram: document.getElementById("settingsInstagram").value.trim() || null,
+            address: document.getElementById("settingsAddress").value.trim() || null,
+            city: document.getElementById("settingsCity").value.trim() || null
+        },
+        customer_support: {
+            business_hours: document.getElementById("settingsHours").value.trim() || null,
+            delivery_information: document.getElementById("settingsDelivery").value.trim() || null,
+            shipping_policy: document.getElementById("settingsShipping").value.trim() || null,
+            return_policy: document.getElementById("settingsReturns").value.trim() || null,
+            exchange_policy: document.getElementById("settingsExchange").value.trim() || null,
+            cancellation_policy: document.getElementById("settingsCancellation").value.trim() || null,
+            payment_methods: document.getElementById("settingsPayments").value.trim() || null,
+            cod_available: codValue === "" ? null : codValue === "true"
+        },
+        ai: {
+            tone: document.getElementById("settingsTone").value,
+            language: document.getElementById("settingsLanguage").value.trim() || "English",
+            response_length: document.getElementById("settingsLength").value,
+            greeting: document.getElementById("settingsGreeting").value.trim() || null,
+            custom_instructions: document.getElementById("settingsInstructions").value.trim()
+        }
+    };
+
+    try {
+        const data = await apiRequest("/dashboard/client/settings", {
+            method: "PUT",
+            body: JSON.stringify(payload)
+        });
+        status.textContent = data.saved ? "Saved." : "Saved successfully.";
+        localStorage.setItem("meridin_client_business", payload.business_profile.shop_name);
+        document.getElementById("businessName").textContent = payload.business_profile.shop_name;
+    } catch (error) {
+        status.textContent = error.message || "Failed to save settings.";
+    }
+});
+
+
+function showSettings() {
+    document.getElementById("settings").scrollIntoView({ behavior: "smooth" });
+}
+
+
 function formatDate(value) {
     if (!value) {
         return "-";
@@ -543,6 +637,7 @@ loadCollections();
 loadMessages();
 loadLeads();
 loadAnalytics();
+loadSettings();
 
 
 // ============ MODAL HANDLING ============

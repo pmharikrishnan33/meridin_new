@@ -102,22 +102,27 @@ def _tenant_message_settings(
     else:
         feature_flags_data = {}
 
+    tenant_settings = getattr(tenant, "settings", None)
+    if hasattr(tenant_settings, "model_dump"):
+        tenant_settings_data = tenant_settings.model_dump(exclude_none=True)
+    elif isinstance(tenant_settings, dict):
+        tenant_settings_data = dict(tenant_settings)
+    else:
+        tenant_settings_data = {}
+
+    # Only non-sensitive business/AI configuration is passed to message
+    # handlers. Credentials remain on the Tenant object and are never
+    # included in the prompt context.
+    tenant_settings_data.pop("webhook_secret", None)
+
     return {
-        "business_name": (
-            tenant.business_name
-        ),
-
-        "welcome_message": (
-            tenant.welcome_message
-        ),
-
-        "fallback_message": (
-            tenant.fallback_message
-        ),
-
-        "feature_flags": (
-            feature_flags_data
-        ),
+        "business_name": tenant.business_name,
+        "welcome_message": tenant.welcome_message,
+        "fallback_message": tenant.fallback_message,
+        "feature_flags": feature_flags_data,
+        "business_profile": tenant_settings_data.get("business_profile", {}),
+        "customer_support": tenant_settings_data.get("customer_support", {}),
+        "ai": tenant_settings_data.get("ai", {}),
     }
 
 
