@@ -638,6 +638,7 @@ loadMessages();
 loadLeads();
 loadAnalytics();
 loadSettings();
+loadCatalogMetadata();
 
 
 // ============ MODAL HANDLING ============
@@ -711,47 +712,255 @@ async function loadCollectionsForDropdown() {
 
 // ============ CREATE/EDIT PRODUCT ============
 
-document.getElementById("createProductButton").addEventListener("click", () => {
+let catalogMetadata = { departments: {}, categories: {}, colors: {}, sizes: {}, sizes_by_group: {} };
+let productOptions = {};
+
+async function loadCatalogMetadata() {
+    try {
+        const data = await apiRequest("/dashboard/client/catalog-metadata");
+        catalogMetadata = data.metadata || catalogMetadata;
+        populateDepartmentOptions();
+        populateProductOptionChoices();
+    } catch (error) {
+        console.error("Failed to load catalog metadata:", error);
+        document.getElementById("newProductOption").innerHTML = '<option value="">Metadata unavailable</option>';
+    }
+}
+
+function mapEntries(map) {
+    return Object.entries(map || {}).filter(([id, name]) => name !== "");
+}
+
+function populateDepartmentOptions(selectedId = "") {
+    const select = document.getElementById("productDepartment");
+    select.innerHTML = '<option value="">-- Select department --</option>';
+    mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = name;
+        option.selected = String(id) === String(selectedId);
+        select.appendChild(option);
+    });
+    populateCategoryOptions(selectedId ? undefined : "");
+}
+
+function populateCategoryOptions(departmentId, selectedId = "") {
+    const select = document.getElementById("productCategoryId");
+    select.innerHTML = '<option value="">-- Select category --</option>';
+    // get_display_maps exposes category IDs without hierarchy. Use the selected
+    // department only as a UI hint; the backend remains authoritative.
+    mapEntries(catalogMetadata.categories).forEach(([id, name]) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = name;
+        option.selected = String(id) === String(selectedId);
+        select.appendChild(option);
+    });
+}
+
+document.getElementById("productDepartment").addEventListener("change", () => {
+    populateCategoryOptions(document.getElementById("productDepartment").value);
+});
+
+function getOptionDefinitions() {
+    const definitions = {};
+    if (mapEntries(catalogMetadata.colors).length) definitions.Color = mapEntries(catalogMetadata.colors).map(([id, name]) => ({ id: Number(id), name }));
+    const sizes = mapEntries(catalogMetadata.sizes);
+    if (sizes.length) definitions.Size = sizes.map(([id, name]) => ({ id: Number(id), name }));
+    return definitions;
+}
+
+function populateProductOptionChoices() {
+    const select = document.getElementById("newProductOption");
+    const defs = getOptionDefinitions();
+    select.innerHTML = '<option value="">Select option to add</option>';
+    Object.keys(defs).forEach(name => {
+        if (!productOptions[name]) {
+            const option = document.createElement("option");
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        }
+    });
+}
+
+function resetProductEditor() {
+    productOptions = {};
+    document.getElementById("productOptionsContainer").innerHTML = "";
+    document.getElementById("productVariantsBody").innerHTML = '<tr><td colspan="5" class="muted center">Add option values to generate variants.</td></tr>';
+    document.getElementById("productFeatured").checked = false;
+    populateProductOptionChoices();
+}
+
+function addProductOption(name, existingValues = []) {
+    const definitions = getOptionDefinitions();
+    if (!name || !definitions[name] || productOptions[name]) return;
+    productOptions[name] = existingValues.map(v => ({ id: Number(v.id), name: String(v.name) }));
+
+    const block = document.createElement("div");
+    block.className = "product-option-block";
+    block.id = `product-option-${name.replace(/\W/g, "-")}`;
+    const values = definitions[name];
+    block.innerHTML = `
+        <div class="product-option-header">
+            <strong>${escapeHtml(name)}</strong>
+            <button type="button" class="remove-btn" data-option="${escapeAttribute(name)}">Remove</button>
+        </div>
+        <select class="product-option-value-select">
+            <option value="">Select ${escapeHtml(name)} value</option>
+            ${values.map(v => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}
+        </select>
+        <div class="product-option-values"></div>
+    `;
+    document.getElementById("productOptionsContainer").appendChild(block);
+    const valueSelect = block.querySelector(".product-option-value-select");
+    valueSelect.addEventListener("change", () => {
+        const id = Number(valueSelect.value);
+        if (!id || productOptions[name].some(v => v.id === id)) return;
+        const item = values.find(v => v.id === id);
+        if (!item) return;
+        productOptions[name].push(item);
+        renderProductOptionTags(name);
+        valueSelect.value = "";
+        generateProductVariants();
+    });
+    block.querySelector(".remove-btn").addEventListener("click", () => {
+        delete productOptions[name];
+        block.remove();
+        populateProductOptionChoices();
+        generateProductVariants();
+    });
+    renderProductOptionTags(name);
+    populateProductOptionChoices();
+    generateProductVariants();
+}
+
+function renderProductOptionTags(name) {
+    const block = document.getElementById(`product-option-${name.replace(/\W/g, "-")}`);
+    if (!block) return;
+    const container = block.querySelector(".product-option-values");
+    container.innerHTML = productOptions[name].map(v => `
+        <span class="product-option-chip">${escapeHtml(v.name)} <button type="button" data-id="${v.id}">&times;</button></span>
+    `).join("");
+    container.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => {
+        productOptions[name] = productOptions[name].filter(v => v.id !== Number(btn.dataset.id));
+        renderProductOptionTags(name);
+        generateProductVariants();
+    }));
+}
+
+document.getElementById("addProductOption").addEventListener("click", () => {
+    addProductOption(document.getElementById("newProductOption").value);
+    document.getElementById("newProductOption").value = "";
+});
+
+function cartesian(arrays) {
+    return arrays.reduce((acc, current) => acc.flatMap(a => current.map(b => [...a, b])), [[]]);
+}
+
+function generateProductVariants(existingVariants = null) {
+    const names = Object.keys(productOptions).filter(name => productOptions[name].length);
+    const body = document.getElementById("productVariantsBody");
+    body.innerHTML = "";
+    if (!names.length) {
+        body.innerHTML = '<tr><td colspan="5" class="muted center">Add option values to generate variants.</td></tr>';
+        return;
+    }
+    const combinations = cartesian(names.map(name => productOptions[name]));
+    const old = existingVariants || [];
+    combinations.forEach((combo, index) => {
+        const tr = document.createElement("tr");
+        tr.className = "product-variant-row";
+        tr.dataset.options = JSON.stringify(combo.map((v, i) => ({ option: names[i], id: v.id, name: v.name })));
+        const oldVariant = old[index] || {};
+        const price = oldVariant.price ?? document.getElementById("productPrice").value ?? 0;
+        const cost = oldVariant.cost ?? "";
+        const stock = oldVariant.stock ?? 0;
+        const sku = oldVariant.sku ?? `SKU-${combo.map(v => v.name).join("-").replace(/[^a-zA-Z0-9]/g, "").toUpperCase()}`;
+        tr.innerHTML = `
+            <td><strong>${escapeHtml(combo.map(v => v.name).join(" / "))}</strong></td>
+            <td><input type="number" class="variant-price" min="0" step="0.01" value="${escapeAttribute(price)}"></td>
+            <td><input type="number" class="variant-cost" min="0" step="0.01" value="${escapeAttribute(cost)}"></td>
+            <td><input type="number" class="variant-stock" min="0" step="1" value="${escapeAttribute(stock)}"></td>
+            <td><input type="text" class="variant-sku" value="${escapeAttribute(sku)}"></td>
+        `;
+        body.appendChild(tr);
+    });
+}
+
+function collectProductVariants() {
+    return Array.from(document.querySelectorAll(".product-variant-row")).map(row => {
+        const options = JSON.parse(row.dataset.options);
+        const byName = Object.fromEntries(options.map(o => [o.option, o]));
+        const variant = {
+            price: Number(row.querySelector(".variant-price").value || 0),
+            cost: row.querySelector(".variant-cost").value === "" ? null : Number(row.querySelector(".variant-cost").value),
+            stock: Number(row.querySelector(".variant-stock").value || 0),
+            sku: row.querySelector(".variant-sku").value.trim(),
+            options: options.map(o => ({ name: o.option, id: o.id, value: o.name }))
+        };
+        if (byName.Color) { variant.color_id = byName.Color.id; variant.color = byName.Color.name; }
+        if (byName.Size) { variant.size_id = byName.Size.id; variant.size = byName.Size.name; }
+        return variant;
+    });
+}
+
+document.getElementById("createProductButton").addEventListener("click", async () => {
     document.getElementById("productModalTitle").textContent = "Add Product";
     productForm.reset();
     document.getElementById("productId").value = "";
-    loadCollectionsForDropdown();
+    resetProductEditor();
+    await loadCatalogMetadata();
+    await loadCollectionsForDropdown();
     openModal(productModal);
 });
 
 productForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const productId = document.getElementById("productId").value;
     const isEditing = !!productId;
+    const variants = collectProductVariants();
+    const colorIds = [...new Set(productOptions.Color?.map(v => v.id) || [])];
+    const sizeIds = [...new Set(productOptions.Size?.map(v => v.id) || [])];
+    const colors = [...new Set(productOptions.Color?.map(v => v.name) || [])];
+    const sizes = [...new Set(productOptions.Size?.map(v => v.name) || [])];
+    const firstVariantStock = variants.length ? variants.reduce((sum, v) => sum + Number(v.stock || 0), 0) : Number(document.getElementById("productStock").value || 0);
+    const firstVariantPrice = variants.length ? Number(variants[0].price || 0) : Number(document.getElementById("productPrice").value || 0);
 
     const productData = {
         title: document.getElementById("productTitle").value.trim(),
-        description: document.getElementById("productDescription").value.trim(),
-        price: Number(document.getElementById("productPrice").value),
-        stock: Number(document.getElementById("productStock").value),
-        category: document.getElementById("productCategory").value.trim() || undefined,
-        collection_id: document.getElementById("productCollection").value || undefined,
-        image: document.getElementById("productImage").value.trim() || undefined
+        description: document.getElementById("productDescription").value.trim() || null,
+        price: firstVariantPrice,
+        stock: firstVariantStock,
+        department_id: document.getElementById("productDepartment").value ? Number(document.getElementById("productDepartment").value) : null,
+        category_id: document.getElementById("productCategoryId").value ? Number(document.getElementById("productCategoryId").value) : null,
+        brand: document.getElementById("productBrand").value.trim() || null,
+        type: document.getElementById("productType").value.trim() || null,
+        color_ids: colorIds,
+        color: colors,
+        size_ids: sizeIds,
+        size: sizes,
+        material: document.getElementById("productMaterial").value.trim() || null,
+        fit: document.getElementById("productFit").value || null,
+        gender: document.getElementById("productGender").value || null,
+        age_group: document.getElementById("productAgeGroup").value || null,
+        tags: document.getElementById("productTags").value.split(",").map(v => v.trim()).filter(Boolean),
+        media: document.getElementById("productImage").value.trim() ? [document.getElementById("productImage").value.trim()] : [],
+        variants,
+        attributes: {
+            sleeve_length: document.getElementById("productSleeve").value || null,
+            neckline: document.getElementById("productNeckline").value || null,
+            top_length: document.getElementById("productLength").value || null,
+            collection_id: document.getElementById("productCollection").value || null
+        },
+        is_featured: document.getElementById("productFeatured").checked
     };
-
-    // Remove undefined values
-    Object.keys(productData).forEach(key => productData[key] === undefined && delete productData[key]);
-
     try {
-        const endpoint = isEditing
-            ? `/dashboard/client/products/${productId}`
-            : "/dashboard/client/products";
-        const method = isEditing ? "PATCH" : "POST";
-
-        await apiRequest(endpoint, {
-            method,
-            body: JSON.stringify(productData)
-        });
-
+        const endpoint = isEditing ? `/dashboard/client/products/${productId}` : "/dashboard/client/products";
+        await apiRequest(endpoint, { method: isEditing ? "PATCH" : "POST", body: JSON.stringify(productData) });
         closeModal(productModal);
         await loadProducts();
-        await loadOverview(); // Refresh metrics
+        await loadOverview();
     } catch (error) {
         alert(error.message || "Failed to save product");
     }
@@ -804,26 +1013,48 @@ collectionForm.addEventListener("submit", async (e) => {
 // Make functions globally available for inline onclick handlers
 window.editProduct = async function(productId) {
     try {
-        // Fetch product details - we need to get it from the loaded data or fetch individually
-        // For now, open modal in edit mode - you'd need to fetch product details first
-        const data = await apiRequest("/dashboard/client/products");
-        const product = data.items.find(p => p._id === productId);
+        const result = await apiRequest(`/dashboard/client/products/${productId}`);
+        const product = result.item;
         if (!product) throw new Error("Product not found");
-
         document.getElementById("productModalTitle").textContent = "Edit Product";
-        document.getElementById("productId").value = product._id;
+        productForm.reset();
+        document.getElementById("productId").value = product._id || product.id || productId;
         document.getElementById("productTitle").value = product.title || "";
         document.getElementById("productDescription").value = product.description || "";
-        document.getElementById("productPrice").value = product.price || 0;
-        document.getElementById("productStock").value = product.stock || 0;
-        document.getElementById("productCategory").value = product.category || "";
+        document.getElementById("productPrice").value = product.price ?? 0;
+        document.getElementById("productStock").value = product.stock ?? 0;
+        document.getElementById("productBrand").value = product.brand || "";
+        document.getElementById("productType").value = product.type || "";
+        document.getElementById("productMaterial").value = product.material || "";
+        document.getElementById("productFit").value = product.fit || "";
+        document.getElementById("productGender").value = product.gender || "";
+        document.getElementById("productAgeGroup").value = product.age_group || "";
+        document.getElementById("productTags").value = (product.tags || []).join(", ");
         document.getElementById("productImage").value = product.media?.[0] || "";
+        document.getElementById("productFeatured").checked = !!product.is_featured;
+        const attrs = product.attributes || {};
+        document.getElementById("productSleeve").value = attrs.sleeve_length || "";
+        document.getElementById("productNeckline").value = attrs.neckline || "";
+        document.getElementById("productLength").value = attrs.top_length || "";
 
+        resetProductEditor();
+        await loadCatalogMetadata();
+        populateDepartmentOptions(product.department_id || "");
+        populateCategoryOptions(product.department_id, product.category_id || "");
         await loadCollectionsForDropdown();
-        if (product.collection_id) {
-            document.getElementById("productCollection").value = product.collection_id;
-        }
+        if (attrs.collection_id) document.getElementById("productCollection").value = attrs.collection_id;
 
+        const variantColors = (product.variants || []).map(v => Number(v.color_id)).filter(Number.isFinite);
+        const variantSizes = (product.variants || []).map(v => Number(v.size_id)).filter(Number.isFinite);
+        const colorIds = [...new Set((product.color_ids?.length ? product.color_ids : variantColors))];
+        const sizeIds = [...new Set((product.size_ids?.length ? product.size_ids : variantSizes))];
+        if (colorIds.length) {
+            addProductOption("Color", colorIds.map((id, index) => ({ id, name: catalogMetadata.colors?.[id] || product.color?.[index] || String(id) })));
+        }
+        if (sizeIds.length) {
+            addProductOption("Size", sizeIds.map((id, index) => ({ id, name: catalogMetadata.sizes?.[id] || product.size?.[index] || String(id) })));
+        }
+        generateProductVariants(product.variants || []);
         openModal(productModal);
     } catch (error) {
         alert(error.message || "Failed to load product");

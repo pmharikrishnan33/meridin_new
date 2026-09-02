@@ -11,6 +11,7 @@ from app.core.dashboard_security import get_current_client
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.repositories.product_repository import product_repository
+from app.services.catalog_metadata_service import CatalogMetadataService
 from app.models.schemas import TenantAISettings, TenantBusinessProfile, TenantCustomerSupport
 
 
@@ -326,6 +327,29 @@ async def products(
         ],
         "limit": limit,
         "offset": offset,
+    }
+
+
+@router.get("/catalog-metadata")
+async def catalog_metadata(
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    """Return tenant catalog metadata needed by the client product editor."""
+    tenant_id = _client_id(user)
+    if not mongodb.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable.",
+        )
+
+    service = CatalogMetadataService()
+    metadata = await service.get_metadata(tenant_id)
+    display_maps = await service.get_display_maps(tenant_id)
+    return {
+        "metadata": {
+            **display_maps,
+            "raw": _serialize(metadata),
+        }
     }
 
 

@@ -478,47 +478,109 @@
 <!-- Create Product Modal -->
 <div id="productModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
     <div class="modal-backdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content product-editor-modal">
         <div class="modal-header">
             <h3 id="productModalTitle">Add Product</h3>
             <button class="modal-close" aria-label="Close">&times;</button>
         </div>
         <form id="productForm">
             <input type="hidden" id="productId">
-            <div class="form-group">
-                <label for="productTitle">Title *</label>
-                <input type="text" id="productTitle" required placeholder="e.g., Cotton Kurta">
-            </div>
-            <div class="form-group">
-                <label for="productDescription">Description</label>
-                <textarea id="productDescription" rows="3" placeholder="Product details..."></textarea>
-            </div>
-            <div class="form-row">
+
+            <div class="editor-section">
+                <h4>Basic information</h4>
                 <div class="form-group">
-                    <label for="productPrice">Price (₹) *</label>
-                    <input type="number" id="productPrice" required min="0" step="0.01" placeholder="0.00">
+                    <label for="productTitle">Title *</label>
+                    <input type="text" id="productTitle" required placeholder="e.g., Classic Cotton Shirt">
                 </div>
                 <div class="form-group">
-                    <label for="productStock">Stock *</label>
-                    <input type="number" id="productStock" required min="0" placeholder="0">
+                    <label for="productDescription">Description</label>
+                    <textarea id="productDescription" rows="3" placeholder="Product details..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productPrice">Base price (₹) *</label>
+                        <input type="number" id="productPrice" required min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="productStock">Base stock</label>
+                        <input type="number" id="productStock" min="0" value="0" placeholder="0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productDepartment">Department</label>
+                        <select id="productDepartment"><option value="">Loading metadata...</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="productCategoryId">Category</label>
+                        <select id="productCategoryId"><option value="">Select department first</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productBrand">Brand</label>
+                        <input type="text" id="productBrand" placeholder="Brand name">
+                    </div>
+                    <div class="form-group">
+                        <label for="productType">Product type</label>
+                        <input type="text" id="productType" placeholder="e.g., shirt, dress">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productGender">Target gender</label>
+                        <select id="productGender">
+                            <option value="">Not specified</option><option value="Unisex">Unisex</option><option value="Male">Male</option><option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="productAgeGroup">Age group</label>
+                        <select id="productAgeGroup">
+                            <option value="">Not specified</option><option value="Adult">Adult</option><option value="Teen">Teen</option><option value="Kids">Kids</option><option value="Toddler">Toddler</option><option value="Infant">Infant</option>
+                        </select>
+                    </div>
                 </div>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="productCategory">Category</label>
-                    <input type="text" id="productCategory" placeholder="e.g., Kurtas, Dresses, Tops">
+
+            <div class="editor-section">
+                <h4>Apparel specifications</h4>
+                <div class="form-row">
+                    <div class="form-group"><label for="productMaterial">Material</label><input type="text" id="productMaterial" placeholder="e.g., 100% Cotton"></div>
+                    <div class="form-group"><label for="productFit">Fit</label><select id="productFit"><option value="">Not specified</option><option>Regular Fit</option><option>Slim Fit</option><option>Relaxed Fit</option><option>Oversized / Boxy</option></select></div>
                 </div>
-                <div class="form-group">
-                    <label for="productCollection">Collection</label>
-                    <select id="productCollection">
-                        <option value="">-- Select collection --</option>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group"><label for="productSleeve">Sleeve length</label><select id="productSleeve"><option value="">Not specified</option><option>Short Sleeve</option><option>Long Sleeve</option><option>3/4 Sleeve</option><option>Sleeveless</option><option>Cap Sleeve</option></select></div>
+                    <div class="form-group"><label for="productNeckline">Neckline</label><select id="productNeckline"><option value="">Not specified</option><option>Crew Neck</option><option>V-Neck</option><option>Polo Collar</option><option>Hooded</option><option>Turtleneck</option><option>Off-Shoulder</option></select></div>
+                    <div class="form-group"><label for="productLength">Top / dress length</label><select id="productLength"><option value="">Not specified</option><option>Regular</option><option>Crop</option><option>Longline / Tunics</option><option>Mini</option><option>Midi</option><option>Maxi</option></select></div>
                 </div>
             </div>
-            <div class="form-group">
-                <label for="productImage">Image URL</label>
-                <input type="url" id="productImage" placeholder="https://example.com/image.jpg">
+
+            <div class="editor-section">
+                <h4>Product options & variants</h4>
+                <p class="editor-help">Choose metadata-backed options. Values are stored with their Meridin IDs and names.</p>
+                <div class="option-selector-row">
+                    <select id="newProductOption"><option value="">Select option to add</option></select>
+                    <button type="button" id="addProductOption" class="secondary-button">Add option</button>
+                </div>
+                <div id="productOptionsContainer"></div>
+                <div class="table-container variant-table-wrap">
+                    <table>
+                        <thead><tr><th>Combination</th><th>Price (₹)</th><th>Cost (₹)</th><th>Stock</th><th>SKU</th></tr></thead>
+                        <tbody id="productVariantsBody"><tr><td colspan="5" class="muted center">Add option values to generate variants.</td></tr></tbody>
+                    </table>
+                </div>
             </div>
+
+            <div class="editor-section">
+                <h4>Catalog & media</h4>
+                <div class="form-row">
+                    <div class="form-group"><label for="productCollection">Collection</label><select id="productCollection"><option value="">-- Select collection --</option></select></div>
+                    <div class="form-group"><label for="productTags">Tags</label><input type="text" id="productTags" placeholder="summer, casual, new (comma separated)"></div>
+                </div>
+                <div class="form-group"><label for="productImage">Image URL</label><input type="url" id="productImage" placeholder="https://example.com/image.jpg"></div>
+                <label class="checkbox-label"><input type="checkbox" id="productFeatured"> Mark as featured</label>
+            </div>
+
             <div class="modal-actions">
                 <button type="button" class="modal-cancel">Cancel</button>
                 <button type="submit" class="primary-button">Save Product</button>
