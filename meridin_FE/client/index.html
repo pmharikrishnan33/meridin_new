@@ -577,7 +577,16 @@
                     <div class="form-group"><label for="productCollection">Collection</label><select id="productCollection"><option value="">-- Select collection --</option></select></div>
                     <div class="form-group"><label for="productTags">Tags</label><input type="text" id="productTags" placeholder="summer, casual, new (comma separated)"></div>
                 </div>
-                <div class="form-group"><label for="productImage">Image URL</label><input type="url" id="productImage" placeholder="https://example.com/image.jpg"></div>
+                <div class="form-group">
+                    <label for="productImageFile">Product image</label>
+                    <input type="file" id="productImageFile" accept="image/jpeg,image/png,image/webp"
+                           aria-describedby="productImageHelp">
+                    <small id="productImageHelp" class="editor-help">Choose JPG, PNG, or WebP. Meridin converts it to JPG and stores the public image link in the product's <code>media</code> field.</small>
+                    <div id="productImagePreview" class="product-image-upload-preview" hidden>
+                        <img id="productImagePreviewImg" alt="Product image preview">
+                        <span id="productImageStatus" class="muted"></span>
+                    </div>
+                </div>
                 <label class="checkbox-label"><input type="checkbox" id="productFeatured"> Mark as featured</label>
             </div>
 

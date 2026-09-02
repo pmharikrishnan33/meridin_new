@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import datetime, timezone
+import uuid
+from urllib.parse import quote
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.core.dashboard_security import get_current_client
@@ -13,6 +16,9 @@ from app.database.mongodb import mongodb
 from app.repositories.product_repository import product_repository
 from app.services.catalog_metadata_service import CatalogMetadataService
 from app.models.schemas import TenantAISettings, TenantBusinessProfile, TenantCustomerSupport
+from app.services.r2_usage_service import R2_GUARD_STORAGE_BYTES, r2_usage_service
+from app.database.redis_cache import redis_cache
+from app.utils.logger import logger
 
 
 router = APIRouter(
@@ -351,6 +357,183 @@ async def catalog_metadata(
             "raw": _serialize(metadata),
         }
     }
+
+
+class ImageUploadRequest(BaseModel):
+    content_length: int = Field(ge=1, le=5_000_000)
+
+
+@router.post("/products/image-upload-url")
+async def product_image_upload_url(
+    payload: ImageUploadRequest,
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    """Create a short-lived Cloudflare R2 presigned JPG upload URL.
+
+    R2 credentials stay on the server. The upload itself goes directly from
+    the browser to R2. The upload URL is issued only while the global Meridin
+    R2 safety guard has capacity.
+    """
+    _client_id(user)  # Authentication is required; usage is global.
+
+    if not redis_cache.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Image storage is temporarily disabled because the usage guard is unavailable.",
+        )
+
+    account_id = settings.CLOUDFLARE_R2_ACCOUNT_ID.strip()
+    access_key_id = settings.CLOUDFLARE_R2_ACCESS_KEY_ID.strip()
+    secret_access_key = settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY.strip()
+    bucket_name = settings.CLOUDFLARE_R2_BUCKET_NAME.strip()
+    public_base = settings.MEDIA_PUBLIC_BASE_URL.strip().rstrip("/")
+
+    if not all([account_id, access_key_id, secret_access_key, bucket_name, public_base]):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cloudflare R2 image storage is not configured.",
+        )
+
+    try:
+        # Storage is a GB-month metric. We conservatively block at 90% of
+        # the monthly free-tier capacity rather than attempting to use all 10 GB.
+        metrics = await r2_usage_service.cloudflare_metrics()
+        current_storage = int(metrics.get("storage_bytes", 0))
+
+        if current_storage + payload.content_length > R2_GUARD_STORAGE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Global image storage safety limit reached. New uploads are temporarily disabled.",
+            )
+
+        if not await r2_usage_service.reserve_upload():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Global monthly image-upload safety limit reached. New uploads are temporarily disabled.",
+            )
+
+        import boto3
+        from botocore.client import Config
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=(
+                f"https://{account_id}.r2.cloudflarestorage.com"
+            ),
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
+            region_name="auto",
+            config=Config(signature_version="s3v4"),
+        )
+
+        object_name = f"products/{uuid.uuid4()}.jpg"
+
+        upload_url = s3.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": bucket_name,
+                "Key": object_name,
+                "ContentType": "image/jpeg",
+                "ContentLength": payload.content_length,
+            },
+            ExpiresIn=900,
+        )
+
+        image_url = f"{public_base}/api/dashboard/client/media/{quote(object_name, safe='/')}"
+
+        return {
+            "upload_url": upload_url,
+            "image_url": image_url,
+            "object_name": object_name,
+            "content_type": "image/jpeg",
+            "expires_in": 900,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unable to create R2 image upload URL: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to prepare image storage.",
+        ) from exc
+
+
+@router.get("/media/{object_name:path}")
+async def serve_media(object_name: str) -> Response:
+    """Serve Meridin media through the API so the global Class B guard can stop views.
+
+    Do not expose the R2 bucket directly in MongoDB. Every image request must
+    pass through this endpoint; otherwise Meridin cannot stop Class B reads.
+    """
+    if not object_name.startswith("products/") or ".." in object_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid media path.",
+        )
+
+    if not redis_cache.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Image service is temporarily disabled.",
+        )
+
+    if not await r2_usage_service.reserve_view():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Global monthly image-view safety limit reached. Image serving is temporarily disabled.",
+        )
+
+    account_id = settings.CLOUDFLARE_R2_ACCOUNT_ID.strip()
+    access_key_id = settings.CLOUDFLARE_R2_ACCESS_KEY_ID.strip()
+    secret_access_key = settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY.strip()
+    bucket_name = settings.CLOUDFLARE_R2_BUCKET_NAME.strip()
+
+    if not all([account_id, access_key_id, secret_access_key, bucket_name]):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cloudflare R2 image storage is not configured.",
+        )
+
+    try:
+        import boto3
+        from botocore.client import Config
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=(
+                f"https://{account_id}.r2.cloudflarestorage.com"
+            ),
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
+            region_name="auto",
+            config=Config(signature_version="s3v4"),
+        )
+
+        result = await asyncio.to_thread(
+            s3.get_object,
+            Bucket=bucket_name,
+            Key=object_name,
+        )
+
+        body = await asyncio.to_thread(result["Body"].read)
+        content_type = result.get("ContentType") or "image/jpeg"
+
+        return Response(
+            content=body,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "ETag": str(result.get("ETag", "")).strip('"'),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception("R2 media read failed for %s: %s", object_name, exc)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found.",
+        ) from exc
 
 
 @router.post("/products")

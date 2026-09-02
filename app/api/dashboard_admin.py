@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.core.dashboard_security import get_current_admin
 from app.database.collections import collections
 from app.database.mongodb import mongodb
+from app.services.r2_usage_service import r2_usage_service
 
 
 router = APIRouter(
@@ -208,6 +209,16 @@ async def messages(
     return {
         "items": items,
     }
+
+
+@router.get("/r2-usage")
+async def r2_usage(
+    _: Dict[str, Any] = Depends(
+        get_current_admin
+    ),
+) -> Dict[str, Any]:
+    """Return global Cloudflare R2 usage and Meridin safety-guard status."""
+    return await r2_usage_service.status()
 
 
 @router.get("/usage")

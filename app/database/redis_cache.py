@@ -116,6 +116,62 @@ class RedisCache:
             logger.debug(f"Redis INCR failed for key '{key}': {e}")
             return None
 
+
+    async def get_int(self, key: str) -> Optional[int]:
+        """Return an integer counter value, or None when Redis is unavailable."""
+        if not self._connected or self._client is None:
+            return None
+        try:
+            value = await self._client.get(key)
+            return int(value) if value is not None else 0
+        except Exception as e:
+            logger.debug(f"Redis integer GET failed for key '{key}': {e}")
+            return None
+
+    async def reserve_counter(
+        self,
+        key: str,
+        amount: int,
+        limit: int,
+        ttl: Optional[int] = None,
+    ) -> Optional[int]:
+        """Atomically reserve counter capacity without crossing a hard limit.
+
+        Returns the new counter value, -1 when the reservation is rejected,
+        or None when Redis is unavailable.
+        """
+        if not self._connected or self._client is None:
+            return None
+        if amount <= 0 or limit <= 0:
+            return None
+
+        script = """
+        local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+        local amount = tonumber(ARGV[1])
+        local limit = tonumber(ARGV[2])
+        if current + amount > limit then
+            return -1
+        end
+        local value = redis.call('INCRBY', KEYS[1], amount)
+        local ttl = tonumber(ARGV[3])
+        if ttl and ttl > 0 and value == amount then
+            redis.call('EXPIRE', KEYS[1], ttl)
+        end
+        return value
+        """
+        try:
+            return int(await self._client.eval(
+                script,
+                1,
+                key,
+                amount,
+                limit,
+                ttl or 0,
+            ))
+        except Exception as e:
+            logger.error(f"Redis counter reservation failed for key '{key}': {e}")
+            return None
+
     async def get_many(self, keys: list[str]) -> dict[str, Any]:
         """Retrieve multiple values at once."""
         if not self._connected or self._client is None:

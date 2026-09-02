@@ -644,6 +644,156 @@ loadCatalogMetadata();
 // ============ MODAL HANDLING ============
 
 const productModal = document.getElementById("productModal");
+
+let selectedProductImageFile = null;
+let currentProductImageUrl = "";
+
+function setProductImagePreview(url, status = "") {
+    const wrapper = document.getElementById("productImagePreview");
+    const image = document.getElementById("productImagePreviewImg");
+    const statusElement = document.getElementById("productImageStatus");
+
+    if (!url) {
+        wrapper.hidden = true;
+        image.removeAttribute("src");
+        statusElement.textContent = "";
+        return;
+    }
+
+    image.src = url;
+    statusElement.textContent = status;
+    wrapper.hidden = false;
+}
+
+function resetProductImageState() {
+    selectedProductImageFile = null;
+    currentProductImageUrl = "";
+    const input = document.getElementById("productImageFile");
+    if (input) input.value = "";
+    setProductImagePreview("");
+}
+
+function convertImageToJpeg(file) {
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+
+        image.onload = () => {
+            try {
+                const canvas = document.createElement("canvas");
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+
+                const context = canvas.getContext("2d");
+                if (!context) throw new Error("Could not prepare the image.");
+
+                // JPEG has no transparency, so use a white background for PNG/WebP images.
+                context.fillStyle = "#ffffff";
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0);
+
+                canvas.toBlob((blob) => {
+                    URL.revokeObjectURL(objectUrl);
+                    if (!blob) {
+                        reject(new Error("Could not convert the image to JPG."));
+                        return;
+                    }
+                    resolve(blob);
+                }, "image/jpeg", 0.90);
+            } catch (error) {
+                URL.revokeObjectURL(objectUrl);
+                reject(error);
+            }
+        };
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("The selected image could not be read."));
+        };
+
+        image.src = objectUrl;
+    });
+}
+
+async function uploadProductImage(file) {
+    if (!file) return currentProductImageUrl;
+
+    if (!file.type.startsWith("image/")) {
+        throw new Error("Please select an image file.");
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        throw new Error("Product images must be 5 MB or smaller.");
+    }
+
+    setProductImagePreview(
+        URL.createObjectURL(file),
+        "Converting to JPG..."
+    );
+
+    const jpegBlob = await convertImageToJpeg(file);
+
+    if (jpegBlob.size > maxBytes) {
+        throw new Error("The converted JPG is larger than 5 MB.");
+    }
+
+    setProductImagePreview(
+        URL.createObjectURL(jpegBlob),
+        "Preparing secure R2 upload..."
+    );
+
+    const uploadConfig = await apiRequest(
+        "/dashboard/client/products/image-upload-url",
+        {
+            method: "POST",
+            body: JSON.stringify({
+                content_length: jpegBlob.size
+            })
+        }
+    );
+
+    if (!uploadConfig.upload_url) {
+        throw new Error("R2 upload URL was not returned.");
+    }
+
+    const response = await fetch(uploadConfig.upload_url, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "image/jpeg"
+        },
+        body: jpegBlob
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || "Cloudflare R2 image upload failed.");
+    }
+
+    if (!uploadConfig.image_url) {
+        throw new Error("R2 did not return an image URL.");
+    }
+
+    currentProductImageUrl = uploadConfig.image_url;
+
+    setProductImagePreview(
+        currentProductImageUrl,
+        "Image uploaded"
+    );
+
+    return currentProductImageUrl;
+}
+
+document.getElementById("productImageFile").addEventListener("change", (event) => {
+    selectedProductImageFile = event.target.files?.[0] || null;
+    if (!selectedProductImageFile) {
+        setProductImagePreview(currentProductImageUrl);
+        return;
+    }
+
+    const localUrl = URL.createObjectURL(selectedProductImageFile);
+    setProductImagePreview(localUrl, "Selected image");
+});
 const collectionModal = document.getElementById("collectionModal");
 const productForm = document.getElementById("productForm");
 const collectionForm = document.getElementById("collectionForm");
@@ -909,6 +1059,7 @@ document.getElementById("createProductButton").addEventListener("click", async (
     document.getElementById("productModalTitle").textContent = "Add Product";
     productForm.reset();
     document.getElementById("productId").value = "";
+    resetProductImageState();
     resetProductEditor();
     await loadCatalogMetadata();
     await loadCollectionsForDropdown();
@@ -945,7 +1096,7 @@ productForm.addEventListener("submit", async (e) => {
         gender: document.getElementById("productGender").value || null,
         age_group: document.getElementById("productAgeGroup").value || null,
         tags: document.getElementById("productTags").value.split(",").map(v => v.trim()).filter(Boolean),
-        media: document.getElementById("productImage").value.trim() ? [document.getElementById("productImage").value.trim()] : [],
+        media: currentProductImageUrl ? [currentProductImageUrl] : [],
         variants,
         attributes: {
             sleeve_length: document.getElementById("productSleeve").value || null,
@@ -956,6 +1107,11 @@ productForm.addEventListener("submit", async (e) => {
         is_featured: document.getElementById("productFeatured").checked
     };
     try {
+        if (selectedProductImageFile) {
+            currentProductImageUrl = await uploadProductImage(selectedProductImageFile);
+            productData.media = currentProductImageUrl ? [currentProductImageUrl] : [];
+        }
+
         const endpoint = isEditing ? `/dashboard/client/products/${productId}` : "/dashboard/client/products";
         await apiRequest(endpoint, { method: isEditing ? "PATCH" : "POST", body: JSON.stringify(productData) });
         closeModal(productModal);
@@ -1030,7 +1186,9 @@ window.editProduct = async function(productId) {
         document.getElementById("productGender").value = product.gender || "";
         document.getElementById("productAgeGroup").value = product.age_group || "";
         document.getElementById("productTags").value = (product.tags || []).join(", ");
-        document.getElementById("productImage").value = product.media?.[0] || "";
+        resetProductImageState();
+        currentProductImageUrl = product.media?.[0] || "";
+        if (currentProductImageUrl) setProductImagePreview(currentProductImageUrl, "Current image");
         document.getElementById("productFeatured").checked = !!product.is_featured;
         const attrs = product.attributes || {};
         document.getElementById("productSleeve").value = attrs.sleeve_length || "";

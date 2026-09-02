@@ -113,6 +113,21 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL: str = "meta-llama/llama-3.1-8b-instruct"
 
     # ==========================================================
+    # CLOUDFLARE R2 MEDIA STORAGE / GLOBAL SAFETY LIMITS
+    # ==========================================================
+
+    CLOUDFLARE_R2_ACCOUNT_ID: str = ""
+    CLOUDFLARE_R2_ACCESS_KEY_ID: str = ""
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: str = ""
+    CLOUDFLARE_R2_BUCKET_NAME: str = ""
+    CLOUDFLARE_R2_PUBLIC_URL: str = ""
+    CLOUDFLARE_API_TOKEN: str = ""
+
+    # Public URL of the Meridin API used to proxy R2 images.
+    # Example: https://api.meridin.in
+    MEDIA_PUBLIC_BASE_URL: str = ""
+
+    # ==========================================================
     # WHATSAPP / META
     # ==========================================================
 

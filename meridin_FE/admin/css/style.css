@@ -846,3 +846,8 @@ tr:last-child td {
     background: #e2e8f0;
     border-color: #cbd5e1;
 }
+
+.warning-label {
+    color: #b45309;
+    font-weight: 700;
+}

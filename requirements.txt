@@ -12,3 +12,4 @@ pandas
 rapidfuzz
 httpx
 redis
+boto3>=1.35,<2
