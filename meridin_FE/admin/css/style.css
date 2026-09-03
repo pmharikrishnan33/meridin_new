@@ -851,3 +851,35 @@ tr:last-child td {
     color: #b45309;
     font-weight: 700;
 }
+
+.client-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.client-form input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.flag-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.toggle-button {
+    min-width: 72px;
+}
+
+@media (max-width: 900px) {
+    .client-form { grid-template-columns: 1fr; }
+}

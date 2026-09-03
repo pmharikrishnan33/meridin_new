@@ -200,11 +200,35 @@
 
             </div>
 
-            <div
-                id="clientsList"
-                class="table-container"
-            >
+            <div class="panel client-create-panel">
+                <h3>Add client</h3>
+                <form id="clientCreateForm" class="client-form">
+                    <input id="clientTenantId" required placeholder="Tenant ID">
+                    <input id="clientBusinessName" required placeholder="Business name">
+                    <input id="clientDashboardEmail" required type="email" placeholder="Dashboard email">
+                    <input id="clientDashboardPassword" required type="password" minlength="8" placeholder="Dashboard password">
+                    <input id="clientPhoneNumberId" required placeholder="WhatsApp phone number ID">
+                    <input id="clientAccessToken" required placeholder="WhatsApp access token">
+                    <input id="clientVerifyToken" required placeholder="Webhook verify token">
+                    <input id="clientWelcomeMessage" placeholder="Welcome message (optional)">
+                    <input id="clientFallbackMessage" placeholder="Fallback message (optional)">
+                    <button class="table-button" type="submit">Create client</button>
+                </form>
+                <p id="clientCreateMessage" class="muted"></p>
+            </div>
+
+            <div id="clientsList" class="table-container">
                 Loading...
+            </div>
+
+            <div id="clientControls" class="panel" style="display:none; margin-top:20px;">
+                <div class="section-header">
+                    <div>
+                        <h3 id="clientControlsTitle">Client controls</h3>
+                        <p>Boolean controls are read directly from this client's database document.</p>
+                    </div>
+                </div>
+                <div id="clientFlagsList" class="grid-two">Loading...</div>
             </div>
 
         </section>

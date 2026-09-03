@@ -48,162 +48,155 @@ async function loadOverview() {
 
 
 async function loadClients() {
-
-    const container =
-        document.getElementById(
-            "clientsList"
-        );
+    const container = document.getElementById("clientsList");
 
     try {
-
-        const data =
-            await apiRequest(
-                "/dashboard/admin/clients"
-            );
+        const data = await apiRequest("/dashboard/admin/clients");
 
         if (!data.items.length) {
-
-            container.innerHTML =
-                '<p class="muted">No clients.</p>';
-
+            container.innerHTML = '<p class="muted">No clients.</p>';
             return;
         }
 
         container.innerHTML = `
             <table>
-
                 <thead>
-
                     <tr>
-
-                        <th>
-                            Business
-                        </th>
-
-                        <th>
-                            Tenant
-                        </th>
-
-                        <th>
-                            Status
-                        </th>
-
-                        <th>
-                            WhatsApp
-                        </th>
-
-                        <th>
-                            Action
-                        </th>
-
+                        <th>Business</th>
+                        <th>Tenant</th>
+                        <th>Status</th>
+                        <th>WhatsApp</th>
+                        <th>Created</th>
+                        <th>Action</th>
                     </tr>
-
                 </thead>
-
                 <tbody>
-
                     ${data.items.map(client => `
-
                         <tr>
-
+                            <td>${escapeHtml(client.business_name || "-")}</td>
+                            <td>${escapeHtml(client.tenant_id || "-")}</td>
+                            <td>${client.is_active
+                                ? '<span class="active-label">Active</span>'
+                                : '<span class="inactive-label">Suspended</span>'}</td>
+                            <td>${client.phone_number_id ? "Connected" : "Not configured"}</td>
+                            <td>${formatDate(client.created_at)}</td>
                             <td>
-                                ${escapeHtml(
-                                    client.business_name || "-"
-                                )}
-                            </td>
-
-                            <td>
-                                ${escapeHtml(
-                                    client.tenant_id || "-"
-                                )}
-                            </td>
-
-                            <td>
-
-                                ${
-                                    client.is_active
-                                        ? `<span class="active-label">
-                                            Active
-                                           </span>`
-                                        : `<span class="inactive-label">
-                                            Suspended
-                                           </span>`
-                                }
-
-                            </td>
-
-                            <td>
-                                ${
-                                    client.phone_number_id
-                                        ? "Connected"
-                                        : "Not configured"
-                                }
-                            </td>
-
-                            <td>
-
-                                <button
-                                    class="table-button"
-                                    onclick="toggleClient(
-                                        '${client._id}',
-                                        ${!client.is_active}
-                                    )"
-                                >
-                                    ${
-                                        client.is_active
-                                            ? "Suspend"
-                                            : "Activate"
-                                    }
+                                <button class="table-button" onclick="toggleClient('${client._id}', ${!client.is_active})">
+                                    ${client.is_active ? "Suspend" : "Activate"}
                                 </button>
-
+                                <button class="table-button" onclick="showClientControls('${client._id}', '${escapeJs(client.business_name || client.tenant_id || "Client")}')">
+                                    Controls
+                                </button>
                             </td>
-
                         </tr>
-
                     `).join("")}
-
                 </tbody>
-
-            </table>
-        `;
-
+            </table>`;
     } catch (error) {
-
-        container.innerHTML =
-            `<p class="error">
-                ${escapeHtml(error.message)}
-             </p>`;
+        container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
     }
 }
 
-
-async function toggleClient(
-    clientId,
-    newStatus
-) {
-
+async function toggleClient(clientId, newStatus) {
     try {
-
-        await apiRequest(
-            `/dashboard/admin/clients/${clientId}/status`,
-            {
-                method: "PATCH",
-
-                body: JSON.stringify({
-                    is_active: newStatus
-                })
-            }
-        );
-
+        await apiRequest(`/dashboard/admin/clients/${clientId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ is_active: newStatus })
+        });
         await loadClients();
-
         await loadOverview();
-
     } catch (error) {
-
         alert(error.message);
     }
 }
+
+async function showClientControls(clientId, title) {
+    const panel = document.getElementById("clientControls");
+    const container = document.getElementById("clientFlagsList");
+    document.getElementById("clientControlsTitle").textContent = `${title} — controls`;
+    panel.style.display = "block";
+    container.innerHTML = "Loading...";
+
+    try {
+        const data = await apiRequest(`/dashboard/admin/clients/${clientId}/feature-flags`);
+        if (!data.items.length) {
+            container.innerHTML = '<p class="muted">No boolean feature controls found.</p>';
+            return;
+        }
+
+        container.innerHTML = data.items.map(item => `
+            <div class="flag-row">
+                <div>
+                    <strong>${escapeHtml(item.path)}</strong>
+                    <div class="muted">${item.enabled ? "Enabled" : "Disabled"}</div>
+                </div>
+                <button class="table-button toggle-button"
+                    data-client-id="${escapeHtml(clientId)}"
+                    data-path="${escapeHtml(item.path)}"
+                    data-enabled="${item.enabled}">
+                    ${item.enabled ? "ON" : "OFF"}
+                </button>
+            </div>
+        `).join("");
+
+        container.querySelectorAll(".toggle-button").forEach(button => {
+            button.addEventListener("click", async () => {
+                const current = button.dataset.enabled === "true";
+                try {
+                    await apiRequest(
+                        `/dashboard/admin/clients/${encodeURIComponent(button.dataset.clientId)}/feature-flags?path=${encodeURIComponent(button.dataset.path)}`,
+                        {
+                            method: "PATCH",
+                            body: JSON.stringify({ enabled: !current })
+                        }
+                    );
+                    await showClientControls(clientId, title);
+                } catch (error) {
+                    alert(error.message);
+                }
+            });
+        });
+    } catch (error) {
+        container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function escapeJs(value) {
+    return String(value ?? "").replaceAll("\\", "\\\\").replaceAll("'", "\\'").replaceAll("\n", " ").replaceAll("\r", " ");
+}
+
+async function createClient(event) {
+    event.preventDefault();
+    const message = document.getElementById("clientCreateMessage");
+    message.textContent = "Creating...";
+
+    const payload = {
+        tenant_id: document.getElementById("clientTenantId").value.trim(),
+        business_name: document.getElementById("clientBusinessName").value.trim(),
+        dashboard_email: document.getElementById("clientDashboardEmail").value.trim(),
+        dashboard_password: document.getElementById("clientDashboardPassword").value,
+        phone_number_id: document.getElementById("clientPhoneNumberId").value.trim(),
+        access_token: document.getElementById("clientAccessToken").value.trim(),
+        webhook_verify_token: document.getElementById("clientVerifyToken").value.trim(),
+        welcome_message: document.getElementById("clientWelcomeMessage").value.trim() || null,
+        fallback_message: document.getElementById("clientFallbackMessage").value.trim() || null
+    };
+
+    try {
+        await apiRequest("/dashboard/admin/clients", {
+            method: "POST",
+            body: JSON.stringify(payload)
+        });
+        document.getElementById("clientCreateForm").reset();
+        message.textContent = "Client created successfully.";
+        await loadClients();
+        await loadOverview();
+    } catch (error) {
+        message.textContent = error.message;
+    }
+}
+
+document.getElementById("clientCreateForm")?.addEventListener("submit", createClient);
 
 
 async function loadMessages() {
