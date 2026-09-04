@@ -27,21 +27,43 @@ class RedisCache:
     """
 
     def __init__(self, url: Optional[str] = None, default_ttl: int = 300):
-        self._url = url or settings.REDIS_URL
+        # URL is resolved at connect() time to ensure settings are fully loaded
+        self._url_override = url
         self._default_ttl = default_ttl
         self._client: Optional[redis.Redis] = None
         self._connected = False
 
-    async def connect(self) -> None:
+    def _get_url(self) -> str:
+        """Resolve Redis URL at connection time to ensure settings are loaded."""
+        if self._url_override:
+            return self._url_override
+        # Import here to get the latest settings (avoids lru_cache timing issues)
+        from app.core.config import settings
+        return settings.REDIS_URL
+
+    async def connect(self, url: Optional[str] = None) -> None:
         """Connect to Redis."""
+        connect_url = url or self._get_url()
         try:
-            self._client = redis.from_url(self._url, decode_responses=True)
-            # Verify connection
+            logger.info("Redis URL being used: %s", connect_url)
+
+            self._client = redis.from_url(
+                connect_url,
+                decode_responses=True,
+            )
+
             await self._client.ping()
+
             self._connected = True
+
             logger.info("Redis connected successfully.")
+
         except Exception as e:
-            logger.warning(f"Redis connection failed: {e}. Running without cache.")
+            logger.warning(
+                "Redis connection failed: %s. Running without cache.",
+                e,
+            )
+
             self._client = None
             self._connected = False
 

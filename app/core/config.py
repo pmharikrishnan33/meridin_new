@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     # CACHE
     # ==========================================================
 
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str
 
     # ==========================================================
     # LOGGING

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -79,7 +80,9 @@ async def lifespan(app: FastAPI):
     # ---------------------------------------------------------
 
     try:
-        await redis_cache.connect()
+        # Read REDIS_URL directly from environment to avoid @lru_cache timing issues
+        redis_url = os.getenv("REDIS_URL", settings.REDIS_URL)
+        await redis_cache.connect(url=redis_url)
 
     except Exception:
         logger.exception(
