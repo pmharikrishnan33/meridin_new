@@ -881,7 +881,7 @@ class EntityExtractor:
                 "5xl": "5XL",
             }
 
-            if normalized in self.NUMERIC_PANTS_SIZES:
+            if normalized in EntityExtractor.NUMERIC_PANTS_SIZES:
                 return normalized
 
             return size_map.get(

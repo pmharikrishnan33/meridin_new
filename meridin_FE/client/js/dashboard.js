@@ -18,63 +18,18 @@ async function loadOverview() {
             "/dashboard/client/overview"
         );
 
-        const metrics = data.metrics;
+        const metrics = data.metrics || {};
 
-        document.getElementById(
-            "productsMetric"
-        ).textContent = metrics.products;
+        const productsMetric = document.getElementById("productsMetric");
+        const customersMetric = document.getElementById("customersMetric");
 
-        document.getElementById(
-            "customersMetric"
-        ).textContent = metrics.customers;
-
-        document.getElementById(
-            "conversationsMetric"
-        ).textContent = metrics.conversations;
-
-        document.getElementById(
-            "messagesMetric"
-        ).textContent = metrics.messages;
-
-        const container =
-            document.getElementById(
-                "recentMessages"
-            );
-
-        if (!data.recent_messages.length) {
-            container.innerHTML =
-                '<p class="muted">No messages yet.</p>';
-
-            return;
+        if (productsMetric) {
+            productsMetric.textContent = metrics.products ?? 0;
         }
 
-        container.innerHTML =
-            data.recent_messages
-                .map(message => `
-                    <div class="message-row">
-                        <div>
-                            <strong>
-                                ${escapeHtml(
-                                    message.text || "Media message"
-                                )}
-                            </strong>
-
-                            <span>
-                                ${escapeHtml(
-                                    message.intent || "Unknown"
-                                )}
-                            </span>
-                        </div>
-
-                        <small>
-                            ${formatDate(
-                                message.created_at
-                            )}
-                        </small>
-                    </div>
-                `)
-                .join("");
-
+        if (customersMetric) {
+            customersMetric.textContent = metrics.customers ?? 0;
+        }
     } catch (error) {
         console.error(error);
     }

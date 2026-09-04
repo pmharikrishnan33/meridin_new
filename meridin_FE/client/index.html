@@ -8,7 +8,7 @@
     >
     <title>Meridin — Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -18,7 +18,7 @@
     <aside class="sidebar">
 
         <div class="sidebar-brand">
-            <div class="brand-mark">M</div>
+            <div class="brand-logo-wrap"><img src="../assets/meridin-logo.svg" class="brand-logo" alt="Meridin"></div>
 
             <div>
                 <strong>Meridin</strong>
@@ -40,16 +40,6 @@
 
             <a href="#collections" class="nav-link">
                 Collections
-            </a>
-
-            <div class="nav-title">Messaging</div>
-
-            <a href="#messages" class="nav-link">
-                Messages
-            </a>
-
-            <a href="#leads" class="nav-link">
-                Leads
             </a>
 
             <div class="nav-title">Assistant</div>
@@ -112,27 +102,9 @@
                     <strong id="conversationsMetric">—</strong>
                 </article>
 
-                <article class="metric-card">
-                    <span>Messages</span>
-                    <strong id="messagesMetric">—</strong>
-                </article>
-
             </div>
 
             <div class="grid-two">
-
-                <section class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <h2>Recent messages</h2>
-                            <p>Latest WhatsApp activity</p>
-                        </div>
-                    </div>
-
-                    <div id="recentMessages">
-                        Loading...
-                    </div>
-                </section>
 
                 <section class="panel">
 
@@ -235,54 +207,7 @@
             </div>
 
         </section>
-
-        <section
-            id="messages"
-            class="dashboard-section"
-        >
-
-            <div class="section-header">
-
-                <div>
-                    <h2>Messages</h2>
-                    <p>Recent WhatsApp conversations.</p>
-                </div>
-
-            </div>
-
-            <div
-                id="messagesList"
-                class="table-container"
-            >
-                Loading...
-            </div>
-
-        </section>
-
-        <section
-            id="leads"
-            class="dashboard-section"
-        >
-
-            <div class="section-header">
-
-                <div>
-                    <h2>Lead classifications</h2>
-                    <p>Messages classified by Meridin ML.</p>
-                </div>
-
-            </div>
-
-            <div
-                id="leadsList"
-                class="table-container"
-            >
-                Loading...
-            </div>
-
-        </section>
-
-        <section
+<section
             id="settings"
             class="dashboard-section"
         >
