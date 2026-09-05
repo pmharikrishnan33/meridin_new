@@ -360,7 +360,10 @@ async def catalog_metadata(
 
 
 class ImageUploadRequest(BaseModel):
-    content_length: int = Field(ge=1, le=5_000_000)
+    content_length: int = Field(
+        ge=1,
+        le=5_000_000,
+    )
 
 
 @router.post("/products/image-upload-url")
@@ -368,96 +371,254 @@ async def product_image_upload_url(
     payload: ImageUploadRequest,
     user: Dict[str, Any] = Depends(get_current_client),
 ) -> Dict[str, Any]:
-    """Create a short-lived Cloudflare R2 presigned JPG upload URL.
-
-    R2 credentials stay on the server. The upload itself goes directly from
-    the browser to R2. The upload URL is issued only while the global Meridin
-    R2 safety guard has capacity.
     """
-    _client_id(user)  # Authentication is required; usage is global.
+    Create a short-lived Cloudflare R2 presigned JPG upload URL.
 
-    if not redis_cache.is_connected:
+    Flow:
+
+        Browser
+            ↓
+        Meridin API
+            ↓
+        authentication
+            ↓
+        validate R2 configuration
+            ↓
+        Cloudflare storage check (when available)
+            ↓
+        Redis Class-A safety reservation
+            ↓
+        generate presigned URL
+            ↓
+        Browser uploads directly to R2
+
+    Cloudflare metrics are intentionally non-blocking.
+
+    If the Cloudflare metrics API is temporarily unavailable,
+    Redis still provides the local monthly Class-A safety guard.
+    """
+
+    # ========================================================
+    # 1. AUTHENTICATION
+    # ========================================================
+
+    _client_id(user)
+
+    # ========================================================
+    # 2. REDIS IS NOT A HARD DEPENDENCY HERE
+    # ========================================================
+    #
+    # reserve_upload() already has its own fallback behaviour.
+    #
+    # Therefore we intentionally DO NOT do:
+    #
+    #     if not redis_cache.is_connected:
+    #         raise HTTPException(...)
+    #
+    # Otherwise reserve_upload()'s fail-open design would never
+    # actually be reached.
+    #
+
+    # ========================================================
+    # 3. R2 CONFIGURATION
+    # ========================================================
+
+    account_id = (
+        settings.CLOUDFLARE_R2_ACCOUNT_ID
+        .strip()
+    )
+
+    access_key_id = (
+        settings.CLOUDFLARE_R2_ACCESS_KEY_ID
+        .strip()
+    )
+
+    secret_access_key = (
+        settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY
+        .strip()
+    )
+
+    bucket_name = (
+        settings.CLOUDFLARE_R2_BUCKET_NAME
+        .strip()
+    )
+
+    public_base = (
+        settings.CLOUDFLARE_R2_PUBLIC_URL
+        .strip()
+        .rstrip("/")
+    )
+
+    if not all(
+        [
+            account_id,
+            access_key_id,
+            secret_access_key,
+            bucket_name,
+            public_base,
+        ]
+    ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Image storage is temporarily disabled because the usage guard is unavailable.",
+            detail=(
+                "Cloudflare R2 image storage "
+                "is not configured."
+            ),
         )
 
-    account_id = settings.CLOUDFLARE_R2_ACCOUNT_ID.strip()
-    access_key_id = settings.CLOUDFLARE_R2_ACCESS_KEY_ID.strip()
-    secret_access_key = settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY.strip()
-    bucket_name = settings.CLOUDFLARE_R2_BUCKET_NAME.strip()
-    public_base = settings.MEDIA_PUBLIC_BASE_URL.strip().rstrip("/")
-
-    if not all([account_id, access_key_id, secret_access_key, bucket_name, public_base]):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Cloudflare R2 image storage is not configured.",
-        )
+    # ========================================================
+    # 4. CLOUDFLARE STORAGE CHECK
+    # ========================================================
+    #
+    # This is deliberately best-effort.
+    #
+    # A 403 from the Cloudflare metrics API must NOT prevent
+    # the actual R2 upload URL from being generated.
+    #
+    # The Redis Class-A reservation below remains active.
+    #
 
     try:
-        # Storage is a GB-month metric. We conservatively block at 90% of
-        # the monthly free-tier capacity rather than attempting to use all 10 GB.
-        metrics = await r2_usage_service.cloudflare_metrics()
-        current_storage = int(metrics.get("storage_bytes", 0))
+        metrics = (
+            await r2_usage_service.cloudflare_metrics()
+        )
 
-        if current_storage + payload.content_length > R2_GUARD_STORAGE_BYTES:
+        current_storage = int(
+            metrics.get(
+                "storage_bytes",
+                0,
+            )
+        )
+
+        requested_bytes = int(
+            payload.content_length
+        )
+
+        projected_storage = (
+            current_storage
+            + requested_bytes
+        )
+
+        if projected_storage > R2_GUARD_STORAGE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Global image storage safety limit reached. New uploads are temporarily disabled.",
+                detail=(
+                    "Global image storage safety "
+                    "limit reached. New uploads are "
+                    "temporarily disabled."
+                ),
             )
 
-        if not await r2_usage_service.reserve_upload():
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Global monthly image-upload safety limit reached. New uploads are temporarily disabled.",
-            )
+    except HTTPException:
+        # Real storage-limit rejection.
+        raise
 
+    except Exception as metrics_exc:
+        logger.warning(
+            "Cloudflare R2 metrics unavailable while "
+            "creating image upload URL. "
+            "Continuing with Redis safety guard: %s",
+            metrics_exc,
+        )
+
+    # ========================================================
+    # 5. RESERVE CLASS-A OPERATION
+    # ========================================================
+
+    if not await r2_usage_service.reserve_upload():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Global monthly image-upload "
+                "safety limit reached. New uploads "
+                "are temporarily disabled."
+            ),
+        )
+
+    # ========================================================
+    # 6. GENERATE PRESIGNED R2 URL
+    # ========================================================
+
+    try:
         import boto3
         from botocore.client import Config
 
         s3 = boto3.client(
             "s3",
             endpoint_url=(
-                f"https://{account_id}.r2.cloudflarestorage.com"
+                f"https://{account_id}"
+                ".r2.cloudflarestorage.com"
             ),
             aws_access_key_id=access_key_id,
             aws_secret_access_key=secret_access_key,
             region_name="auto",
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+            ),
         )
 
-        object_name = f"products/{uuid.uuid4()}.jpg"
+        # ----------------------------------------------------
+        # Generate unique object name
+        # ----------------------------------------------------
 
-        upload_url = s3.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": bucket_name,
-                "Key": object_name,
-                "ContentType": "image/jpeg",
-                "ContentLength": payload.content_length,
-            },
-            ExpiresIn=900,
+        object_name = (
+            f"products/{uuid.uuid4()}.jpg"
         )
 
-        image_url = f"{public_base}/api/dashboard/client/media/{quote(object_name, safe='/')}"
+        # ----------------------------------------------------
+        # Generate presigned PUT URL
+        # ----------------------------------------------------
+
+        upload_url = (
+            s3.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": bucket_name,
+                    "Key": object_name,
+                    "ContentType": "image/jpeg",
+                    "ContentLength": (
+                        payload.content_length
+                    ),
+                },
+                ExpiresIn=900,
+            )
+        )
+
+        # ----------------------------------------------------
+        # API-served image URL
+        # ----------------------------------------------------
+
+        image_url = (
+            f"{public_base}/{quote(object_name, safe='/')}"
+        )
 
         return {
             "upload_url": upload_url,
+
             "image_url": image_url,
+
             "object_name": object_name,
+
             "content_type": "image/jpeg",
+
             "expires_in": 900,
         }
 
     except HTTPException:
         raise
+
     except Exception as exc:
-        logger.exception("Unable to create R2 image upload URL: %s", exc)
+        logger.exception(
+            "Unable to create R2 image upload URL: %s",
+            exc,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to prepare image storage.",
+            detail=(
+                "Unable to prepare image storage."
+            ),
         ) from exc
-
 
 @router.get("/media/{object_name:path}")
 async def serve_media(object_name: str) -> Response:

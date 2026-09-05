@@ -10,29 +10,92 @@ from app.core.config import settings
 from app.database.redis_cache import redis_cache
 from app.utils.logger import logger
 
-R2_FREE_STORAGE_BYTES = 10_000_000_000
+
+# ============================================================
+# R2 FREE-TIER LIMITS
+# ============================================================
+
+R2_FREE_STORAGE_BYTES = 10_000_000_000  # 10 GB
 R2_FREE_CLASS_A = 1_000_000
 R2_FREE_CLASS_B = 10_000_000
+
+
+# ============================================================
+# SAFETY GUARD
+# ============================================================
+
 R2_GUARD_RATIO = 0.90
 R2_WARNING_RATIO = 0.80
-R2_GUARD_STORAGE_BYTES = int(R2_FREE_STORAGE_BYTES * R2_GUARD_RATIO)
-R2_GUARD_CLASS_A = int(R2_FREE_CLASS_A * R2_GUARD_RATIO)
-R2_GUARD_CLASS_B = int(R2_FREE_CLASS_B * R2_GUARD_RATIO)
+
+R2_GUARD_STORAGE_BYTES = int(
+    R2_FREE_STORAGE_BYTES * R2_GUARD_RATIO
+)
+
+R2_GUARD_CLASS_A = int(
+    R2_FREE_CLASS_A * R2_GUARD_RATIO
+)
+
+R2_GUARD_CLASS_B = int(
+    R2_FREE_CLASS_B * R2_GUARD_RATIO
+)
+
+
+# ============================================================
+# R2 OPERATION TYPES
+# ============================================================
 
 CLASS_A_ACTIONS = {
-    "ListBuckets", "PutBucket", "ListObjects", "PutObject", "CopyObject",
-    "CompleteMultipartUpload", "CreateMultipartUpload", "LifecycleStorageTierTransition",
-    "ListMultipartUploads", "UploadPart", "UploadPartCopy", "ListParts",
-    "PutBucketEncryption", "PutBucketCors", "PutBucketLifecycleConfiguration",
+    "ListBuckets",
+    "PutBucket",
+    "ListObjects",
+    "PutObject",
+    "CopyObject",
+    "CompleteMultipartUpload",
+    "CreateMultipartUpload",
+    "LifecycleStorageTierTransition",
+    "ListMultipartUploads",
+    "UploadPart",
+    "UploadPartCopy",
+    "ListParts",
+    "PutBucketEncryption",
+    "PutBucketCors",
+    "PutBucketLifecycleConfiguration",
 }
+
+
 CLASS_B_ACTIONS = {
-    "HeadBucket", "HeadObject", "GetObject", "UsageSummary", "GetBucketEncryption",
-    "GetBucketLocation", "GetBucketCors", "GetBucketLifecycleConfiguration",
+    "HeadBucket",
+    "HeadObject",
+    "GetObject",
+    "UsageSummary",
+    "GetBucketEncryption",
+    "GetBucketLocation",
+    "GetBucketCors",
+    "GetBucketLifecycleConfiguration",
 }
 
 
 class R2UsageService:
-    """Global R2 usage guard. R2 usage is account-wide, never tenant-scoped."""
+    """
+    Global R2 usage guard.
+
+    R2 usage is account-wide and therefore is not tenant-scoped.
+
+    Redis:
+        Used for local monthly safety counters.
+
+    Cloudflare:
+        Used for authoritative storage/operation metrics when available.
+
+    Important:
+        Cloudflare metrics availability is NOT required for an image upload.
+        If Cloudflare analytics is temporarily unavailable, Redis counters
+        continue to provide the local safety guard.
+    """
+
+    # ========================================================
+    # MONTH HELPERS
+    # ========================================================
 
     @staticmethod
     def month_key() -> str:
@@ -41,71 +104,271 @@ class R2UsageService:
     @staticmethod
     def _month_ttl() -> int:
         now = datetime.now(timezone.utc)
-        last_day = calendar.monthrange(now.year, now.month)[1]
-        end = now.replace(day=last_day, hour=23, minute=59, second=59, microsecond=0)
-        return max(3600, int((end - now).total_seconds()) + 86400)
+
+        last_day = calendar.monthrange(
+            now.year,
+            now.month,
+        )[1]
+
+        end = now.replace(
+            day=last_day,
+            hour=23,
+            minute=59,
+            second=59,
+            microsecond=0,
+        )
+
+        return max(
+            3600,
+            int((end - now).total_seconds()) + 86400,
+        )
+
+    # ========================================================
+    # REDIS COUNTER KEYS
+    # ========================================================
 
     @classmethod
     def _counter_key(cls, name: str) -> str:
-        return f"meridin:r2:{cls.month_key()}:{name}"
+        return (
+            f"meridin:r2:"
+            f"{cls.month_key()}:"
+            f"{name}"
+        )
+
+    # ========================================================
+    # CLASS A RESERVATION
+    # ========================================================
 
     @classmethod
     async def reserve_upload(cls) -> bool:
-        value = await redis_cache.reserve_counter(
-            cls._counter_key("class_a_reserved"), 1, R2_GUARD_CLASS_A, ttl=cls._month_ttl()
-        )
-        return value is not None
+        """
+        Reserve one Class A operation for an image upload.
+
+        If Redis is unavailable, fail open.
+
+        The endpoint may therefore continue generating an upload URL,
+        while Cloudflare itself remains the final storage system.
+        """
+
+        try:
+            value = await redis_cache.reserve_counter(
+                cls._counter_key("class_a_reserved"),
+                1,
+                R2_GUARD_CLASS_A,
+                ttl=cls._month_ttl(),
+            )
+
+            return value is not None
+
+        except Exception as exc:
+            logger.warning(
+                "Redis reserve_upload failed; "
+                "falling back to permit upload: %s",
+                exc,
+            )
+
+            return True
+
+    # ========================================================
+    # CLASS B RESERVATION
+    # ========================================================
 
     @classmethod
     async def reserve_view(cls) -> bool:
-        value = await redis_cache.reserve_counter(
-            cls._counter_key("class_b_views"), 1, R2_GUARD_CLASS_B, ttl=cls._month_ttl()
-        )
-        return value is not None
+        """
+        Reserve one Class B operation for an image view.
+
+        If Redis is unavailable, fail open.
+        """
+
+        try:
+            value = await redis_cache.reserve_counter(
+                cls._counter_key("class_b_views"),
+                1,
+                R2_GUARD_CLASS_B,
+                ttl=cls._month_ttl(),
+            )
+
+            return value is not None
+
+        except Exception as exc:
+            logger.warning(
+                "Redis reserve_view failed; "
+                "falling back to permit view: %s",
+                exc,
+            )
+
+            return True
+
+    # ========================================================
+    # REDIS COUNTERS
+    # ========================================================
 
     @classmethod
     async def counters(cls) -> Dict[str, Any]:
+        """
+        Return local Redis safety counters.
+        """
+
+        try:
+            class_a = (
+                await redis_cache.get_int(
+                    cls._counter_key("class_a_reserved")
+                )
+                or 0
+            )
+
+            class_b = (
+                await redis_cache.get_int(
+                    cls._counter_key("class_b_views")
+                )
+                or 0
+            )
+
+            is_connected = redis_cache.is_connected
+
+        except Exception as exc:
+            logger.warning(
+                "Error fetching Redis R2 counters: %s",
+                exc,
+            )
+
+            class_a = 0
+            class_b = 0
+            is_connected = False
+
         return {
             "month": cls.month_key(),
-            "class_a_reserved": await redis_cache.get_int(cls._counter_key("class_a_reserved")) or 0,
-            "class_b_views": await redis_cache.get_int(cls._counter_key("class_b_views")) or 0,
-            "redis_available": redis_cache.is_connected,
+            "class_a_reserved": class_a,
+            "class_b_views": class_b,
+            "redis_available": is_connected,
         }
+
+    # ========================================================
+    # CLOUDFLARE METRICS
+    # ========================================================
 
     @classmethod
     async def cloudflare_metrics(cls) -> Dict[str, Any]:
-        account_id = settings.CLOUDFLARE_R2_ACCOUNT_ID.strip()
-        api_token = settings.CLOUDFLARE_API_TOKEN.strip()
-        if not account_id or not api_token:
-            raise RuntimeError("Cloudflare API credentials are not configured.")
+        """
+        Retrieve R2 metrics from Cloudflare.
+
+        This method is intentionally separate from the actual R2 S3
+        upload credentials.
+
+        Required:
+            CLOUDFLARE_R2_ACCOUNT_ID
+            CLOUDFLARE_API_TOKEN
+
+        Note:
+            CLOUDFLARE_API_TOKEN must have sufficient Cloudflare
+            account-level permissions for the metrics API.
+        """
+
+        account_id = getattr(
+            settings,
+            "CLOUDFLARE_R2_ACCOUNT_ID",
+            "",
+        ).strip()
+
+        api_token = getattr(
+            settings,
+            "CLOUDFLARE_API_TOKEN",
+            "",
+        ).strip()
+
+        if not account_id:
+            raise RuntimeError(
+                "CLOUDFLARE_R2_ACCOUNT_ID is not configured."
+            )
+
+        if not api_token:
+            raise RuntimeError(
+                "CLOUDFLARE_API_TOKEN is not configured."
+            )
 
         now = datetime.now(timezone.utc)
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
-        storage_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/r2/metrics"
-        graphql_url = "https://api.cloudflare.com/client/v4/graphql"
+        start = now.replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            storage_response = await client.get(storage_url, headers=headers)
+        headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        }
+
+        storage_url = (
+            "https://api.cloudflare.com/client/v4/"
+            f"accounts/{account_id}/r2/metrics"
+        )
+
+        graphql_url = (
+            "https://api.cloudflare.com/client/v4/graphql"
+        )
+
+        async with httpx.AsyncClient(
+            timeout=10.0
+        ) as client:
+
+            # ------------------------------------------------
+            # Storage metrics
+            # ------------------------------------------------
+
+            storage_response = await client.get(
+                storage_url,
+                headers=headers,
+            )
+
+            if storage_response.status_code == 403:
+                raise RuntimeError(
+                    "Cloudflare R2 metrics API returned 403 Forbidden. "
+                    "Check CLOUDFLARE_API_TOKEN permissions."
+                )
+
             storage_response.raise_for_status()
+
             storage_data = storage_response.json()
 
+            # ------------------------------------------------
+            # Operations metrics
+            # ------------------------------------------------
+
             query = """
-            query R2MonthlyOperations($accountTag: String!, $startDate: Time, $endDate: Time) {
+            query R2MonthlyOperations(
+                $accountTag: String!,
+                $startDate: Time,
+                $endDate: Time
+            ) {
               viewer {
-                accounts(filter: {accountTag: $accountTag}) {
+                accounts(
+                  filter: {
+                    accountTag: $accountTag
+                  }
+                ) {
                   r2OperationsAdaptiveGroups(
                     limit: 10000
-                    filter: {datetime_geq: $startDate, datetime_leq: $endDate}
+                    filter: {
+                      datetime_geq: $startDate,
+                      datetime_leq: $endDate
+                    }
                   ) {
-                    sum { requests }
-                    dimensions { actionType }
+                    sum {
+                      requests
+                    }
+                    dimensions {
+                      actionType
+                    }
                   }
                 }
               }
             }
             """
+
             graphql_response = await client.post(
                 graphql_url,
                 headers=headers,
@@ -118,95 +381,321 @@ class R2UsageService:
                     },
                 },
             )
+
+            if graphql_response.status_code == 403:
+                raise RuntimeError(
+                    "Cloudflare GraphQL API returned 403 Forbidden. "
+                    "Check CLOUDFLARE_API_TOKEN permissions."
+                )
+
             graphql_response.raise_for_status()
+
             graphql_data = graphql_response.json()
 
-        if graphql_data.get("errors"):
-            raise RuntimeError(f"Cloudflare GraphQL error: {graphql_data['errors']}")
+        # ====================================================
+        # GRAPHQL ERRORS
+        # ====================================================
 
-        accounts = graphql_data.get("data", {}).get("viewer", {}).get("accounts", [])
-        groups = accounts[0].get("r2OperationsAdaptiveGroups", []) if accounts else []
-        class_a = class_b = 0
+        if graphql_data.get("errors"):
+            raise RuntimeError(
+                "Cloudflare GraphQL error: "
+                f"{graphql_data['errors']}"
+            )
+
+        # ====================================================
+        # OPERATION BREAKDOWN
+        # ====================================================
+
+        accounts = (
+            graphql_data
+            .get("data", {})
+            .get("viewer", {})
+            .get("accounts", [])
+        )
+
+        groups = (
+            accounts[0].get(
+                "r2OperationsAdaptiveGroups",
+                [],
+            )
+            if accounts
+            else []
+        )
+
+        class_a = 0
+        class_b = 0
+
         breakdown: Dict[str, int] = {}
+
         for group in groups:
-            action = group.get("dimensions", {}).get("actionType") or "unknown"
-            requests = int(group.get("sum", {}).get("requests") or 0)
-            breakdown[action] = breakdown.get(action, 0) + requests
+
+            action = (
+                group
+                .get("dimensions", {})
+                .get("actionType")
+                or "unknown"
+            )
+
+            requests = int(
+                group
+                .get("sum", {})
+                .get("requests")
+                or 0
+            )
+
+            breakdown[action] = (
+                breakdown.get(action, 0)
+                + requests
+            )
+
             if action in CLASS_A_ACTIONS:
                 class_a += requests
+
             elif action in CLASS_B_ACTIONS:
                 class_b += requests
 
-        standard = storage_data.get("result", {}).get("standard", {}).get("published", {})
-        storage_bytes = int(standard.get("payloadSize") or 0)
-        metadata_bytes = int(standard.get("metadataSize") or 0)
-        objects = int(standard.get("objects") or 0)
+        # ====================================================
+        # STORAGE
+        # ====================================================
+
+        standard = (
+            storage_data
+            .get("result", {})
+            .get("standard", {})
+            .get("published", {})
+        )
+
+        storage_bytes = int(
+            standard.get("payloadSize")
+            or 0
+        )
+
+        metadata_bytes = int(
+            standard.get("metadataSize")
+            or 0
+        )
+
+        objects = int(
+            standard.get("objects")
+            or 0
+        )
+
         return {
-            "month": cls.month_key(), "storage_bytes": storage_bytes,
-            "metadata_bytes": metadata_bytes, "objects": objects,
-            "cloudflare_class_a": class_a, "cloudflare_class_b": class_b,
-            "operation_breakdown": breakdown, "source": "cloudflare",
+            "month": cls.month_key(),
+
+            "storage_bytes": storage_bytes,
+
+            "metadata_bytes": metadata_bytes,
+
+            "objects": objects,
+
+            "cloudflare_class_a": class_a,
+
+            "cloudflare_class_b": class_b,
+
+            "operation_breakdown": breakdown,
+
+            "source": "cloudflare",
+
             "retrieved_at": now.isoformat(),
         }
 
+    # ========================================================
+    # STATUS
+    # ========================================================
+
     @classmethod
     async def status(cls) -> Dict[str, Any]:
+        """
+        Return the global R2 guard status.
+
+        Cloudflare metrics failures are reported as UNKNOWN rather
+        than crashing the application.
+        """
+
         counters = await cls.counters()
+
         cloudflare: Optional[Dict[str, Any]] = None
         cloudflare_error: Optional[str] = None
+
         try:
             cloudflare = await cls.cloudflare_metrics()
+
         except Exception as exc:
             cloudflare_error = str(exc)
-            logger.warning("R2 Cloudflare metrics unavailable: %s", exc)
 
-        # If Cloudflare cannot be queried, do not falsely report STOPPED.
-        # We expose UNKNOWN while upload/view guards remain fail-closed when Redis is unavailable.
-        storage_bytes = cloudflare.get("storage_bytes", 0) if cloudflare else 0
-        class_a = max(counters["class_a_reserved"], cloudflare.get("cloudflare_class_a", 0) if cloudflare else 0)
-        class_b = max(counters["class_b_views"], cloudflare.get("cloudflare_class_b", 0) if cloudflare else 0)
+            logger.warning(
+                "R2 Cloudflare metrics unavailable: %s",
+                exc,
+            )
 
-        storage_percent = storage_bytes / R2_FREE_STORAGE_BYTES * 100
-        class_a_percent = class_a / R2_FREE_CLASS_A * 100
-        class_b_percent = class_b / R2_FREE_CLASS_B * 100
+        # ====================================================
+        # USAGE
+        # ====================================================
+
+        storage_bytes = (
+            cloudflare.get(
+                "storage_bytes",
+                0,
+            )
+            if cloudflare
+            else 0
+        )
+
+        cloudflare_class_a = (
+            cloudflare.get(
+                "cloudflare_class_a",
+                0,
+            )
+            if cloudflare
+            else 0
+        )
+
+        cloudflare_class_b = (
+            cloudflare.get(
+                "cloudflare_class_b",
+                0,
+            )
+            if cloudflare
+            else 0
+        )
+
+        class_a = max(
+            counters["class_a_reserved"],
+            cloudflare_class_a,
+        )
+
+        class_b = max(
+            counters["class_b_views"],
+            cloudflare_class_b,
+        )
+
+        # ====================================================
+        # PERCENTAGES
+        # ====================================================
+
+        storage_percent = (
+            storage_bytes
+            / R2_FREE_STORAGE_BYTES
+        ) * 100
+
+        class_a_percent = (
+            class_a
+            / R2_FREE_CLASS_A
+        ) * 100
+
+        class_b_percent = (
+            class_b
+            / R2_FREE_CLASS_B
+        ) * 100
+
+        # ====================================================
+        # GUARD
+        # ====================================================
+
         threshold_reached = (
             storage_bytes >= R2_GUARD_STORAGE_BYTES
             or class_a >= R2_GUARD_CLASS_A
             or class_b >= R2_GUARD_CLASS_B
         )
+
         warning = (
-            storage_percent >= 80 or class_a_percent >= 80 or class_b_percent >= 80
+            storage_percent >= 80
+            or class_a_percent >= 80
+            or class_b_percent >= 80
         )
+
+        # ====================================================
+        # STATUS
+        # ====================================================
 
         if threshold_reached:
             status_name = "STOPPED"
+
         elif cloudflare_error or not counters["redis_available"]:
             status_name = "UNKNOWN"
+
         elif warning:
             status_name = "WARNING"
+
         else:
             status_name = "SAFE"
 
+        # ====================================================
+        # RESPONSE
+        # ====================================================
+
         return {
             "status": status_name,
+
             "month": cls.month_key(),
-            "limits": {"storage_bytes": R2_FREE_STORAGE_BYTES, "class_a": R2_FREE_CLASS_A, "class_b": R2_FREE_CLASS_B},
-            "guard_limits": {"storage_bytes": R2_GUARD_STORAGE_BYTES, "class_a": R2_GUARD_CLASS_A, "class_b": R2_GUARD_CLASS_B, "ratio": R2_GUARD_RATIO},
-            "usage": {
-                "storage_bytes": storage_bytes, "storage_gb": round(storage_bytes / 1_000_000_000, 3),
-                "class_a": class_a, "class_b": class_b,
-                "storage_percent": round(storage_percent, 2),
-                "class_a_percent": round(class_a_percent, 2),
-                "class_b_percent": round(class_b_percent, 2),
+
+            "limits": {
+                "storage_bytes": R2_FREE_STORAGE_BYTES,
+                "class_a": R2_FREE_CLASS_A,
+                "class_b": R2_FREE_CLASS_B,
             },
+
+            "guard_limits": {
+                "storage_bytes": R2_GUARD_STORAGE_BYTES,
+                "class_a": R2_GUARD_CLASS_A,
+                "class_b": R2_GUARD_CLASS_B,
+                "ratio": R2_GUARD_RATIO,
+            },
+
+            "usage": {
+                "storage_bytes": storage_bytes,
+
+                "storage_gb": round(
+                    storage_bytes
+                    / 1_000_000_000,
+                    3,
+                ),
+
+                "class_a": class_a,
+
+                "class_b": class_b,
+
+                "storage_percent": round(
+                    storage_percent,
+                    2,
+                ),
+
+                "class_a_percent": round(
+                    class_a_percent,
+                    2,
+                ),
+
+                "class_b_percent": round(
+                    class_b_percent,
+                    2,
+                ),
+            },
+
             "warning": warning,
+
             "blocked": threshold_reached,
-            "guard_available": counters["redis_available"],
+
+            "guard_available": counters[
+                "redis_available"
+            ],
+
             "cloudflare": cloudflare,
+
             "cloudflare_error": cloudflare_error,
+
             "guard_counters": counters,
-            "policy": {"warning_at_percent": 80, "stop_at_percent": 90, "scope": "global"},
+
+            "policy": {
+                "warning_at_percent": 80,
+                "stop_at_percent": 90,
+                "scope": "global",
+            },
         }
 
+
+# ============================================================
+# SINGLETON
+# ============================================================
 
 r2_usage_service = R2UsageService()

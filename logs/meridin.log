@@ -2299,3 +2299,591 @@ RuntimeError: Cloudflare API credentials are not configured.
 2026-09-04 19:27:48,906 | INFO | meridin | Redis URL being used: redis://localhost:6379/0
 2026-09-04 19:27:52,981 | WARNING | meridin | Redis connection failed: Error Multiple exceptions: [Errno 10061] Connect call failed ('::1', 6379, 0, 0), [Errno 10061] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.. Running without cache.
 2026-09-04 19:27:52,982 | INFO | meridin | Meridin started successfully.
+2026-09-04 19:32:28,999 | INFO | meridin | Meridin starting...
+2026-09-04 19:32:28,999 | INFO | meridin | Loading ML models...
+2026-09-04 19:32:31,161 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 19:32:31,167 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 19:32:31,177 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 19:32:31,184 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 19:32:31,184 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 19:32:31,184 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 19:32:32,248 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 19:32:32,248 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 19:32:34,989 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 19:32:35,005 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 19:32:35,005 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 19:32:35,507 | INFO | meridin | Redis connected successfully.
+2026-09-04 19:32:35,507 | INFO | meridin | Meridin started successfully.
+2026-09-04 19:33:31,305 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 19:34:09,269 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 91, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:35:54,779 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 91, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:39:35,455 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 91, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:46:33,548 | INFO | meridin | Meridin shutting down...
+2026-09-04 19:46:33,633 | INFO | meridin | MongoDB connection closed.
+2026-09-04 19:46:33,710 | INFO | meridin | Redis connection closed.
+2026-09-04 19:46:40,070 | INFO | meridin | Meridin starting...
+2026-09-04 19:46:40,070 | INFO | meridin | Loading ML models...
+2026-09-04 19:46:41,886 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 19:46:41,902 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 19:46:41,902 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 19:46:41,915 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 19:46:41,915 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 19:46:41,915 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 19:46:43,463 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 19:46:43,463 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 19:46:46,839 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 19:46:46,841 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 19:46:46,841 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 19:46:47,375 | INFO | meridin | Redis connected successfully.
+2026-09-04 19:46:47,375 | INFO | meridin | Meridin started successfully.
+2026-09-04 19:47:03,075 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 91, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:47:08,024 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 19:47:24,681 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 19:47:31,400 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 19:48:05,715 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 91, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:51:01,263 | INFO | meridin | Meridin shutting down...
+2026-09-04 19:51:01,510 | INFO | meridin | MongoDB connection closed.
+2026-09-04 19:51:01,600 | INFO | meridin | Redis connection closed.
+2026-09-04 19:51:04,173 | INFO | meridin | Meridin starting...
+2026-09-04 19:51:04,173 | INFO | meridin | Loading ML models...
+2026-09-04 19:51:06,038 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 19:51:06,054 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 19:51:06,056 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 19:51:06,065 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 19:51:06,065 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 19:51:06,066 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 19:51:07,116 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 19:51:07,116 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 19:51:10,399 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 19:51:10,399 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 19:51:10,399 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 19:51:10,926 | INFO | meridin | Redis connected successfully.
+2026-09-04 19:51:10,926 | INFO | meridin | Meridin started successfully.
+2026-09-04 19:51:13,556 | INFO | meridin | Meridin shutting down...
+2026-09-04 19:51:13,635 | INFO | meridin | MongoDB connection closed.
+2026-09-04 19:51:13,717 | INFO | meridin | Redis connection closed.
+2026-09-04 19:51:18,224 | INFO | meridin | Meridin starting...
+2026-09-04 19:51:18,227 | INFO | meridin | Loading ML models...
+2026-09-04 19:51:20,605 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 19:51:20,627 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 19:51:20,627 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 19:51:20,638 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 19:51:20,638 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 19:51:20,639 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 19:51:21,672 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 19:51:21,673 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 19:51:24,973 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 19:51:24,973 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 19:51:24,973 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 19:51:25,595 | INFO | meridin | Redis connected successfully.
+2026-09-04 19:51:25,595 | INFO | meridin | Meridin started successfully.
+2026-09-04 19:51:32,154 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 19:51:36,685 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 19:52:04,245 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:00:02,949 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:00:03,011 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:00:03,090 | INFO | meridin | Redis connection closed.
+2026-09-04 20:00:14,673 | INFO | meridin | Meridin starting...
+2026-09-04 20:00:14,673 | INFO | meridin | Loading ML models...
+2026-09-04 20:00:16,909 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:00:16,925 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:00:16,925 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:00:16,940 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:00:16,940 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:00:16,941 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:00:17,937 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:00:17,937 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:00:20,761 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:00:20,761 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:00:20,761 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:00:21,251 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:00:21,262 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:00:52,423 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:00:57,405 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 20:00:59,265 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 20:01:28,566 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:03:58,403 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:03:58,489 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:03:58,553 | INFO | meridin | Redis connection closed.
+2026-09-04 20:04:00,976 | INFO | meridin | Meridin starting...
+2026-09-04 20:04:00,978 | INFO | meridin | Loading ML models...
+2026-09-04 20:04:03,534 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:04:03,534 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:04:03,534 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:04:03,552 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:04:03,552 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:04:03,552 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:04:04,707 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:04:04,707 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:04:07,828 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:04:07,828 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:04:07,828 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:04:08,346 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:04:08,346 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:04:10,347 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:04:10,423 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:04:10,502 | INFO | meridin | Redis connection closed.
+2026-09-04 20:04:13,008 | INFO | meridin | Meridin starting...
+2026-09-04 20:04:13,008 | INFO | meridin | Loading ML models...
+2026-09-04 20:04:15,068 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:04:15,084 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:04:15,084 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:04:15,102 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:04:15,102 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:04:15,102 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:04:16,110 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:04:16,111 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:04:19,247 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:04:19,248 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:04:19,248 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:04:19,714 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:04:19,715 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:04:19,817 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:04:19,878 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:04:19,957 | INFO | meridin | Redis connection closed.
+2026-09-04 20:04:22,360 | INFO | meridin | Meridin starting...
+2026-09-04 20:04:22,376 | INFO | meridin | Loading ML models...
+2026-09-04 20:04:24,827 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:04:24,843 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:04:24,845 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:04:24,850 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:04:24,850 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:04:24,850 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:04:25,905 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:04:25,911 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:04:29,758 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:04:29,758 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:04:29,759 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:04:30,268 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:04:30,268 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:04:31,950 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:04:32,030 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:04:32,111 | INFO | meridin | Redis connection closed.
+2026-09-04 20:04:34,405 | INFO | meridin | Meridin starting...
+2026-09-04 20:04:34,405 | INFO | meridin | Loading ML models...
+2026-09-04 20:04:36,706 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:04:36,719 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:04:36,720 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:04:36,728 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:04:36,728 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:04:36,728 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:04:37,788 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:04:37,788 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:04:40,711 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:04:40,712 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:04:40,712 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:04:41,203 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:04:41,203 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:04:41,317 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:04:41,393 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:04:41,468 | INFO | meridin | Redis connection closed.
+2026-09-04 20:04:44,080 | INFO | meridin | Meridin starting...
+2026-09-04 20:04:44,083 | INFO | meridin | Loading ML models...
+2026-09-04 20:04:46,264 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:04:46,275 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:04:46,277 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:04:46,283 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:04:46,283 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:04:46,284 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:04:47,777 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:04:47,777 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:04:51,184 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:04:51,184 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:04:51,185 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:04:51,722 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:04:51,723 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:04:53,108 | WARNING | meridin | Cloudflare metrics unavailable, bypassing guard check: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:05:00,618 | WARNING | meridin | Cloudflare metrics unavailable, bypassing guard check: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:06:20,960 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:06:21,118 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:06:21,191 | INFO | meridin | Redis connection closed.
+2026-09-04 20:06:23,068 | INFO | meridin | Meridin starting...
+2026-09-04 20:06:23,068 | INFO | meridin | Loading ML models...
+2026-09-04 20:06:24,888 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:06:24,897 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:06:24,908 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:06:24,911 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:06:24,911 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:06:24,911 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:06:25,894 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:06:25,894 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:06:28,924 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:06:28,924 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:06:28,924 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:06:29,393 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:06:29,393 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:07:40,151 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:07:40,249 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:07:40,303 | INFO | meridin | Redis connection closed.
+2026-09-04 20:09:01,889 | INFO | meridin | Meridin starting...
+2026-09-04 20:09:01,889 | INFO | meridin | Loading ML models...
+2026-09-04 20:09:03,905 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:09:03,905 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:09:03,918 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:09:03,918 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:09:03,918 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:09:03,924 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:09:04,796 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:09:04,796 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:09:07,369 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:09:07,369 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:09:07,374 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:09:07,903 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:09:07,903 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:10:17,204 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:10:25,138 | ERROR | meridin | Unable to create R2 image upload URL: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+Traceback (most recent call last):
+  File "C:\harikrishnan\meridin\meridin_new-main\app\api\dashboard_client.py", line 400, in product_image_upload_url
+    metrics = await r2_usage_service.cloudflare_metrics()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\harikrishnan\meridin\meridin_new-main\app\services\r2_usage_service.py", line 119, in cloudflare_metrics
+    storage_response.raise_for_status()
+  File "C:\harikrishnan\meridin\meridin_new-main\.venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '403 Forbidden' for url 'https://api.cloudflare.com/client/v4/accounts/1bac0fde887aaaf31177298bbb2862ec/r2/metrics'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403
+2026-09-04 20:15:22,132 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:15:22,810 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:15:22,815 | INFO | meridin | Redis connection closed.
+2026-09-04 20:15:25,806 | INFO | meridin | Meridin starting...
+2026-09-04 20:15:25,811 | INFO | meridin | Loading ML models...
+2026-09-04 20:15:28,401 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:15:28,417 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:15:28,417 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:15:28,426 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:15:28,426 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:15:28,426 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:15:29,805 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:15:29,805 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:15:32,829 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:15:32,829 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:15:32,829 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:15:33,446 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:15:33,446 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:15:37,227 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:15:39,266 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:15:40,179 | INFO | meridin | Redis connection closed.
+2026-09-04 20:15:50,106 | INFO | meridin | Meridin starting...
+2026-09-04 20:15:50,106 | INFO | meridin | Loading ML models...
+2026-09-04 20:15:51,690 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:15:51,703 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:15:51,703 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:15:51,714 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:15:51,714 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:15:51,714 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:16:01,042 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:16:01,049 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:16:48,475 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:16:48,475 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:16:48,475 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:16:49,644 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:16:49,644 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:16:51,255 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:16:53,235 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:16:54,058 | INFO | meridin | Redis connection closed.
+2026-09-04 20:16:56,085 | INFO | meridin | Meridin starting...
+2026-09-04 20:16:56,085 | INFO | meridin | Loading ML models...
+2026-09-04 20:16:58,387 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:16:58,396 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:16:58,396 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:16:58,404 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:16:58,404 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:16:58,404 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:17:04,813 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:17:04,813 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:17:13,371 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:17:13,371 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:17:13,371 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:17:14,156 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:17:14,156 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:18:03,005 | INFO | meridin | Meridin shutting down...
+2026-09-04 20:18:03,153 | INFO | meridin | MongoDB connection closed.
+2026-09-04 20:18:03,222 | INFO | meridin | Redis connection closed.
+2026-09-04 20:18:07,398 | INFO | meridin | Meridin starting...
+2026-09-04 20:18:07,398 | INFO | meridin | Loading ML models...
+2026-09-04 20:18:09,211 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 20:18:09,222 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 20:18:09,222 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 20:18:09,229 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 20:18:09,229 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 20:18:09,236 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 20:18:10,760 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 20:18:10,760 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 20:18:15,235 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 20:18:15,236 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 20:18:15,237 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 20:18:15,930 | INFO | meridin | Redis connected successfully.
+2026-09-04 20:18:15,930 | INFO | meridin | Meridin started successfully.
+2026-09-04 20:18:17,770 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 20:18:36,678 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 20:22:26,485 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 20:22:28,981 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 20:22:39,407 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 20:22:41,212 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 20:25:31,573 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 20:59:27,546 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:03:21,714 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:03:21,801 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:03:21,803 | INFO | meridin | Redis connection closed.
+2026-09-04 21:03:28,965 | INFO | meridin | Meridin starting...
+2026-09-04 21:03:28,965 | INFO | meridin | Loading ML models...
+2026-09-04 21:03:30,437 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:03:30,453 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:03:30,453 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:03:30,469 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:03:30,469 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:03:30,469 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:03:31,497 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:03:31,497 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:03:34,527 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:03:34,527 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:03:34,527 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:03:35,005 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:03:35,005 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:05:47,675 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:05:51,523 | INFO | meridin | Product search returned 2 results for tenant meridin_clothing
+2026-09-04 21:05:57,330 | INFO | meridin | Product search returned 2 results for tenant meridin_clothing
+2026-09-04 21:06:12,823 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:07:03,276 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:07:38,439 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:07:39,798 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:09:36,231 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:09:37,302 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:10:48,863 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:10:48,921 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:10:49,058 | INFO | meridin | Redis connection closed.
+2026-09-04 21:10:51,541 | INFO | meridin | Meridin starting...
+2026-09-04 21:10:51,541 | INFO | meridin | Loading ML models...
+2026-09-04 21:10:53,324 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:10:53,345 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:10:53,345 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:10:53,353 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:10:53,353 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:10:53,353 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:10:54,381 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:10:54,381 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:10:57,136 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:10:57,141 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:10:57,141 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:10:57,599 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:10:57,599 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:11:17,410 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:11:17,497 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:11:17,557 | INFO | meridin | Redis connection closed.
+2026-09-04 21:11:19,651 | INFO | meridin | Meridin starting...
+2026-09-04 21:11:19,653 | INFO | meridin | Loading ML models...
+2026-09-04 21:11:21,386 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:11:21,403 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:11:21,403 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:11:21,410 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:11:21,410 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:11:21,410 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:11:22,434 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:11:22,434 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:11:25,260 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:11:25,260 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:11:25,260 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:11:25,776 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:11:25,776 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:11:25,908 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:11:25,982 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:11:26,040 | INFO | meridin | Redis connection closed.
+2026-09-04 21:11:27,838 | INFO | meridin | Meridin starting...
+2026-09-04 21:11:27,839 | INFO | meridin | Loading ML models...
+2026-09-04 21:11:29,675 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:11:29,687 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:11:29,687 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:11:29,692 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:11:29,692 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:11:29,692 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:11:30,655 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:11:30,655 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:11:33,296 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:11:33,296 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:11:33,296 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:11:33,793 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:11:33,793 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:11:52,513 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:11:52,613 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:11:52,671 | INFO | meridin | Redis connection closed.
+2026-09-04 21:11:54,690 | INFO | meridin | Meridin starting...
+2026-09-04 21:11:54,690 | INFO | meridin | Loading ML models...
+2026-09-04 21:11:56,232 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:11:56,249 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:11:56,249 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:11:56,257 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:11:56,257 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:11:56,257 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:11:57,238 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:11:57,238 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:11:59,842 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:11:59,842 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:11:59,842 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:12:00,322 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:12:00,323 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:12:00,438 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:12:00,501 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:12:00,556 | INFO | meridin | Redis connection closed.
+2026-09-04 21:12:02,637 | INFO | meridin | Meridin starting...
+2026-09-04 21:12:02,637 | INFO | meridin | Loading ML models...
+2026-09-04 21:12:04,389 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:12:04,398 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:12:04,407 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:12:04,414 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:12:04,414 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:12:04,414 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:12:05,776 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:12:05,776 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:12:09,604 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:12:09,604 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:12:09,604 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:12:10,309 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:12:10,309 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:13:26,049 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:13:40,302 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:13:41,580 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:14:10,713 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:14:16,672 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:14:17,572 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:14:20,858 | INFO | meridin | Product search returned 0 results for tenant meridin_clothing
+2026-09-04 21:16:03,235 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:16:04,372 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:19:14,460 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:19:16,084 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:22:18,372 | INFO | meridin | Meridin shutting down...
+2026-09-04 21:22:18,478 | INFO | meridin | MongoDB connection closed.
+2026-09-04 21:22:18,577 | INFO | meridin | Redis connection closed.
+2026-09-04 21:22:22,606 | INFO | meridin | Meridin starting...
+2026-09-04 21:22:22,614 | INFO | meridin | Loading ML models...
+2026-09-04 21:22:24,281 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-04 21:22:24,297 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-04 21:22:24,304 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-04 21:22:24,305 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-04 21:22:24,305 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-04 21:22:24,310 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-04 21:22:25,235 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-04 21:22:25,235 | INFO | meridin | Starting MongoDB index verification...
+2026-09-04 21:22:27,868 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-04 21:22:27,868 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-04 21:22:27,868 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-04 21:22:28,345 | INFO | meridin | Redis connected successfully.
+2026-09-04 21:22:28,345 | INFO | meridin | Meridin started successfully.
+2026-09-04 21:22:50,410 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:22:52,006 | INFO | meridin | Product search returned 2 results for tenant meridin_clothing
+2026-09-04 21:22:57,507 | INFO | meridin | Product search returned 2 results for tenant meridin_clothing
+2026-09-04 21:23:06,791 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-04 21:23:17,271 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
+2026-09-04 21:23:18,134 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing

@@ -123,9 +123,6 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_PUBLIC_URL: str = ""
     CLOUDFLARE_API_TOKEN: str = ""
 
-    # Public URL of the Meridin API used to proxy R2 images.
-    # Example: https://api.meridin.in
-    MEDIA_PUBLIC_BASE_URL: str = ""
 
     # ==========================================================
     # WHATSAPP / META
