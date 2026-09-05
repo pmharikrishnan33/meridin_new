@@ -20,18 +20,35 @@ async function loadOverview() {
 
         const metrics = data.metrics || {};
 
-        const productsMetric = document.getElementById("productsMetric");
-        const customersMetric = document.getElementById("customersMetric");
+        const productsMetric =
+            document.getElementById("productsMetric");
+
+        const customersMetric =
+            document.getElementById("customersMetric");
+
+        const conversationsMetric =
+            document.getElementById("conversationsMetric");
 
         if (productsMetric) {
-            productsMetric.textContent = metrics.products ?? 0;
+            productsMetric.textContent =
+                metrics.products ?? 0;
         }
 
         if (customersMetric) {
-            customersMetric.textContent = metrics.customers ?? 0;
+            customersMetric.textContent =
+                metrics.customers ?? 0;
         }
+
+        if (conversationsMetric) {
+            conversationsMetric.textContent =
+                metrics.conversations ?? 0;
+        }
+
     } catch (error) {
-        console.error(error);
+        console.error(
+            "Failed to load overview:",
+            error
+        );
     }
 }
 
@@ -589,8 +606,6 @@ function escapeAttribute(value) {
 loadOverview();
 loadProducts();
 loadCollections();
-loadMessages();
-loadLeads();
 loadAnalytics();
 loadSettings();
 loadCatalogMetadata();
