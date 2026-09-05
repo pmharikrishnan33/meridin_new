@@ -128,7 +128,47 @@ class ProductSearchHandler(BaseHandler):
             )
 
         # --------------------------------------------------------
-        # 3. NORMALIZE AGAINST TENANT CATALOG
+        # 3. RECOVER CATEGORY FROM CONTEXT BEFORE NORMALIZATION
+        # --------------------------------------------------------
+        #
+        # This is critical for follow-up messages such as:
+        #
+        #   User: I need a black shirt
+        #   Bot:  What size would you like?
+        #   User: 2XL
+        #
+        # The second message may contain only SIZE. The category from the
+        # previous turn must therefore be restored before metadata resolves
+        # the size group.
+        # --------------------------------------------------------
+
+        if (
+            not filters.category
+            and conversation_context
+            and conversation_context.current_category
+        ):
+            filters.category = (
+                conversation_context.current_category
+            )
+
+        # If the generic conversation state already contains the previous
+        # search filters, make sure their category is available before the
+        # metadata normalization step as well.
+        if (
+            not filters.category
+            and conversation_context
+            and conversation_context.last_search_filters
+        ):
+            previous_category = (
+                conversation_context.last_search_filters.get(
+                    "category"
+                )
+            )
+            if previous_category:
+                filters.category = previous_category
+
+        # --------------------------------------------------------
+        # 4. NORMALIZE AGAINST TENANT CATALOG
         # --------------------------------------------------------
 
         filters, size_clarification = (
@@ -151,37 +191,6 @@ class ProductSearchHandler(BaseHandler):
                     ),
                 },
             )
-
-        # --------------------------------------------------------
-        # 4. RECOVER CATEGORY FROM CONTEXT
-        # --------------------------------------------------------
-
-        if (
-            not filters.category
-            and conversation_context
-            and conversation_context.current_category
-        ):
-            filters.category = (
-                conversation_context.current_category
-            )
-
-            filters, size_clarification = (
-                await catalog_metadata_service.normalize_filters(
-                    tenant_id=tenant_id,
-                    filters=filters,
-                    source_text=understanding.original_text,
-                )
-            )
-
-            if size_clarification:
-                return BotResponse(
-                    response_type="text",
-                    text=size_clarification,
-                    metadata={
-                        "needs_clarification": True,
-                        "missing": "size",
-                    },
-                )
 
         # --------------------------------------------------------
         # 5. CATEGORY IS REQUIRED TO SELECT REQUIREMENTS

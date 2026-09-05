@@ -740,6 +740,18 @@ class ProductService:
         size_group_name = product.size_group
 
         if not size_group_name:
+            size_group_name = (
+                catalog_metadata_service
+                .resolve_size_group_from_category_id(
+                    metadata,
+                    getattr(product, "department_id", None),
+                    getattr(product, "category_id", None),
+                )
+            )
+
+        # Final fallback for legacy products that still have only textual
+        # category data. New ID-only inventory does not depend on this.
+        if not size_group_name:
             size_group_name = catalog_metadata_service._resolve_size_group(
                 metadata,
                 product.category,

@@ -2887,3 +2887,19 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 2026-09-04 21:23:06,791 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
 2026-09-04 21:23:17,271 | WARNING | meridin | Cloudflare R2 metrics unavailable while creating image upload URL. Continuing with Redis safety guard: Cloudflare R2 metrics API returned 403 Forbidden. Check CLOUDFLARE_API_TOKEN permissions.
 2026-09-04 21:23:18,134 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing
+2026-09-05 19:33:59,952 | INFO | meridin | Meridin starting...
+2026-09-05 19:33:59,952 | INFO | meridin | Loading ML models...
+2026-09-05 19:34:02,298 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-05 19:34:02,314 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-05 19:34:02,326 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-05 19:34:02,334 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-05 19:34:02,335 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-05 19:34:02,335 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-05 19:34:04,058 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-05 19:34:04,058 | INFO | meridin | Starting MongoDB index verification...
+2026-09-05 19:34:07,074 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-05 19:34:07,074 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-05 19:34:07,074 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-05 19:34:07,616 | INFO | meridin | Redis connected successfully.
+2026-09-05 19:34:07,616 | INFO | meridin | Meridin started successfully.
+2026-09-05 19:34:32,519 | INFO | meridin | Product search returned 1 results for tenant meridin_clothing

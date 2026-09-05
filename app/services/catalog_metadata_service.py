@@ -1059,30 +1059,131 @@ class CatalogMetadataService:
             return None
 
     @staticmethod
+    def resolve_size_group_from_category_id(
+        metadata: Dict[str, Any],
+        department_id: Optional[int],
+        category_id: Optional[int],
+    ) -> Optional[str]:
+        """
+        Resolve a product size group from canonical department/category IDs.
+
+        Inventory products may intentionally omit textual ``category`` and
+        ``size_group`` fields. The metadata document is the source of truth,
+        so the group is derived from ``department_id`` + ``category_id``.
+        """
+        if category_id is None:
+            return None
+
+        category_ids = metadata.get("category_ids") or {}
+        department_ids = metadata.get("department_ids") or {}
+        category_size_map = metadata.get("category_size_map") or {}
+
+        if not isinstance(category_ids, dict):
+            return None
+        if not isinstance(department_ids, dict):
+            return None
+        if not isinstance(category_size_map, dict):
+            return None
+
+        for department_name, categories in category_ids.items():
+            if not isinstance(categories, dict):
+                continue
+
+            try:
+                mapped_department_id = int(
+                    department_ids.get(department_name)
+                )
+            except (TypeError, ValueError):
+                continue
+
+            if (
+                department_id is not None
+                and mapped_department_id != int(department_id)
+            ):
+                continue
+
+            for category_name, raw_id in categories.items():
+                try:
+                    mapped_category_id = int(raw_id)
+                except (TypeError, ValueError):
+                    continue
+
+                if mapped_category_id != int(category_id):
+                    continue
+
+                normalized_category = (
+                    str(category_name).strip().lower()
+                )
+
+                candidates = [normalized_category]
+                if normalized_category.endswith("s"):
+                    candidates.append(normalized_category[:-1])
+                else:
+                    candidates.append(normalized_category + "s")
+
+                aliases = CatalogMetadataService._build_category_aliases(
+                    metadata
+                )
+                for canonical, values in aliases.items():
+                    if (
+                        normalized_category == canonical
+                        or normalized_category in values
+                    ):
+                        candidates.append(canonical)
+                        candidates.extend(values)
+
+                for candidate in candidates:
+                    if candidate in category_size_map:
+                        return str(category_size_map[candidate])
+
+        return None
+
+    @staticmethod
     def _resolve_size_id(
         metadata: Dict[str, Any],
         category: Optional[str],
         size: Optional[str],
     ) -> Tuple[Optional[str], Optional[int]]:
+        """
+        Resolve a customer-entered size through inventory metadata.
+
+        The returned numeric ID is the canonical inventory value. If the
+        category/group cannot be resolved, the size is deliberately NOT
+        treated as a valid inventory value. This prevents searches such as
+        ``size_id=None`` from silently failing or falling back to text fields.
+        """
         if not size:
             return None, None
 
-        group = CatalogMetadataService._resolve_size_group(metadata, category)
+        requested = str(size).strip().upper()
+        if not requested:
+            return None, None
+
+        group = CatalogMetadataService._resolve_size_group(
+            metadata,
+            category,
+        )
         if not group:
-            return str(size).strip().upper(), None
+            return None, None
 
         groups = metadata.get("size_groups") or {}
-        values = groups.get(group) if isinstance(groups, dict) else None
+        values = (
+            groups.get(group)
+            if isinstance(groups, dict)
+            else None
+        )
         if not isinstance(values, dict):
-            return str(size).strip().upper(), None
+            return None, None
 
-        requested = str(size).strip().upper()
         for key, value in values.items():
-            if str(key).strip().upper() == requested:
-                try:
-                    return str(key), int(value)
-                except (TypeError, ValueError):
-                    return str(key), None
+            if str(key).strip().upper() != requested:
+                continue
+
+            try:
+                return str(key).strip(), int(value)
+            except (TypeError, ValueError):
+                return None, None
+
         return None, None
 
     @staticmethod

@@ -607,8 +607,6 @@ class ProductRepository:
 
         color_conditions = [
             color_id_condition,
-            color_text_condition,
-            color_variant_condition,
             color_variant_id_condition,
         ]
 
@@ -687,8 +685,6 @@ class ProductRepository:
 
         size_conditions = [
             size_id_condition,
-            size_text_condition,
-            size_variant_condition,
             size_variant_id_condition,
         ]
 
@@ -712,159 +708,27 @@ class ProductRepository:
         # --------------------------------------------------
 
         if color_id is not None and size_id is not None:
-            canonical_pair = {
-                "$and": [
-                    {
-                        "color_ids": int(color_id)
-                    },
-                    {
-                        "size_ids": int(size_id)
-                    },
-                ]
-            }
+            # Canonical inventory schema: the same variant must contain both
+            # IDs. No textual color/size fields are required.
+            if color_condition in conditions:
+                conditions.remove(color_condition)
 
-            variant_pair = None
+            if size_condition in conditions:
+                conditions.remove(size_condition)
 
-            variant_pair_conditions = []
-
-            if color_value and size_value:
-                variant_pair_conditions.append(
-                    {
-                        "variants": {
-                            "$elemMatch": {
-                                "color": {
-                                    "$regex": (
-                                        "^"
-                                        + re.escape(color_value)
-                                        + "$"
-                                    ),
-                                    "$options": "i",
-                                },
-                                "size": {
-                                    "$regex": (
-                                        "^"
-                                        + re.escape(size_value)
-                                        + "$"
-                                    ),
-                                    "$options": "i",
-                                },
-                            }
-                        }
-                    }
-                )
-
-            variant_pair_conditions.append(
+            conditions.append(
                 {
                     "variants": {
                         "$elemMatch": {
                             "color_id": int(color_id),
                             "size_id": int(size_id),
-                        }
-                    }
-                }
-            )
-
-            variant_pair = {
-                "$or": variant_pair_conditions
-            }
-
-            pair_conditions = [
-                canonical_pair,
-                variant_pair,
-            ]
-
-            valid_pair_conditions = [
-                condition
-                for condition in pair_conditions
-                if condition
-            ]
-
-            if valid_pair_conditions:
-                if color_condition in conditions:
-                    conditions.remove(
-                        color_condition
-                    )
-
-                if size_condition in conditions:
-                    conditions.remove(
-                        size_condition
-                    )
-
-                conditions.append(
-                    {
-                        "$or": valid_pair_conditions
-                    }
-                )
-
-        elif color_value and size_value:
-            variant_pair = {
-                "variants": {
-                    "$elemMatch": {
-                        "color": {
-                            "$regex": (
-                                "^"
-                                + re.escape(color_value)
-                                + "$"
+                            **(
+                                {"stock": {"$gt": 0}}
+                                if filters.in_stock_only
+                                else {}
                             ),
-                            "$options": "i",
-                        },
-                        "size": {
-                            "$regex": (
-                                "^"
-                                + re.escape(size_value)
-                                + "$"
-                            ),
-                            "$options": "i",
-                        },
+                        }
                     }
-                }
-            }
-
-            legacy_pair = {
-                "$and": [
-                    {
-                        "color": {
-                            "$elemMatch": {
-                                "$regex": (
-                                    "^"
-                                    + re.escape(color_value)
-                                    + "$"
-                                ),
-                                "$options": "i",
-                            }
-                        }
-                    },
-                    {
-                        "size": {
-                            "$elemMatch": {
-                                "$regex": (
-                                    "^"
-                                    + re.escape(size_value)
-                                    + "$"
-                                ),
-                                "$options": "i",
-                            }
-                        }
-                    },
-                ]
-            }
-
-            if color_condition in conditions:
-                conditions.remove(
-                    color_condition
-                )
-
-            if size_condition in conditions:
-                conditions.remove(
-                    size_condition
-                )
-
-            conditions.append(
-                {
-                    "$or": [
-                        legacy_pair,
-                        variant_pair,
-                    ]
                 }
             )
 
