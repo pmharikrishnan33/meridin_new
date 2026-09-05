@@ -1217,3 +1217,147 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
     .product-image { width: 88px !important; height: 88px !important; flex-basis: 88px; }
     .product-actions { flex-wrap: wrap; }
 }
+/* ==========================================================================
+   Responsive Extensions & Media Queries
+   Append or integrate these rules into meridin_FE/client/css/style.css
+   ========================================================================== */
+
+/* Prevent structural blowout on flex items */
+.dashboard-container,
+.main-content,
+.content-body {
+    min-width: 0;
+}
+
+/* Base Responsive Grid Adjustments */
+.stats-grid,
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Horizontal Table Scrolling */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+table {
+    width: 100%;
+    white-space: nowrap;
+}
+
+/* Toggle Switch Styling for Mobile Navigation */
+.sidebar-toggle {
+    display: none;
+    background: transparent;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+/* Mobile Sidebar Overlay */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
+/* ==========================================================================
+   Breakpoints
+   ========================================================================== */
+
+/* Medium Screens / Laptops (<= 1024px) */
+@media screen and (max-width: 1024px) {
+    .stats-grid,
+    .card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile & Tablet Devices (<= 768px) */
+@media screen and (max-width: 768px) {
+    .sidebar-toggle {
+        display: inline-flex;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar.active {
+        transform: translateX(0);
+    }
+
+    .content-body {
+        padding: 1rem;
+    }
+
+    .stats-grid,
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Stacked card alternative for dense mobile tables */
+    .responsive-stack-table table,
+    .responsive-stack-table tbody,
+    .responsive-stack-table tr,
+    .responsive-stack-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .responsive-stack-table thead {
+        display: none;
+    }
+
+    .responsive-stack-table tr {
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background-color: #ffffff;
+    }
+
+    .responsive-stack-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: right;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .responsive-stack-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        text-align: left;
+        padding-right: 1rem;
+    }
+
+    .responsive-stack-table td:last-child {
+        border-bottom: none;
+    }
+}
+
+/* Small Mobile Devices (<= 480px) */
+@media screen and (max-width: 480px) {
+    .btn {
+        width: 100%;
+    }
+}
