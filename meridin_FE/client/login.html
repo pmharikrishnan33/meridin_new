@@ -15,9 +15,7 @@
         content="#111827"
     >
 
-    <title>
-        Meridin — Client Login
-    </title>
+    <title>Meridin — Client Login</title>
 
     <link
         rel="stylesheet"
@@ -35,156 +33,97 @@
 <body class="login-page">
 
 
-    <main class="login-wrapper">
+    <main class="login-container">
 
 
-        <!-- =================================================
-             LEFT BRAND PANEL
-        ================================================== -->
+        <!-- Left / Branding -->
 
         <section class="login-brand-panel">
 
-            <div class="login-brand-content">
+            <div class="login-brand">
 
-                <div class="login-brand">
+                <div class="login-logo-wrap">
 
-                    <div class="login-logo">
-
-                        <img
-                            src="assets/meridin-logo.svg"
-                            alt="Meridin"
-                        >
-
-                    </div>
-
-                    <div>
-
-                        <strong>
-                            Meridin
-                        </strong>
-
-                        <span>
-                            WhatsApp automation
-                        </span>
-
-                    </div>
+                    <img
+                        src="assets/meridin-logo.svg"
+                        alt="Meridin"
+                        class="login-logo"
+                    >
 
                 </div>
 
 
-                <div class="login-hero">
+                <div>
 
-                    <span class="eyebrow">
-                        CLIENT PORTAL
+                    <strong>
+                        Meridin
+                    </strong>
+
+                    <span>
+                        WhatsApp Commerce
                     </span>
 
-                    <h1>
-                        Your catalog.
-                        <br>
-                        Your customers.
-                        <br>
-                        <span>One workspace.</span>
-                    </h1>
-
-                    <p>
-                        Manage your products, collections,
-                        business information and WhatsApp
-                        automation from one simple dashboard.
-                    </p>
-
                 </div>
 
-
-                <div class="login-feature-list">
-
-                    <div class="login-feature">
-
-                        <span>
-                            01
-                        </span>
-
-                        <div>
-
-                            <strong>
-                                Catalog management
-                            </strong>
-
-                            <small>
-                                Keep your clothing catalog updated.
-                            </small>
-
-                        </div>
-
-                    </div>
+            </div>
 
 
-                    <div class="login-feature">
+            <div class="login-brand-content">
 
-                        <span>
-                            02
-                        </span>
+                <span class="eyebrow">
+                    CLIENT PLATFORM
+                </span>
 
-                        <div>
+                <h1>
+                    Your catalog.
+                    <br>
+                    Your customers.
+                    <br>
+                    <span>One dashboard.</span>
+                </h1>
 
-                            <strong>
-                                WhatsApp automation
-                            </strong>
+                <p>
+                    Manage your products, collections and WhatsApp automation from one simple workspace.
+                </p>
 
-                            <small>
-                                Let customers interact with your catalog.
-                            </small>
-
-                        </div>
-
-                    </div>
+            </div>
 
 
-                    <div class="login-feature">
+            <div class="login-brand-footer">
 
-                        <span>
-                            03
-                        </span>
+                <span>
+                    Powered by Meridin
+                </span>
 
-                        <div>
-
-                            <strong>
-                                Business insights
-                            </strong>
-
-                            <small>
-                                Monitor conversations and activity.
-                            </small>
-
-                        </div>
-
-                    </div>
-
-                </div>
+                <span>
+                    WhatsApp Automation
+                </span>
 
             </div>
 
         </section>
 
 
-        <!-- =================================================
-             LOGIN FORM
-        ================================================== -->
+        <!-- Right / Login -->
 
         <section class="login-form-panel">
 
-            <div class="login-form-container">
+
+            <div class="login-form-wrapper">
 
 
                 <div class="mobile-login-brand">
 
-                    <div class="login-logo">
+                    <div class="login-logo-wrap">
 
                         <img
                             src="assets/meridin-logo.svg"
                             alt="Meridin"
+                            class="login-logo"
                         >
 
                     </div>
+
 
                     <div>
 
@@ -221,34 +160,26 @@
                 <form id="loginForm">
 
 
-                    <div class="login-form-group">
+                    <div class="login-field">
 
                         <label for="email">
                             Email address
                         </label>
 
-                        <div class="input-wrapper">
-
-                            <span class="input-icon">
-                                @
-                            </span>
-
-                            <input
-                                id="email"
-                                type="email"
-                                autocomplete="email"
-                                placeholder="you@yourbusiness.com"
-                                required
-                            >
-
-                        </div>
+                        <input
+                            id="email"
+                            type="email"
+                            autocomplete="email"
+                            placeholder="you@example.com"
+                            required
+                        >
 
                     </div>
 
 
-                    <div class="login-form-group">
+                    <div class="login-field">
 
-                        <div class="password-label-row">
+                        <div class="field-label-row">
 
                             <label for="password">
                                 Password
@@ -257,34 +188,27 @@
                         </div>
 
 
-                        <div class="input-wrapper">
-
-                            <span class="input-icon">
-                                •
-                            </span>
-
-                            <input
-                                id="password"
-                                type="password"
-                                autocomplete="current-password"
-                                placeholder="Enter your password"
-                                required
-                            >
-
-                        </div>
+                        <input
+                            id="password"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="Enter your password"
+                            required
+                        >
 
                     </div>
 
 
                     <button
                         type="submit"
-                        class="login-submit"
+                        class="login-button"
                     >
+
                         <span>
                             Sign in
                         </span>
 
-                        <span class="login-submit-arrow">
+                        <span>
                             →
                         </span>
 
@@ -296,35 +220,47 @@
                         class="error login-error"
                     ></p>
 
+
                 </form>
 
 
-                <div class="login-footer">
+                <div class="login-security">
 
-                    <span>
-                        Secured Meridin client access
-                    </span>
-
-                    <span class="login-footer-dot">
-                        •
+                    <span class="security-icon">
+                        ✓
                     </span>
 
                     <span>
-                        Dashboard
+                        Your dashboard connection is protected.
                     </span>
 
                 </div>
 
+
             </div>
 
+
+            <div class="login-footer">
+
+                <span>
+                    Meridin Client Dashboard
+                </span>
+
+                <span>
+                    © 2026 Meridin
+                </span>
+
+            </div>
+
+
         </section>
+
 
     </main>
 
 
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
 
 </body>
-
 </html>
