@@ -744,14 +744,12 @@ class ProductService:
                 catalog_metadata_service
                 .resolve_size_group_from_category_id(
                     metadata,
-                    getattr(product, "department_id", None),
-                    getattr(product, "category_id", None),
+                    product.department_id,
+                    product.category_id,
                 )
             )
 
-        # Final fallback for legacy products that still have only textual
-        # category data. New ID-only inventory does not depend on this.
-        if not size_group_name:
+        if not size_group_name and product.category:
             size_group_name = catalog_metadata_service._resolve_size_group(
                 metadata,
                 product.category,
@@ -856,6 +854,8 @@ class ProductService:
         *,
         size: Optional[str] = None,
         color: Optional[str] = None,
+        size_id: Optional[int] = None,
+        color_id: Optional[int] = None,
         in_stock_only: bool = False,
     ) -> List[Dict[str, Any]]:
         """
@@ -875,6 +875,10 @@ class ProductService:
             for variant in variants
             if variant
         ]
+
+        display_maps = display_maps or {}
+        color_map = display_maps.get("colors", {}) or {}
+        size_map = display_maps.get("sizes", {}) or {}
 
         if not variants:
             return []
@@ -896,6 +900,20 @@ class ProductService:
         ] = []
 
         for variant in variants:
+            if size_id is not None:
+                try:
+                    if int(variant.get("size_id")) != int(size_id):
+                        continue
+                except (TypeError, ValueError):
+                    continue
+
+            if color_id is not None:
+                try:
+                    if int(variant.get("color_id")) != int(color_id):
+                        continue
+                except (TypeError, ValueError):
+                    continue
+
             variant_size = str(
                 variant.get(
                     "size",
@@ -954,6 +972,7 @@ class ProductService:
     def _variant_inventory_summary(
         cls,
         product: Product,
+        display_maps: Optional[Dict[str, Dict[Any, str]]] = None,
     ) -> Dict[str, Any]:
         """
         Build stock, size, color and price information
@@ -972,6 +991,10 @@ class ProductService:
             for variant in variants
             if variant
         ]
+
+        display_maps = display_maps or {}
+        color_map = display_maps.get("colors", {}) or {}
+        size_map = display_maps.get("sizes", {}) or {}
 
         if not variants:
             return {
@@ -1023,19 +1046,23 @@ class ProductService:
             if stock > 0:
                 total_stock += stock
 
-                size_value = str(
-                    variant.get(
-                        "size",
-                        "",
-                    )
-                ).strip()
+                size_value = str(variant.get("size") or "").strip()
+                if not size_value and variant.get("size_id") is not None:
+                    try:
+                        size_value = str(
+                            size_map.get(int(variant.get("size_id")), "")
+                        ).strip()
+                    except (TypeError, ValueError):
+                        size_value = ""
 
-                color_value = str(
-                    variant.get(
-                        "color",
-                        "",
-                    )
-                ).strip()
+                color_value = str(variant.get("color") or "").strip()
+                if not color_value and variant.get("color_id") is not None:
+                    try:
+                        color_value = str(
+                            color_map.get(int(variant.get("color_id")), "")
+                        ).strip()
+                    except (TypeError, ValueError):
+                        color_value = ""
 
                 if size_value:
                     available_sizes.add(
@@ -1693,6 +1720,8 @@ class ProductService:
     def product_to_response(
         cls,
         product: Product,
+        display_maps: Optional[Dict[str, Dict[Any, str]]] = None,
+        whatsapp_catalog_id: Optional[str] = None,
     ) -> ResponseProduct:
         """
         Convert a product to a WhatsApp-safe response model.
@@ -1700,7 +1729,8 @@ class ProductService:
 
         summary = (
             cls._variant_inventory_summary(
-                product
+                product,
+                display_maps=display_maps or {},
             )
         )
 
@@ -1755,6 +1785,10 @@ class ProductService:
             ],
             in_stock=(
                 summary["stock"] > 0
+            ),
+            whatsapp_retailer_id=(
+                product.whatsapp_retailer_id
+                or str(product.id)
             ),
         )
 

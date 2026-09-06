@@ -192,6 +192,102 @@ class WhatsAppSender:
             payload=payload,
         )
 
+    async def send_catalog_product(
+        self,
+        phone_number_id: str,
+        access_token: str,
+        to: str,
+        catalog_id: str,
+        product_retailer_id: str,
+        body_text: Optional[str] = None,
+    ) -> WhatsAppSendResult:
+        """Send one real WhatsApp Commerce catalog product message."""
+        self._validate_credentials(phone_number_id, access_token, to)
+
+        if not catalog_id:
+            raise ValueError("catalog_id is required")
+        if not product_retailer_id:
+            raise ValueError("product_retailer_id is required")
+
+        interactive: Dict[str, Any] = {
+            "type": "product",
+            "action": {
+                "catalog_id": str(catalog_id),
+                "product_retailer_id": str(product_retailer_id),
+            },
+        }
+
+        if body_text:
+            interactive["body"] = {"text": body_text[:1024]}
+
+        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "interactive",
+            "interactive": interactive,
+        }
+
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
+
+    async def send_catalog_product_list(
+        self,
+        phone_number_id: str,
+        access_token: str,
+        to: str,
+        catalog_id: str,
+        products: List[Dict[str, str]],
+        body_text: str = "Here are the products I found:",
+        header_text: str = "Products",
+    ) -> WhatsAppSendResult:
+        """Send multiple real WhatsApp Commerce catalog products."""
+        self._validate_credentials(phone_number_id, access_token, to)
+
+        if not catalog_id:
+            raise ValueError("catalog_id is required")
+        if not products:
+            raise ValueError("at least one catalog product is required")
+
+        product_items = []
+        for item in products[:10]:
+            retailer_id = str(item.get("product_retailer_id") or "").strip()
+            if retailer_id:
+                product_items.append({"product_retailer_id": retailer_id})
+
+        if not product_items:
+            raise ValueError("no valid product_retailer_id values supplied")
+
+        url = f"{self.GRAPH_API_BASE}/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "interactive",
+            "interactive": {
+                "type": "product_list",
+                "header": {"type": "text", "text": header_text[:60]},
+                "body": {"text": body_text[:1024]},
+                "action": {
+                    "catalog_id": str(catalog_id),
+                    "sections": [
+                        {
+                            "title": "Products",
+                            "product_items": product_items,
+                        }
+                    ],
+                },
+            },
+        }
+
+        return await self._send(
+            url=url,
+            access_token=access_token,
+            payload=payload,
+        )
+
     async def send_image(
         self,
         phone_number_id: str,
@@ -427,47 +523,94 @@ class WhatsAppSender:
                 in {"product_list", "product_card"}
                 and response.products
             ):
-                products = response.products[:5]
+                catalog_id = str(
+                    response.metadata.get("whatsapp_catalog_id") or ""
+                ).strip()
 
-                for product in products:
-                    caption = self._build_product_caption(
-                        product
+                catalog_products = [
+                    {
+                        "product_retailer_id": (
+                            product.whatsapp_retailer_id
+                            or product.product_id
+                        )
+                    }
+                    for product in response.products[:3]
+                    if (
+                        product.whatsapp_retailer_id
+                        or product.product_id
                     )
+                ]
 
-                    if product.image:
-                        result = await self.send_image(
+                # A real Commerce message is used only when the tenant has
+                # configured a Meta catalog. Otherwise retain the image/text
+                # fallback so a product is still delivered.
+                if catalog_id and catalog_products:
+                    if len(catalog_products) == 1:
+                        product = response.products[0]
+                        result = await self.send_catalog_product(
                             phone_number_id=phone_number_id,
                             access_token=access_token,
                             to=to,
-                            image_url=product.image,
-                            caption=caption,
+                            catalog_id=catalog_id,
+                            product_retailer_id=(
+                                product.whatsapp_retailer_id
+                                or product.product_id
+                            ),
+                            body_text=response.text,
                         )
                     else:
-                        result = await self.send_text(
+                        result = await self.send_catalog_product_list(
                             phone_number_id=phone_number_id,
                             access_token=access_token,
                             to=to,
-                            text=caption,
+                            catalog_id=catalog_id,
+                            products=catalog_products,
+                            body_text=(
+                                response.text
+                                or "Here are the products I found:"
+                            ),
                         )
 
                     if not result.success:
                         raise RuntimeError(
                             result.error_message
-                            or "WhatsApp message delivery failed."
+                            or "WhatsApp catalog message delivery failed."
                         )
 
                     if result.provider_message_id:
-                        message_ids.append(
-                            result.provider_message_id
-                        )
+                        message_ids.append(result.provider_message_id)
+                else:
+                    for product in response.products[:3]:
+                        caption = self._build_product_caption(product)
+                        if product.image:
+                            result = await self.send_image(
+                                phone_number_id=phone_number_id,
+                                access_token=access_token,
+                                to=to,
+                                image_url=product.image,
+                                caption=caption,
+                            )
+                        else:
+                            result = await self.send_text(
+                                phone_number_id=phone_number_id,
+                                access_token=access_token,
+                                to=to,
+                                text=caption,
+                            )
+
+                        if not result.success:
+                            raise RuntimeError(
+                                result.error_message
+                                or "WhatsApp message delivery failed."
+                            )
+
+                        if result.provider_message_id:
+                            message_ids.append(result.provider_message_id)
 
                 if response.quick_replies:
                     buttons = [
                         {
-                            "id": (
-                                reply.get("value")
-                                or reply["label"]
-                            ),
+                            "id": (reply.get("value") or reply["label"]),
                             "title": reply["label"],
                         }
                         for reply in response.quick_replies[:3]
@@ -477,10 +620,7 @@ class WhatsAppSender:
                         phone_number_id=phone_number_id,
                         access_token=access_token,
                         to=to,
-                        body_text=(
-                            response.text
-                            or "What would you like to do?"
-                        ),
+                        body_text=(response.text or "What would you like to do?"),
                         buttons=buttons,
                     )
 
@@ -491,9 +631,7 @@ class WhatsAppSender:
                         )
 
                     if result.provider_message_id:
-                        message_ids.append(
-                            result.provider_message_id
-                        )
+                        message_ids.append(result.provider_message_id)
 
             elif response.quick_replies:
                 buttons = [

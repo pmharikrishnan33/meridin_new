@@ -178,6 +178,8 @@ class TenantCustomerSupport(BaseModel):
 
 class TenantSettings(BaseModel):
     webhook_secret: Optional[str] = None
+    # Meta WhatsApp Commerce catalog ID used for product messages.
+    whatsapp_catalog_id: Optional[str] = None
     business_profile: TenantBusinessProfile = Field(
         default_factory=TenantBusinessProfile
     )
@@ -318,6 +320,11 @@ class Product(BaseModel):
 
     # Category-specific metadata attributes.
     attributes: Dict[str, Any] = Field(default_factory=dict)
+
+    # Optional Meta Commerce retailer ID for this product. The inventory
+    # database remains ID-based for color/size; this is only for WhatsApp
+    # Commerce rendering.
+    whatsapp_retailer_id: Optional[str] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -744,6 +751,9 @@ class ResponseProduct(BaseModel):
     )
 
     in_stock: bool = True
+
+    # Optional Meta WhatsApp Commerce identifiers.
+    whatsapp_retailer_id: Optional[str] = None
 
 
 class BotResponse(BaseModel):

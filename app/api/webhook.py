@@ -123,6 +123,7 @@ def _tenant_message_settings(
         "business_profile": tenant_settings_data.get("business_profile", {}),
         "customer_support": tenant_settings_data.get("customer_support", {}),
         "ai": tenant_settings_data.get("ai", {}),
+        "whatsapp_catalog_id": tenant_settings_data.get("whatsapp_catalog_id"),
     }
 
 

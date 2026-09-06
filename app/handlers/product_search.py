@@ -130,17 +130,9 @@ class ProductSearchHandler(BaseHandler):
         # --------------------------------------------------------
         # 3. RECOVER CATEGORY FROM CONTEXT BEFORE NORMALIZATION
         # --------------------------------------------------------
-        #
-        # This is critical for follow-up messages such as:
-        #
-        #   User: I need a black shirt
-        #   Bot:  What size would you like?
-        #   User: 2XL
-        #
-        # The second message may contain only SIZE. The category from the
-        # previous turn must therefore be restored before metadata resolves
-        # the size group.
-        # --------------------------------------------------------
+        # A follow-up such as "2XL" does not repeat "shirt". The previous
+        # category must therefore be restored before size normalization so
+        # the metadata service can resolve 2XL -> its numeric ID.
 
         if (
             not filters.category
@@ -150,22 +142,6 @@ class ProductSearchHandler(BaseHandler):
             filters.category = (
                 conversation_context.current_category
             )
-
-        # If the generic conversation state already contains the previous
-        # search filters, make sure their category is available before the
-        # metadata normalization step as well.
-        if (
-            not filters.category
-            and conversation_context
-            and conversation_context.last_search_filters
-        ):
-            previous_category = (
-                conversation_context.last_search_filters.get(
-                    "category"
-                )
-            )
-            if previous_category:
-                filters.category = previous_category
 
         # --------------------------------------------------------
         # 4. NORMALIZE AGAINST TENANT CATALOG
@@ -543,10 +519,18 @@ class ProductSearchHandler(BaseHandler):
             tenant_id
         )
 
+        catalog_id = (
+            tenant_settings.get("settings", {})
+            .get("whatsapp_catalog_id")
+            if isinstance(tenant_settings, dict)
+            else None
+        )
+
         response_products = [
             product_service.product_to_response(
                 product,
                 display_maps=display_maps,
+                whatsapp_catalog_id=catalog_id,
             )
             for product in products[
                 :page_size
@@ -608,6 +592,7 @@ class ProductSearchHandler(BaseHandler):
                 "product_ids": result_ids[
                     :page_size
                 ],
+                "whatsapp_catalog_id": catalog_id,
             },
         )
 
