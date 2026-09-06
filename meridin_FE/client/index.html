@@ -2,138 +2,419 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="theme-color" content="#111827">
+
     <title>Meridin — Dashboard</title>
+
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
 </head>
 
 <body>
 
 <div class="app">
 
-    <aside class="sidebar">
+    <!-- =====================================================
+         TOP NAVIGATION
+    ====================================================== -->
 
-        <div class="sidebar-brand">
-            <div class="brand-logo-wrap"><img src="assets/meridin-logo.svg" class="brand-logo" alt="Meridin"></div>
+    <header class="top-navigation">
 
-            <div>
-                <strong>Meridin</strong>
-                <span>Client</span>
+        <div class="nav-inner">
+
+            <!-- Brand -->
+            <a href="#overview" class="brand-logo-area">
+
+                <div class="brand-logo-wrap">
+                    <img
+                        src="assets/meridin-logo.svg"
+                        class="brand-logo"
+                        alt="Meridin"
+                    >
+                </div>
+
+                <div class="brand-text">
+                    <strong>Meridin</strong>
+                    <span>Client Dashboard</span>
+                </div>
+
+            </a>
+
+
+            <!-- Mobile Menu Button -->
+            <button
+                type="button"
+                class="mobile-menu-button"
+                id="mobileMenuButton"
+                aria-label="Open navigation"
+            >
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+
+            <!-- Navigation -->
+            <nav class="main-navigation" id="mainNavigation">
+
+                <a
+                    href="#overview"
+                    class="nav-link active"
+                >
+                    Overview
+                </a>
+
+                <a
+                    href="#products"
+                    class="nav-link"
+                >
+                    Products
+                </a>
+
+                <a
+                    href="#collections"
+                    class="nav-link"
+                >
+                    Collections
+                </a>
+
+                <a
+                    href="#settings"
+                    class="nav-link"
+                >
+                    AI & Settings
+                </a>
+
+                <a
+                    href="#analytics"
+                    class="nav-link"
+                >
+                    Analytics
+                </a>
+
+            </nav>
+
+
+            <!-- Right Side -->
+            <div class="nav-actions">
+
+                <div class="automation-status">
+
+                    <span class="status-dot"></span>
+
+                    <span>Automation active</span>
+
+                </div>
+
+                <button
+                    type="button"
+                    id="logoutButton"
+                    class="logout-button"
+                >
+                    Sign out
+                </button>
+
             </div>
+
         </div>
 
-        <nav>
+    </header>
 
-            <a href="#overview" class="nav-link active">
-                Overview
-            </a>
 
-            <div class="nav-title">Catalog</div>
-
-            <a href="#products" class="nav-link">
-                Products
-            </a>
-
-            <a href="#collections" class="nav-link">
-                Collections
-            </a>
-
-            <div class="nav-title">Assistant</div>
-
-            <a href="#settings" class="nav-link">
-                AI & Business Settings
-            </a>
-
-            <div class="nav-title">Insights</div>
-
-            <a href="#analytics" class="nav-link">
-                Analytics
-            </a>
-
-        </nav>
-
-        <button
-            id="logoutButton"
-            class="logout-button"
-        >
-            Sign out
-        </button>
-
-    </aside>
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
 
     <main class="main">
 
-        <header class="topbar">
 
-            <div>
-                <h1>Overview</h1>
-                <p id="businessName">
-                    Your Meridin workspace
-                </p>
+        <!-- =================================================
+             OVERVIEW
+        ================================================== -->
+
+        <section
+            id="overview"
+            class="dashboard-section overview-section"
+        >
+
+            <div class="page-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        CLIENT WORKSPACE
+                    </span>
+
+                    <h1>
+                        Overview
+                    </h1>
+
+                    <p id="businessName">
+                        Your Meridin workspace
+                    </p>
+
+                </div>
+
+                <div class="header-actions">
+
+                    <button
+                        type="button"
+                        class="primary-button"
+                        onclick="showProducts()"
+                    >
+                        Manage catalog
+                    </button>
+
+                </div>
+
             </div>
 
-            <div class="status">
-                <span class="status-dot"></span>
-                Automation active
-            </div>
 
-        </header>
-
-        <section id="overview">
+            <!-- Metrics -->
 
             <div class="metrics">
 
                 <article class="metric-card">
-                    <span>Products</span>
-                    <strong id="productsMetric">—</strong>
+
+                    <div class="metric-top">
+
+                        <span class="metric-label">
+                            Products
+                        </span>
+
+                        <span class="metric-icon">
+                            P
+                        </span>
+
+                    </div>
+
+                    <strong id="productsMetric">
+                        —
+                    </strong>
+
+                    <p>
+                        Products in your catalog
+                    </p>
+
                 </article>
 
-                <article class="metric-card">
-                    <span>Customers</span>
-                    <strong id="customersMetric">—</strong>
-                </article>
 
                 <article class="metric-card">
-                    <span>Conversations</span>
-                    <strong id="conversationsMetric">—</strong>
+
+                    <div class="metric-top">
+
+                        <span class="metric-label">
+                            Customers
+                        </span>
+
+                        <span class="metric-icon">
+                            C
+                        </span>
+
+                    </div>
+
+                    <strong id="customersMetric">
+                        —
+                    </strong>
+
+                    <p>
+                        Customers reached
+                    </p>
+
+                </article>
+
+
+                <article class="metric-card">
+
+                    <div class="metric-top">
+
+                        <span class="metric-label">
+                            Conversations
+                        </span>
+
+                        <span class="metric-icon">
+                            M
+                        </span>
+
+                    </div>
+
+                    <strong id="conversationsMetric">
+                        —
+                    </strong>
+
+                    <p>
+                        WhatsApp conversations
+                    </p>
+
                 </article>
 
             </div>
 
-            <div class="grid-two">
 
-                <section class="panel">
+            <!-- Overview Grid -->
+
+            <div class="overview-grid">
+
+                <!-- Quick Actions -->
+
+                <section class="panel quick-panel">
 
                     <div class="panel-header">
+
                         <div>
-                            <h2>Quick actions</h2>
-                            <p>Manage your catalog</p>
+
+                            <span class="section-label">
+                                ACTIONS
+                            </span>
+
+                            <h2>
+                                Quick actions
+                            </h2>
+
+                            <p>
+                                Manage the important parts of your workspace.
+                            </p>
+
                         </div>
+
                     </div>
+
 
                     <div class="quick-actions">
 
                         <button
+                            type="button"
                             onclick="showProducts()"
+                            class="quick-action"
                         >
-                            Manage products
+
+                            <span class="quick-action-icon">
+                                +
+                            </span>
+
+                            <span>
+
+                                <strong>
+                                    Manage products
+                                </strong>
+
+                                <small>
+                                    Add and update catalog items
+                                </small>
+
+                            </span>
+
+                            <span class="quick-arrow">
+                                →
+                            </span>
+
                         </button>
 
+
                         <button
+                            type="button"
                             onclick="showCollections()"
+                            class="quick-action"
                         >
-                            Manage collections
+
+                            <span class="quick-action-icon">
+                                C
+                            </span>
+
+                            <span>
+
+                                <strong>
+                                    Manage collections
+                                </strong>
+
+                                <small>
+                                    Organize your catalog
+                                </small>
+
+                            </span>
+
+                            <span class="quick-arrow">
+                                →
+                            </span>
+
                         </button>
 
+
                         <button
+                            type="button"
                             onclick="showAnalytics()"
+                            class="quick-action"
                         >
-                            View analytics
+
+                            <span class="quick-action-icon">
+                                A
+                            </span>
+
+                            <span>
+
+                                <strong>
+                                    View analytics
+                                </strong>
+
+                                <small>
+                                    Understand customer activity
+                                </small>
+
+                            </span>
+
+                            <span class="quick-arrow">
+                                →
+                            </span>
+
                         </button>
+
+                    </div>
+
+                </section>
+
+
+                <!-- Automation Card -->
+
+                <section class="panel automation-panel">
+
+                    <div class="automation-card">
+
+                        <div class="automation-card-top">
+
+                            <span class="automation-badge">
+                                LIVE
+                            </span>
+
+                            <span class="automation-pulse"></span>
+
+                        </div>
+
+                        <h2>
+                            WhatsApp automation
+                        </h2>
+
+                        <p>
+                            Your Meridin assistant is currently active
+                            and ready to respond to customer messages.
+                        </p>
+
+                        <div class="automation-line">
+
+                            <span>
+                                System status
+                            </span>
+
+                            <strong>
+                                Active
+                            </strong>
+
+                        </div>
 
                     </div>
 
@@ -143,6 +424,11 @@
 
         </section>
 
+
+        <!-- =================================================
+             PRODUCTS
+        ================================================== -->
+
         <section
             id="products"
             class="dashboard-section"
@@ -151,26 +437,45 @@
             <div class="section-header">
 
                 <div>
-                    <h2>Products</h2>
-                    <p>Your clothing catalog</p>
+
+                    <span class="section-label">
+                        CATALOG
+                    </span>
+
+                    <h2>
+                        Products
+                    </h2>
+
+                    <p>
+                        Manage the products available through your
+                        WhatsApp assistant.
+                    </p>
+
                 </div>
 
-                <div style="display: flex; gap: 12px; align-items: center;">
+
+                <div class="section-actions">
+
                     <button
+                        type="button"
                         id="createProductButton"
-                        class="primary-button small"
+                        class="primary-button"
                     >
                         Add product
                     </button>
+
                     <button
+                        type="button"
                         id="reloadProducts"
-                        class="primary-button small"
+                        class="secondary-button"
                     >
                         Refresh
                     </button>
+
                 </div>
 
             </div>
+
 
             <div
                 id="productsGrid"
@@ -181,6 +486,11 @@
 
         </section>
 
+
+        <!-- =================================================
+             COLLECTIONS
+        ================================================== -->
+
         <section
             id="collections"
             class="dashboard-section"
@@ -189,191 +499,582 @@
             <div class="section-header">
 
                 <div>
-                    <h2>Collections</h2>
-                    <p>Organize your products into collections.</p>
+
+                    <span class="section-label">
+                        ORGANIZATION
+                    </span>
+
+                    <h2>
+                        Collections
+                    </h2>
+
+                    <p>
+                        Organize your products into collections.
+                    </p>
+
                 </div>
 
+
                 <button
+                    type="button"
                     id="createCollectionButton"
-                    class="primary-button small"
+                    class="primary-button"
                 >
                     New collection
                 </button>
 
             </div>
 
-            <div id="collectionsList">
+
+            <div
+                id="collectionsList"
+                class="collections-list"
+            >
                 Loading...
             </div>
 
         </section>
-<section
+
+
+        <!-- =================================================
+             SETTINGS
+        ================================================== -->
+
+        <section
             id="settings"
             class="dashboard-section"
         >
 
             <div class="section-header">
+
                 <div>
-                    <h2>AI & Business Settings</h2>
-                    <p>Control the business information and communication style used by your WhatsApp assistant.</p>
+
+                    <span class="section-label">
+                        CONFIGURATION
+                    </span>
+
+                    <h2>
+                        AI & Business Settings
+                    </h2>
+
+                    <p>
+                        Control the business information and communication
+                        style used by your WhatsApp assistant.
+                    </p>
+
                 </div>
+
             </div>
 
-            <form id="settingsForm" class="panel">
-                <div class="panel-header">
-                    <div>
-                        <h3>Business profile</h3>
-                        <p>This information is available to the AI for this tenant only.</p>
+
+            <form
+                id="settingsForm"
+                class="panel settings-panel"
+            >
+
+                <!-- Business Profile -->
+
+                <div class="settings-section">
+
+                    <div class="settings-section-header">
+
+                        <div>
+
+                            <span class="settings-number">
+                                01
+                            </span>
+
+                            <div>
+
+                                <h3>
+                                    Business profile
+                                </h3>
+
+                                <p>
+                                    This information is available to the
+                                    AI for this tenant only.
+                                </p>
+
+                            </div>
+
+                        </div>
+
                     </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsShopName">
+                                Shop name *
+                            </label>
+
+                            <input
+                                id="settingsShopName"
+                                type="text"
+                                maxlength="200"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsCity">
+                                City
+                            </label>
+
+                            <input
+                                id="settingsCity"
+                                type="text"
+                                maxlength="100"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsDescription">
+                            Business description
+                        </label>
+
+                        <textarea
+                            id="settingsDescription"
+                            rows="3"
+                            maxlength="1000"
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsPhone">
+                                Phone
+                            </label>
+
+                            <input
+                                id="settingsPhone"
+                                type="text"
+                                maxlength="50"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsEmail">
+                                Email
+                            </label>
+
+                            <input
+                                id="settingsEmail"
+                                type="email"
+                                maxlength="200"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsWebsite">
+                                Website
+                            </label>
+
+                            <input
+                                id="settingsWebsite"
+                                type="url"
+                                maxlength="500"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsInstagram">
+                                Instagram
+                            </label>
+
+                            <input
+                                id="settingsInstagram"
+                                type="text"
+                                maxlength="200"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsAddress">
+                            Address
+                        </label>
+
+                        <textarea
+                            id="settingsAddress"
+                            rows="2"
+                            maxlength="500"
+                        ></textarea>
+
+                    </div>
+
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsShopName">Shop name *</label>
-                        <input id="settingsShopName" type="text" maxlength="200" required>
+
+                <!-- Customer Support -->
+
+                <div class="settings-section">
+
+                    <div class="settings-section-header">
+
+                        <div>
+
+                            <span class="settings-number">
+                                02
+                            </span>
+
+                            <div>
+
+                                <h3>
+                                    Customer support information
+                                </h3>
+
+                                <p>
+                                    Only enter information the assistant
+                                    is allowed to tell customers.
+                                </p>
+
+                            </div>
+
+                        </div>
+
                     </div>
-                    <div class="form-group">
-                        <label for="settingsCity">City</label>
-                        <input id="settingsCity" type="text" maxlength="100">
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsHours">
+                                Business hours
+                            </label>
+
+                            <textarea
+                                id="settingsHours"
+                                rows="2"
+                            ></textarea>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsDelivery">
+                                Delivery information
+                            </label>
+
+                            <textarea
+                                id="settingsDelivery"
+                                rows="2"
+                            ></textarea>
+
+                        </div>
+
                     </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsShipping">
+                                Shipping policy
+                            </label>
+
+                            <textarea
+                                id="settingsShipping"
+                                rows="3"
+                            ></textarea>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsReturns">
+                                Return policy
+                            </label>
+
+                            <textarea
+                                id="settingsReturns"
+                                rows="3"
+                            ></textarea>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsExchange">
+                                Exchange policy
+                            </label>
+
+                            <textarea
+                                id="settingsExchange"
+                                rows="3"
+                            ></textarea>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsCancellation">
+                                Cancellation policy
+                            </label>
+
+                            <textarea
+                                id="settingsCancellation"
+                                rows="3"
+                            ></textarea>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsPayments">
+                                Payment methods
+                            </label>
+
+                            <textarea
+                                id="settingsPayments"
+                                rows="2"
+                            ></textarea>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsCod">
+                                Cash on delivery
+                            </label>
+
+                            <select id="settingsCod">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option value="true">
+                                    Available
+                                </option>
+
+                                <option value="false">
+                                    Not available
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
                 </div>
 
-                <div class="form-group">
-                    <label for="settingsDescription">Business description</label>
-                    <textarea id="settingsDescription" rows="3" maxlength="1000"></textarea>
+
+                <!-- AI -->
+
+                <div class="settings-section">
+
+                    <div class="settings-section-header">
+
+                        <div>
+
+                            <span class="settings-number">
+                                03
+                            </span>
+
+                            <div>
+
+                                <h3>
+                                    AI assistant
+                                </h3>
+
+                                <p>
+                                    Customize how your assistant
+                                    communicates with customers.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row settings-ai-row">
+
+                        <div class="form-group">
+
+                            <label for="settingsTone">
+                                Tone
+                            </label>
+
+                            <select id="settingsTone">
+
+                                <option value="friendly">
+                                    Friendly
+                                </option>
+
+                                <option value="professional">
+                                    Professional
+                                </option>
+
+                                <option value="casual">
+                                    Casual
+                                </option>
+
+                                <option value="luxury">
+                                    Luxury
+                                </option>
+
+                                <option value="minimal">
+                                    Minimal
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsLanguage">
+                                Language
+                            </label>
+
+                            <input
+                                id="settingsLanguage"
+                                type="text"
+                                maxlength="50"
+                                placeholder="English"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsLength">
+                                Response length
+                            </label>
+
+                            <select id="settingsLength">
+
+                                <option value="short">
+                                    Short
+                                </option>
+
+                                <option value="medium">
+                                    Medium
+                                </option>
+
+                                <option value="long">
+                                    Long
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsGreeting">
+                            Preferred greeting
+                        </label>
+
+                        <textarea
+                            id="settingsGreeting"
+                            rows="2"
+                            maxlength="500"
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsInstructions">
+                            Custom AI instructions
+                        </label>
+
+                        <textarea
+                            id="settingsInstructions"
+                            rows="5"
+                            maxlength="3000"
+                            placeholder="Example: Keep replies concise. Mention our free shipping above ₹999 when relevant."
+                        ></textarea>
+
+                    </div>
+
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsPhone">Phone</label>
-                        <input id="settingsPhone" type="text" maxlength="50">
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsEmail">Email</label>
-                        <input id="settingsEmail" type="email" maxlength="200">
-                    </div>
+
+                <!-- Save -->
+
+                <div class="settings-save-bar">
+
+                    <span
+                        id="settingsStatus"
+                        class="muted"
+                    ></span>
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Save settings
+                    </button>
+
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsWebsite">Website</label>
-                        <input id="settingsWebsite" type="url" maxlength="500">
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsInstagram">Instagram</label>
-                        <input id="settingsInstagram" type="text" maxlength="200">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="settingsAddress">Address</label>
-                    <textarea id="settingsAddress" rows="2" maxlength="500"></textarea>
-                </div>
-
-                <div class="panel-header" style="margin-top: 24px;">
-                    <div>
-                        <h3>Customer support information</h3>
-                        <p>Only enter information the assistant is allowed to tell customers.</p>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsHours">Business hours</label>
-                        <textarea id="settingsHours" rows="2"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsDelivery">Delivery information</label>
-                        <textarea id="settingsDelivery" rows="2"></textarea>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsShipping">Shipping policy</label>
-                        <textarea id="settingsShipping" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsReturns">Return policy</label>
-                        <textarea id="settingsReturns" rows="3"></textarea>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsExchange">Exchange policy</label>
-                        <textarea id="settingsExchange" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsCancellation">Cancellation policy</label>
-                        <textarea id="settingsCancellation" rows="3"></textarea>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsPayments">Payment methods</label>
-                        <textarea id="settingsPayments" rows="2"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsCod">Cash on delivery</label>
-                        <select id="settingsCod">
-                            <option value="">Not specified</option>
-                            <option value="true">Available</option>
-                            <option value="false">Not available</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="panel-header" style="margin-top: 24px;">
-                    <div>
-                        <h3>AI assistant</h3>
-                        <p>These preferences apply only to this client's assistant.</p>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="settingsTone">Tone</label>
-                        <select id="settingsTone">
-                            <option value="friendly">Friendly</option>
-                            <option value="professional">Professional</option>
-                            <option value="casual">Casual</option>
-                            <option value="luxury">Luxury</option>
-                            <option value="minimal">Minimal</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsLanguage">Language</label>
-                        <input id="settingsLanguage" type="text" maxlength="50" placeholder="English">
-                    </div>
-                    <div class="form-group">
-                        <label for="settingsLength">Response length</label>
-                        <select id="settingsLength">
-                            <option value="short">Short</option>
-                            <option value="medium">Medium</option>
-                            <option value="long">Long</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="settingsGreeting">Preferred greeting</label>
-                    <textarea id="settingsGreeting" rows="2" maxlength="500"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="settingsInstructions">Custom AI instructions</label>
-                    <textarea id="settingsInstructions" rows="5" maxlength="3000" placeholder="Example: Keep replies concise. Mention our free shipping above ₹999 when relevant."></textarea>
-                </div>
-
-                <div class="modal-actions">
-                    <button type="submit" class="primary-button">Save AI & Business Settings</button>
-                    <span id="settingsStatus" class="muted"></span>
-                </div>
             </form>
 
         </section>
+
+
+        <!-- =================================================
+             ANALYTICS
+        ================================================== -->
 
         <section
             id="analytics"
@@ -383,15 +1084,28 @@
             <div class="section-header">
 
                 <div>
-                    <h2>Analytics</h2>
-                    <p>Message and intent activity.</p>
+
+                    <span class="section-label">
+                        INSIGHTS
+                    </span>
+
+                    <h2>
+                        Analytics
+                    </h2>
+
+                    <p>
+                        Message and intent activity from your
+                        WhatsApp automation.
+                    </p>
+
                 </div>
 
             </div>
 
+
             <div
                 id="analyticsData"
-                class="grid-two"
+                class="analytics-grid"
             >
                 Loading...
             </div>
@@ -400,159 +1114,952 @@
 
     </main>
 
-<!-- Create Product Modal -->
-<div id="productModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content product-editor-modal">
-        <div class="modal-header">
-            <h3 id="productModalTitle">Add Product</h3>
-            <button class="modal-close" aria-label="Close">&times;</button>
-        </div>
-        <form id="productForm">
-            <input type="hidden" id="productId">
 
-            <div class="editor-section">
-                <h4>Basic information</h4>
-                <div class="form-group">
-                    <label for="productTitle">Title *</label>
-                    <input type="text" id="productTitle" required placeholder="e.g., Classic Cotton Shirt">
+    <!-- =====================================================
+         PRODUCT MODAL
+    ====================================================== -->
+
+    <div
+        id="productModal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="productModalTitle"
+    >
+
+        <div class="modal-backdrop"></div>
+
+        <div class="modal-content product-editor-modal">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <span class="modal-eyebrow">
+                        CATALOG
+                    </span>
+
+                    <h3 id="productModalTitle">
+                        Add Product
+                    </h3>
+
                 </div>
-                <div class="form-group">
-                    <label for="productDescription">Description</label>
-                    <textarea id="productDescription" rows="3" placeholder="Product details..."></textarea>
+
+                <button
+                    type="button"
+                    class="modal-close"
+                    aria-label="Close"
+                >
+                    &times;
+                </button>
+
+            </div>
+
+
+            <form id="productForm">
+
+                <input
+                    type="hidden"
+                    id="productId"
+                >
+
+
+                <!-- Basic -->
+
+                <div class="editor-section">
+
+                    <div class="editor-section-title">
+
+                        <span>
+                            01
+                        </span>
+
+                        <div>
+
+                            <h4>
+                                Basic information
+                            </h4>
+
+                            <p>
+                                Core product details.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="productTitle">
+                            Title *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="productTitle"
+                            required
+                            placeholder="e.g., Classic Cotton Shirt"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="productDescription">
+                            Description
+                        </label>
+
+                        <textarea
+                            id="productDescription"
+                            rows="3"
+                            placeholder="Product details..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productPrice">
+                                Base price (₹) *
+                            </label>
+
+                            <input
+                                type="number"
+                                id="productPrice"
+                                required
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productStock">
+                                Base stock
+                            </label>
+
+                            <input
+                                type="number"
+                                id="productStock"
+                                min="0"
+                                value="0"
+                                placeholder="0"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productDepartment">
+                                Department
+                            </label>
+
+                            <select id="productDepartment">
+
+                                <option value="">
+                                    Loading metadata...
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productCategoryId">
+                                Category
+                            </label>
+
+                            <select id="productCategoryId">
+
+                                <option value="">
+                                    Select department first
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productBrand">
+                                Brand
+                            </label>
+
+                            <input
+                                type="text"
+                                id="productBrand"
+                                placeholder="Brand name"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productType">
+                                Product type
+                            </label>
+
+                            <input
+                                type="text"
+                                id="productType"
+                                placeholder="e.g., shirt, dress"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productGender">
+                                Target gender
+                            </label>
+
+                            <select id="productGender">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option value="Unisex">
+                                    Unisex
+                                </option>
+
+                                <option value="Male">
+                                    Male
+                                </option>
+
+                                <option value="Female">
+                                    Female
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productAgeGroup">
+                                Age group
+                            </label>
+
+                            <select id="productAgeGroup">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option value="Adult">
+                                    Adult
+                                </option>
+
+                                <option value="Teen">
+                                    Teen
+                                </option>
+
+                                <option value="Kids">
+                                    Kids
+                                </option>
+
+                                <option value="Toddler">
+                                    Toddler
+                                </option>
+
+                                <option value="Infant">
+                                    Infant
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="productPrice">Base price (₹) *</label>
-                        <input type="number" id="productPrice" required min="0" step="0.01" placeholder="0.00">
+
+
+                <!-- Apparel -->
+
+                <div class="editor-section">
+
+                    <div class="editor-section-title">
+
+                        <span>
+                            02
+                        </span>
+
+                        <div>
+
+                            <h4>
+                                Apparel specifications
+                            </h4>
+
+                            <p>
+                                Clothing-specific product information.
+                            </p>
+
+                        </div>
+
                     </div>
-                    <div class="form-group">
-                        <label for="productStock">Base stock</label>
-                        <input type="number" id="productStock" min="0" value="0" placeholder="0">
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productMaterial">
+                                Material
+                            </label>
+
+                            <input
+                                type="text"
+                                id="productMaterial"
+                                placeholder="e.g., 100% Cotton"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productFit">
+                                Fit
+                            </label>
+
+                            <select id="productFit">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option>
+                                    Regular Fit
+                                </option>
+
+                                <option>
+                                    Slim Fit
+                                </option>
+
+                                <option>
+                                    Relaxed Fit
+                                </option>
+
+                                <option>
+                                    Oversized / Boxy
+                                </option>
+
+                            </select>
+
+                        </div>
+
                     </div>
+
+
+                    <div class="form-row apparel-three">
+
+                        <div class="form-group">
+
+                            <label for="productSleeve">
+                                Sleeve length
+                            </label>
+
+                            <select id="productSleeve">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option>
+                                    Short Sleeve
+                                </option>
+
+                                <option>
+                                    Long Sleeve
+                                </option>
+
+                                <option>
+                                    3/4 Sleeve
+                                </option>
+
+                                <option>
+                                    Sleeveless
+                                </option>
+
+                                <option>
+                                    Cap Sleeve
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productNeckline">
+                                Neckline
+                            </label>
+
+                            <select id="productNeckline">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option>
+                                    Crew Neck
+                                </option>
+
+                                <option>
+                                    V-Neck
+                                </option>
+
+                                <option>
+                                    Polo Collar
+                                </option>
+
+                                <option>
+                                    Hooded
+                                </option>
+
+                                <option>
+                                    Turtleneck
+                                </option>
+
+                                <option>
+                                    Off-Shoulder
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productLength">
+                                Top / dress length
+                            </label>
+
+                            <select id="productLength">
+
+                                <option value="">
+                                    Not specified
+                                </option>
+
+                                <option>
+                                    Regular
+                                </option>
+
+                                <option>
+                                    Crop
+                                </option>
+
+                                <option>
+                                    Longline / Tunics
+                                </option>
+
+                                <option>
+                                    Mini
+                                </option>
+
+                                <option>
+                                    Midi
+                                </option>
+
+                                <option>
+                                    Maxi
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="productDepartment">Department</label>
-                        <select id="productDepartment"><option value="">Loading metadata...</option></select>
+
+
+                <!-- Variants -->
+
+                <div class="editor-section">
+
+                    <div class="editor-section-title">
+
+                        <span>
+                            03
+                        </span>
+
+                        <div>
+
+                            <h4>
+                                Product options & variants
+                            </h4>
+
+                            <p>
+                                Choose metadata-backed options.
+                                Values are stored with their Meridin IDs and names.
+                            </p>
+
+                        </div>
+
                     </div>
-                    <div class="form-group">
-                        <label for="productCategoryId">Category</label>
-                        <select id="productCategoryId"><option value="">Select department first</option></select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="productBrand">Brand</label>
-                        <input type="text" id="productBrand" placeholder="Brand name">
-                    </div>
-                    <div class="form-group">
-                        <label for="productType">Product type</label>
-                        <input type="text" id="productType" placeholder="e.g., shirt, dress">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="productGender">Target gender</label>
-                        <select id="productGender">
-                            <option value="">Not specified</option><option value="Unisex">Unisex</option><option value="Male">Male</option><option value="Female">Female</option>
+
+
+                    <div class="option-selector-row">
+
+                        <select id="newProductOption">
+
+                            <option value="">
+                                Select option to add
+                            </option>
+
                         </select>
+
+                        <button
+                            type="button"
+                            id="addProductOption"
+                            class="secondary-button"
+                        >
+                            Add option
+                        </button>
+
                     </div>
+
+
+                    <div id="productOptionsContainer"></div>
+
+
+                    <div class="table-container variant-table-wrap">
+
+                        <table>
+
+                            <thead>
+
+                                <tr>
+
+                                    <th>
+                                        Combination
+                                    </th>
+
+                                    <th>
+                                        Price (₹)
+                                    </th>
+
+                                    <th>
+                                        Cost (₹)
+                                    </th>
+
+                                    <th>
+                                        Stock
+                                    </th>
+
+                                    <th>
+                                        SKU
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody id="productVariantsBody">
+
+                                <tr>
+
+                                    <td
+                                        colspan="5"
+                                        class="muted center"
+                                    >
+                                        Add option values to generate variants.
+                                    </td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Media -->
+
+                <div class="editor-section">
+
+                    <div class="editor-section-title">
+
+                        <span>
+                            04
+                        </span>
+
+                        <div>
+
+                            <h4>
+                                Catalog & media
+                            </h4>
+
+                            <p>
+                                Add collection, tags and product imagery.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+
+                            <label for="productCollection">
+                                Collection
+                            </label>
+
+                            <select id="productCollection">
+
+                                <option value="">
+                                    -- Select collection --
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="productTags">
+                                Tags
+                            </label>
+
+                            <input
+                                type="text"
+                                id="productTags"
+                                placeholder="summer, casual, new"
+                            >
+
+                        </div>
+
+                    </div>
+
+
                     <div class="form-group">
-                        <label for="productAgeGroup">Age group</label>
-                        <select id="productAgeGroup">
-                            <option value="">Not specified</option><option value="Adult">Adult</option><option value="Teen">Teen</option><option value="Kids">Kids</option><option value="Toddler">Toddler</option><option value="Infant">Infant</option>
-                        </select>
+
+                        <label for="productImageFile">
+                            Product image
+                        </label>
+
+                        <input
+                            type="file"
+                            id="productImageFile"
+                            accept="image/jpeg,image/png,image/webp"
+                            aria-describedby="productImageHelp"
+                        >
+
+                        <small
+                            id="productImageHelp"
+                            class="editor-help"
+                        >
+                            Choose JPG, PNG, or WebP.
+                            Meridin converts it to JPG and stores the
+                            public image link in the product's
+                            <code>media</code> field.
+                        </small>
+
+
+                        <div
+                            id="productImagePreview"
+                            class="product-image-upload-preview"
+                            hidden
+                        >
+
+                            <img
+                                id="productImagePreviewImg"
+                                alt="Product image preview"
+                            >
+
+                            <span
+                                id="productImageStatus"
+                                class="muted"
+                            ></span>
+
+                        </div>
+
                     </div>
-                </div>
-            </div>
 
-            <div class="editor-section">
-                <h4>Apparel specifications</h4>
-                <div class="form-row">
-                    <div class="form-group"><label for="productMaterial">Material</label><input type="text" id="productMaterial" placeholder="e.g., 100% Cotton"></div>
-                    <div class="form-group"><label for="productFit">Fit</label><select id="productFit"><option value="">Not specified</option><option>Regular Fit</option><option>Slim Fit</option><option>Relaxed Fit</option><option>Oversized / Boxy</option></select></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label for="productSleeve">Sleeve length</label><select id="productSleeve"><option value="">Not specified</option><option>Short Sleeve</option><option>Long Sleeve</option><option>3/4 Sleeve</option><option>Sleeveless</option><option>Cap Sleeve</option></select></div>
-                    <div class="form-group"><label for="productNeckline">Neckline</label><select id="productNeckline"><option value="">Not specified</option><option>Crew Neck</option><option>V-Neck</option><option>Polo Collar</option><option>Hooded</option><option>Turtleneck</option><option>Off-Shoulder</option></select></div>
-                    <div class="form-group"><label for="productLength">Top / dress length</label><select id="productLength"><option value="">Not specified</option><option>Regular</option><option>Crop</option><option>Longline / Tunics</option><option>Mini</option><option>Midi</option><option>Maxi</option></select></div>
-                </div>
-            </div>
 
-            <div class="editor-section">
-                <h4>Product options & variants</h4>
-                <p class="editor-help">Choose metadata-backed options. Values are stored with their Meridin IDs and names.</p>
-                <div class="option-selector-row">
-                    <select id="newProductOption"><option value="">Select option to add</option></select>
-                    <button type="button" id="addProductOption" class="secondary-button">Add option</button>
-                </div>
-                <div id="productOptionsContainer"></div>
-                <div class="table-container variant-table-wrap">
-                    <table>
-                        <thead><tr><th>Combination</th><th>Price (₹)</th><th>Cost (₹)</th><th>Stock</th><th>SKU</th></tr></thead>
-                        <tbody id="productVariantsBody"><tr><td colspan="5" class="muted center">Add option values to generate variants.</td></tr></tbody>
-                    </table>
-                </div>
-            </div>
+                    <label class="checkbox-label">
 
-            <div class="editor-section">
-                <h4>Catalog & media</h4>
-                <div class="form-row">
-                    <div class="form-group"><label for="productCollection">Collection</label><select id="productCollection"><option value="">-- Select collection --</option></select></div>
-                    <div class="form-group"><label for="productTags">Tags</label><input type="text" id="productTags" placeholder="summer, casual, new (comma separated)"></div>
-                </div>
-                <div class="form-group">
-                    <label for="productImageFile">Product image</label>
-                    <input type="file" id="productImageFile" accept="image/jpeg,image/png,image/webp"
-                           aria-describedby="productImageHelp">
-                    <small id="productImageHelp" class="editor-help">Choose JPG, PNG, or WebP. Meridin converts it to JPG and stores the public image link in the product's <code>media</code> field.</small>
-                    <div id="productImagePreview" class="product-image-upload-preview" hidden>
-                        <img id="productImagePreviewImg" alt="Product image preview">
-                        <span id="productImageStatus" class="muted"></span>
-                    </div>
-                </div>
-                <label class="checkbox-label"><input type="checkbox" id="productFeatured"> Mark as featured</label>
-            </div>
+                        <input
+                            type="checkbox"
+                            id="productFeatured"
+                        >
 
-            <div class="modal-actions">
-                <button type="button" class="modal-cancel">Cancel</button>
-                <button type="submit" class="primary-button">Save Product</button>
-            </div>
-        </form>
-    </div>
-</div>
+                        <span>
+                            Mark as featured
+                        </span>
 
-<!-- Create Collection Modal -->
-<div id="collectionModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="collectionModalTitle">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="collectionModalTitle">New Collection</h3>
-            <button class="modal-close" aria-label="Close">&times;</button>
+                    </label>
+
+                </div>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        class="modal-cancel"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Save Product
+                    </button>
+
+                </div>
+
+            </form>
+
         </div>
-        <form id="collectionForm">
-            <input type="hidden" id="collectionId">
-            <div class="form-group">
-                <label for="collectionName">Name *</label>
-                <input type="text" id="collectionName" required placeholder="e.g., Summer Collection">
-            </div>
-            <div class="form-group">
-                <label for="collectionDescription">Description</label>
-                <textarea id="collectionDescription" rows="3" placeholder="Collection details..."></textarea>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="modal-cancel">Cancel</button>
-                <button type="submit" class="primary-button">Save Collection</button>
-            </div>
-        </form>
+
     </div>
-</div>
+
+
+    <!-- =====================================================
+         COLLECTION MODAL
+    ====================================================== -->
+
+    <div
+        id="collectionModal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="collectionModalTitle"
+    >
+
+        <div class="modal-backdrop"></div>
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <span class="modal-eyebrow">
+                        COLLECTION
+                    </span>
+
+                    <h3 id="collectionModalTitle">
+                        New Collection
+                    </h3>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="modal-close"
+                    aria-label="Close"
+                >
+                    &times;
+                </button>
+
+            </div>
+
+
+            <form id="collectionForm">
+
+                <input
+                    type="hidden"
+                    id="collectionId"
+                >
+
+
+                <div class="form-group">
+
+                    <label for="collectionName">
+                        Name *
+                    </label>
+
+                    <input
+                        type="text"
+                        id="collectionName"
+                        required
+                        placeholder="e.g., Summer Collection"
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="collectionDescription">
+                        Description
+                    </label>
+
+                    <textarea
+                        id="collectionDescription"
+                        rows="4"
+                        placeholder="Collection details..."
+                    ></textarea>
+
+                </div>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        class="modal-cancel"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Save Collection
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
 
 </div>
+
 
 <script src="js/api.js"></script>
 <script src="js/dashboard.js"></script>
+
+
+<script>
+/*
+ * Mobile navigation
+ */
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const menuButton =
+        document.getElementById("mobileMenuButton");
+
+    const navigation =
+        document.getElementById("mainNavigation");
+
+    if (menuButton && navigation) {
+
+        menuButton.addEventListener("click", function () {
+
+            navigation.classList.toggle("mobile-open");
+
+            menuButton.classList.toggle("active");
+
+        });
+
+
+        navigation
+            .querySelectorAll(".nav-link")
+            .forEach(function (link) {
+
+                link.addEventListener("click", function () {
+
+                    navigation.classList.remove("mobile-open");
+
+                    menuButton.classList.remove("active");
+
+                });
+
+            });
+
+    }
+
+
+    /*
+     * Active navigation item
+     */
+
+    const navLinks =
+        document.querySelectorAll(".main-navigation .nav-link");
+
+    const sections =
+        document.querySelectorAll(".dashboard-section");
+
+    function updateActiveNavigation() {
+
+        let currentSection = "";
+
+        const scrollPosition =
+            window.scrollY + 160;
+
+        sections.forEach(function (section) {
+
+            if (
+                scrollPosition >= section.offsetTop
+            ) {
+                currentSection = section.id;
+            }
+
+        });
+
+        navLinks.forEach(function (link) {
+
+            link.classList.remove("active");
+
+            if (
+                link.getAttribute("href") ===
+                "#" + currentSection
+            ) {
+                link.classList.add("active");
+            }
+
+        });
+
+    }
+
+    window.addEventListener(
+        "scroll",
+        updateActiveNavigation,
+        { passive: true }
+    );
+
+    updateActiveNavigation();
+
+});
+</script>
 
 </body>
 </html>
