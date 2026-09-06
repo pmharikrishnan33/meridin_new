@@ -2918,3 +2918,39 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 2026-09-05 21:23:25,762 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
 2026-09-05 21:23:26,206 | INFO | meridin | Redis connected successfully.
 2026-09-05 21:23:26,206 | INFO | meridin | Meridin started successfully.
+2026-09-06 20:55:02,660 | INFO | meridin | Meridin starting...
+2026-09-06 20:55:02,662 | INFO | meridin | Loading ML models...
+2026-09-06 20:55:13,175 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-06 20:55:13,231 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-06 20:55:13,239 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-06 20:55:13,254 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-06 20:55:13,254 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-06 20:55:13,254 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-06 20:55:14,673 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-06 20:55:14,673 | INFO | meridin | Starting MongoDB index verification...
+2026-09-06 20:55:17,939 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-06 20:55:17,939 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-06 20:55:17,939 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-06 20:55:18,433 | INFO | meridin | Redis connected successfully.
+2026-09-06 20:55:18,433 | INFO | meridin | Meridin started successfully.
+2026-09-06 20:57:38,768 | INFO | meridin | Meridin shutting down...
+2026-09-06 20:57:38,850 | INFO | meridin | MongoDB connection closed.
+2026-09-06 20:57:38,913 | INFO | meridin | Redis connection closed.
+2026-09-06 20:58:14,130 | INFO | meridin | Meridin starting...
+2026-09-06 20:58:14,130 | INFO | meridin | Loading ML models...
+2026-09-06 20:58:15,927 | INFO | meridin | Loaded ML artifact: intent_model.pkl
+2026-09-06 20:58:15,943 | INFO | meridin | Loaded ML artifact: intent_vectorizer.pkl
+2026-09-06 20:58:15,943 | INFO | meridin | Loaded ML artifact: entity_model.pkl
+2026-09-06 20:58:15,953 | INFO | meridin | Loaded ML artifact: entity_vectorizer.pkl
+2026-09-06 20:58:15,953 | INFO | meridin | ML artifacts loaded: intent_model, intent_vectorizer, entity_model, entity_vectorizer
+2026-09-06 20:58:15,953 | INFO | meridin | All ML artifacts loaded successfully.
+2026-09-06 20:58:16,900 | INFO | meridin | MongoDB connected successfully (async).
+2026-09-06 20:58:16,900 | INFO | meridin | Starting MongoDB index verification...
+2026-09-06 20:58:19,634 | INFO | meridin | Inventory indexes verified for tenant 'meridin_clothing'.
+2026-09-06 20:58:19,634 | INFO | meridin | MongoDB indexes verified successfully.
+2026-09-06 20:58:19,634 | INFO | meridin | Redis URL being used: rediss://default:gQAAAAAAAQmzAAIgcDI4NTZkZTk3NjI4ZDk0OWQyYjQ3MmZkZmZiYTUxODExMQ@special-drake-68019.upstash.io:6379
+2026-09-06 20:58:20,171 | INFO | meridin | Redis connected successfully.
+2026-09-06 20:58:20,171 | INFO | meridin | Meridin started successfully.
+2026-09-06 20:58:47,314 | INFO | meridin | Meridin shutting down...
+2026-09-06 20:58:47,383 | INFO | meridin | MongoDB connection closed.
+2026-09-06 20:58:47,445 | INFO | meridin | Redis connection closed.
