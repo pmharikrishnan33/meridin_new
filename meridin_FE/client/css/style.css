@@ -843,18 +843,10 @@ a {
 }
 
 .product-content p {
-    margin: 0;
-
-    color: var(--muted);
-
-    font-size: 12px;
-
-    line-height: 1.55;
-
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
-
+    line-clamp: 2;
     overflow: hidden;
 }
 
