@@ -843,10 +843,18 @@ a {
 }
 
 .product-content p {
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 12px;
+
+    line-height: 1.55;
+
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
-    line-clamp: 2;
+
     overflow: hidden;
 }
 
@@ -2682,4 +2690,76 @@ body {
 .quick-actions .quick-action-link > span:nth-child(2) {
     flex: 1;
     min-width: 0;
+}
+
+/* =========================================================
+   FINAL SPACING & QUICK-ACTION POLISH
+   Keep the existing Meridin design unchanged.
+   ========================================================= */
+
+/* Bring page titles closer to the horizontal navbar. */
+.main {
+    padding-top: 18px;
+}
+
+/* Keep page headers visually close to the navbar without crowding. */
+.page-header {
+    margin-bottom: 26px;
+}
+
+/* Give the three Overview workflow cards a clean internal structure. */
+.quick-actions .quick-action-link {
+    min-height: 104px;
+    padding: 16px 17px;
+    gap: 14px;
+}
+
+.quick-actions .quick-action-link > span:nth-child(2) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.quick-actions .quick-action-link strong {
+    display: block;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.quick-actions .quick-action-link small {
+    display: block;
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.quick-actions .quick-action-icon {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 11px;
+}
+
+.quick-actions .quick-arrow {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+@media screen and (max-width: 768px) {
+    .main {
+        padding-top: 16px;
+    }
+
+    .page-header {
+        margin-bottom: 22px;
+    }
+
+    .quick-actions .quick-action-link {
+        min-height: 92px;
+    }
 }
