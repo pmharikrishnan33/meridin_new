@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://api.meridin.in/api";
+const API_BASE_URL = "https://meridin-new.vercel.app/api";
 
 async function apiRequest(endpoint, options = {}) {
     const token = localStorage.getItem("meridin_client_token");
