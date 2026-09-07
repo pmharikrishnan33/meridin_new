@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111827">
+<title>Meridin — Assistant Settings</title>
+<link rel="stylesheet" href="css/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+</head>
+<body>
+<div class="app">
+<header class="navbar">
+<div class="navbar-inner">
+<a href="index.html" class="navbar-brand">
+<div class="brand-logo-wrap"><img src="assets/meridin-logo.svg" class="brand-logo" alt="Meridin"></div>
+<div class="brand-text"><strong>Meridin</strong><span>Client Dashboard</span></div>
+</a>
+<nav class="navbar-nav"><a href="index.html" class="nav-link">Overview</a><a href="products.html" class="nav-link">Products</a><a href="collections.html" class="nav-link">Collections</a><a href="analytics.html" class="nav-link">Analytics</a><a href="settings.html" class="nav-link active">Assistant Settings</a></nav>
+<div class="navbar-right">
+<div class="status"><span class="status-dot"></span><span>Automation active</span></div>
+<button id="logoutButton" class="logout-button" type="button">Sign out</button>
+<button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+</div>
+</div>
+</header>
+<nav id="mobileMenu" class="mobile-menu"><a href="index.html" class="">Overview</a><a href="products.html" class="">Products</a><a href="collections.html" class="">Collections</a><a href="analytics.html" class="">Analytics</a><a href="settings.html" class="active">Assistant Settings</a></nav>
+<main class="main page-main">
+<section class="dashboard-section" id="settings">
+<div class="section-header">
+<div>
+<span class="section-label">
+                        ASSISTANT
+                    </span>
+<h2>
+                        AI &amp; Business Settings
+                    </h2>
+<p>
+                        Control the business information and communication style used by your WhatsApp assistant.
+                    </p>
+</div>
+</div>
+<form class="panel settings-panel" id="settingsForm">
+<!-- Business Profile -->
+<div class="settings-block">
+<div class="settings-block-header">
+<div>
+<h3>
+                                Business profile
+                            </h3>
+<p>
+                                This information is available to the AI for this tenant only.
+                            </p>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsShopName">
+                                Shop name *
+                            </label>
+<input id="settingsShopName" maxlength="200" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="settingsCity">
+                                City
+                            </label>
+<input id="settingsCity" maxlength="100" type="text"/>
+</div>
+</div>
+<div class="form-group">
+<label for="settingsDescription">
+                            Business description
+                        </label>
+<textarea id="settingsDescription" maxlength="1000" rows="3"></textarea>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsPhone">
+                                Phone
+                            </label>
+<input id="settingsPhone" maxlength="50" type="text"/>
+</div>
+<div class="form-group">
+<label for="settingsEmail">
+                                Email
+                            </label>
+<input id="settingsEmail" maxlength="200" type="email"/>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsWebsite">
+                                Website
+                            </label>
+<input id="settingsWebsite" maxlength="500" type="url"/>
+</div>
+<div class="form-group">
+<label for="settingsInstagram">
+                                Instagram
+                            </label>
+<input id="settingsInstagram" maxlength="200" type="text"/>
+</div>
+</div>
+<div class="form-group">
+<label for="settingsAddress">
+                            Address
+                        </label>
+<textarea id="settingsAddress" maxlength="500" rows="2"></textarea>
+</div>
+</div>
+<!-- Customer Support -->
+<div class="settings-block">
+<div class="settings-block-header">
+<div>
+<h3>
+                                Customer support information
+                            </h3>
+<p>
+                                Only enter information the assistant is allowed to tell customers.
+                            </p>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsHours">
+                                Business hours
+                            </label>
+<textarea id="settingsHours" rows="3"></textarea>
+</div>
+<div class="form-group">
+<label for="settingsDelivery">
+                                Delivery information
+                            </label>
+<textarea id="settingsDelivery" rows="3"></textarea>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsShipping">
+                                Shipping policy
+                            </label>
+<textarea id="settingsShipping" rows="3"></textarea>
+</div>
+<div class="form-group">
+<label for="settingsReturns">
+                                Return policy
+                            </label>
+<textarea id="settingsReturns" rows="3"></textarea>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsExchange">
+                                Exchange policy
+                            </label>
+<textarea id="settingsExchange" rows="3"></textarea>
+</div>
+<div class="form-group">
+<label for="settingsCancellation">
+                                Cancellation policy
+                            </label>
+<textarea id="settingsCancellation" rows="3"></textarea>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label for="settingsPayments">
+                                Payment methods
+                            </label>
+<textarea id="settingsPayments" rows="2"></textarea>
+</div>
+<div class="form-group">
+<label for="settingsCod">
+                                Cash on delivery
+                            </label>
+<select id="settingsCod">
+<option value="">
+                                    Not specified
+                                </option>
+<option value="true">
+                                    Available
+                                </option>
+<option value="false">
+                                    Not available
+                                </option>
+</select>
+</div>
+</div>
+</div>
+<!-- AI Assistant -->
+<div class="settings-block">
+<div class="settings-block-header">
+<div>
+<h3>
+                                AI assistant
+                            </h3>
+<p>
+                                These preferences apply only to this client's assistant.
+                            </p>
+</div>
+</div>
+<div class="form-row three-columns">
+<div class="form-group">
+<label for="settingsTone">
+                                Tone
+                            </label>
+<select id="settingsTone">
+<option value="friendly">
+                                    Friendly
+                                </option>
+<option value="professional">
+                                    Professional
+                                </option>
+<option value="casual">
+                                    Casual
+                                </option>
+<option value="luxury">
+                                    Luxury
+                                </option>
+<option value="minimal">
+                                    Minimal
+                                </option>
+</select>
+</div>
+<div class="form-group">
+<label for="settingsLanguage">
+                                Language
+                            </label>
+<input id="settingsLanguage" maxlength="50" placeholder="English" type="text"/>
+</div>
+<div class="form-group">
+<label for="settingsLength">
+                                Response length
+                            </label>
+<select id="settingsLength">
+<option value="short">
+                                    Short
+                                </option>
+<option value="medium">
+                                    Medium
+                                </option>
+<option value="long">
+                                    Long
+                                </option>
+</select>
+</div>
+</div>
+<div class="form-group">
+<label for="settingsGreeting">
+                            Preferred greeting
+                        </label>
+<textarea id="settingsGreeting" maxlength="500" rows="2"></textarea>
+</div>
+<div class="form-group">
+<label for="settingsInstructions">
+                            Custom AI instructions
+                        </label>
+<textarea id="settingsInstructions" maxlength="3000" placeholder="Example: Keep replies concise. Mention our free shipping above ₹999 when relevant." rows="5"></textarea>
+</div>
+</div>
+<div class="settings-save">
+<button class="primary-button" type="submit">
+                        Save AI &amp; Business Settings
+                    </button>
+<span class="muted" id="settingsStatus"></span>
+</div>
+</form>
+</section>
+</main>
+</div>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

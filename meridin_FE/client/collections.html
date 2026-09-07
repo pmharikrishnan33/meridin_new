@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111827">
+<title>Meridin — Collections</title>
+<link rel="stylesheet" href="css/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+</head>
+<body>
+<div class="app">
+<header class="navbar">
+<div class="navbar-inner">
+<a href="index.html" class="navbar-brand">
+<div class="brand-logo-wrap"><img src="assets/meridin-logo.svg" class="brand-logo" alt="Meridin"></div>
+<div class="brand-text"><strong>Meridin</strong><span>Client Dashboard</span></div>
+</a>
+<nav class="navbar-nav"><a href="index.html" class="nav-link">Overview</a><a href="products.html" class="nav-link">Products</a><a href="collections.html" class="nav-link active">Collections</a><a href="analytics.html" class="nav-link">Analytics</a><a href="settings.html" class="nav-link">Assistant Settings</a></nav>
+<div class="navbar-right">
+<div class="status"><span class="status-dot"></span><span>Automation active</span></div>
+<button id="logoutButton" class="logout-button" type="button">Sign out</button>
+<button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+</div>
+</div>
+</header>
+<nav id="mobileMenu" class="mobile-menu"><a href="index.html" class="">Overview</a><a href="products.html" class="">Products</a><a href="collections.html" class="active">Collections</a><a href="analytics.html" class="">Analytics</a><a href="settings.html" class="">Assistant Settings</a></nav>
+<main class="main page-main">
+<section class="dashboard-section" id="collections">
+<div class="section-header">
+<div>
+<span class="section-label">
+                        CATALOG
+                    </span>
+<h2>
+                        Collections
+                    </h2>
+<p>
+                        Organize your products into collections.
+                    </p>
+</div>
+<button class="primary-button" id="createCollectionButton" type="button">
+                    + New collection
+                </button>
+</div>
+<div id="collectionsList">
+                Loading...
+            </div>
+</section><div aria-labelledby="collectionModalTitle" aria-modal="true" class="modal" id="collectionModal" role="dialog">
+<div class="modal-backdrop"></div>
+<div class="modal-content">
+<div class="modal-header">
+<div>
+<span class="section-label">
+                        CATALOG
+                    </span>
+<h3 id="collectionModalTitle">
+                        New Collection
+                    </h3>
+</div>
+<button aria-label="Close" class="modal-close" type="button">
+                    ×
+                </button>
+</div>
+<form id="collectionForm">
+<input id="collectionId" type="hidden"/>
+<div class="form-group">
+<label for="collectionName">
+                        Name *
+                    </label>
+<input id="collectionName" placeholder="e.g., Summer Collection" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="collectionDescription">
+                        Description
+                    </label>
+<textarea id="collectionDescription" placeholder="Collection details..." rows="4"></textarea>
+</div>
+<div class="modal-actions">
+<button class="modal-cancel" type="button">
+                        Cancel
+                    </button>
+<button class="primary-button" type="submit">
+                        Save Collection
+                    </button>
+</div>
+</form>
+</div>
+</div>
+</main>
+</div>
+<script src="js/api.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

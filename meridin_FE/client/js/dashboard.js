@@ -7,9 +7,10 @@ const businessName =
         "meridin_client_business"
     ) || "Your workspace";
 
-document.getElementById(
-    "businessName"
-).textContent = businessName;
+const businessNameElement = document.getElementById("businessName");
+if (businessNameElement) {
+    businessNameElement.textContent = businessName;
+}
 
 
 async function loadOverview() {
@@ -44,6 +45,53 @@ async function loadOverview() {
                 metrics.conversations ?? 0;
         }
 
+        const activityContainer = document.getElementById("recentActivity");
+        if (activityContainer) {
+            try {
+                const [productsResult, collectionsResult] = await Promise.all([
+                    apiRequest("/dashboard/client/products"),
+                    apiRequest("/dashboard/client/collections")
+                ]);
+
+                const activities = [];
+
+                (productsResult.items || []).forEach(product => {
+                    const date = product.updated_at || product.created_at;
+                    activities.push({
+                        date: date ? new Date(date) : new Date(),
+                        title: `Product "${product.title || "Untitled"}" is in your catalog`,
+                        detail: product.updated_at ? "Product information updated" : "Product added"
+                    });
+                });
+
+                (collectionsResult.items || []).forEach(collection => {
+                    const date = collection.updated_at || collection.created_at;
+                    activities.push({
+                        date: date ? new Date(date) : new Date(),
+                        title: `Collection "${collection.name || "Untitled"}" is available`,
+                        detail: collection.updated_at ? "Collection updated" : "Collection created"
+                    });
+                });
+
+                activities.sort((a, b) => b.date - a.date);
+
+                activityContainer.innerHTML = activities.length
+                    ? activities.slice(0, 5).map(item => `
+                        <div class="activity-item">
+                            <span class="activity-dot"></span>
+                            <div>
+                                <strong>${escapeHtml(item.title)}</strong>
+                                <span>${escapeHtml(item.detail)} · ${formatDate(item.date)}</span>
+                            </div>
+                        </div>
+                    `).join("")
+                    : '<div class="empty-state">Your recent workspace activity will appear here.</div>';
+            } catch (activityError) {
+                activityContainer.innerHTML =
+                    '<div class="empty-state">Recent activity is not available right now.</div>';
+            }
+        }
+
     } catch (error) {
         console.error(
             "Failed to load overview:",
@@ -55,9 +103,9 @@ async function loadOverview() {
 
 async function loadProducts() {
     const container =
-        document.getElementById(
-            "productsGrid"
-        );
+        document.getElementById("productsGrid");
+
+    if (!container) return;
 
     container.innerHTML = "Loading...";
 
@@ -138,9 +186,9 @@ async function loadProducts() {
 
 async function loadCollections() {
     const container =
-        document.getElementById(
-            "collectionsList"
-        );
+        document.getElementById("collectionsList");
+
+    if (!container) return;
 
     container.innerHTML = "Loading...";
 
@@ -353,91 +401,250 @@ async function loadLeads() {
 
 
 async function loadAnalytics() {
-    const container =
-        document.getElementById(
-            "analyticsData"
-        );
+    const container = document.getElementById("analyticsData");
+    if (!container) return;
 
     try {
-        const data = await apiRequest(
-            "/dashboard/client/analytics?days=7"
-        );
+        const data = await apiRequest("/dashboard/client/analytics?days=30");
+        const daily = Array.isArray(data.daily) ? data.daily : [];
+        const requests = Array.isArray(data.intents) ? data.intents : [];
 
-        const dailyHtml = `
-            <section class="panel">
-                <h2>Daily messages</h2>
+        const totalMessages = daily.reduce((sum, row) => sum + Number(row.messages || 0), 0);
+        const totalRequests = requests.reduce((sum, row) => sum + Number(row.count || 0), 0);
 
-                ${
-                    data.daily.length
-                        ? `
-                            <div class="analytics-list">
-                                ${data.daily.map(row => `
+        container.innerHTML = `
+            <div class="analytics-summary">
+                <article class="analytics-summary-card">
+                    <span>Total messages</span>
+                    <strong>${totalMessages.toLocaleString("en-IN")}</strong>
+                    <small>Across the selected period</small>
+                </article>
+                <article class="analytics-summary-card">
+                    <span>Customer requests</span>
+                    <strong>${totalRequests.toLocaleString("en-IN")}</strong>
+                    <small>Recognized customer needs</small>
+                </article>
+                <article class="analytics-summary-card">
+                    <span>Active days</span>
+                    <strong>${daily.length}</strong>
+                    <small>Days with recorded activity</small>
+                </article>
+            </div>
+
+            <div class="chart-grid">
+                <section class="panel chart-panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="section-label">ACTIVITY TREND</span>
+                            <h2>Conversation activity</h2>
+                            <p>Messages received over the last 30 days.</p>
+                        </div>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="messagesTrendChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="panel chart-panel">
+                    <div class="panel-header">
+                        <div>
+                            <span class="section-label">CUSTOMER NEEDS</span>
+                            <h2>Top customer requests</h2>
+                            <p>What customers are asking about most.</p>
+                        </div>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="customerRequestsChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="panel chart-panel chart-panel-wide">
+                    <div class="panel-header">
+                        <div>
+                            <span class="section-label">DAILY COMPARISON</span>
+                            <h2>Messages by day</h2>
+                            <p>Compare customer activity across the selected period.</p>
+                        </div>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="messagesBarChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="panel analytics-table">
+                    <div class="panel-header">
+                        <div>
+                            <span class="section-label">DETAILS</span>
+                            <h2>Customer request breakdown</h2>
+                            <p>Human-readable categories from the assistant.</p>
+                        </div>
+                    </div>
+                    ${
+                        requests.length
+                            ? `<div class="analytics-list">
+                                ${requests.map(row => `
                                     <div>
-                                        <span>
-                                            ${escapeHtml(row._id)}
-                                        </span>
-
-                                        <strong>
-                                            ${row.messages}
-                                        </strong>
+                                        <span>${escapeHtml(formatCustomerRequest(row._id))}</span>
+                                        <strong>${Number(row.count || 0).toLocaleString("en-IN")}</strong>
                                     </div>
                                 `).join("")}
-                            </div>
-                        `
-                        : '<p class="muted">No data.</p>'
-                }
-            </section>
+                              </div>`
+                            : `<div class="empty-state">No customer request data yet.</div>`
+                    }
+                </section>
+            </div>
         `;
 
-        const intentHtml = `
-            <section class="panel">
-                <h2>Top intents</h2>
+        if (!window.Chart) return;
 
-                ${
-                    data.intents.length
-                        ? `
-                            <div class="analytics-list">
-                                ${data.intents.map(row => `
-                                    <div>
-                                        <span>
-                                            ${escapeHtml(row._id)}
-                                        </span>
+        const labels = daily.map(row => String(row._id || ""));
+        const values = daily.map(row => Number(row.messages || 0));
+        const requestLabels = requests.slice(0, 7).map(row => formatCustomerRequest(row._id));
+        const requestValues = requests.slice(0, 7).map(row => Number(row.count || 0));
 
-                                        <strong>
-                                            ${row.count}
-                                        </strong>
-                                    </div>
-                                `).join("")}
-                            </div>
-                        `
-                        : '<p class="muted">No intent data.</p>'
+        const chartFont = {
+            family: "Poppins",
+            size: 10
+        };
+
+        new Chart(document.getElementById("messagesTrendChart"), {
+            type: "line",
+            data: {
+                labels,
+                datasets: [{
+                    label: "Messages",
+                    data: values,
+                    borderColor: "#facc15",
+                    backgroundColor: "rgba(250, 204, 21, .12)",
+                    fill: true,
+                    tension: .35,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: { font: chartFont, maxRotation: 0, autoSkip: true },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: chartFont },
+                        grid: { color: "#eef0f3" }
+                    }
                 }
-            </section>
-        `;
+            }
+        });
 
-        container.innerHTML =
-            dailyHtml + intentHtml;
+        new Chart(document.getElementById("customerRequestsChart"), {
+            type: "bar",
+            data: {
+                labels: requestLabels,
+                datasets: [{
+                    label: "Requests",
+                    data: requestValues,
+                    backgroundColor: "#facc15",
+                    borderRadius: 7
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { font: chartFont },
+                        grid: { color: "#eef0f3" }
+                    },
+                    y: {
+                        ticks: { font: chartFont },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
 
+        new Chart(document.getElementById("messagesBarChart"), {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [{
+                    label: "Messages",
+                    data: values,
+                    backgroundColor: "#facc15",
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: { font: chartFont, maxRotation: 0, autoSkip: true },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: chartFont },
+                        grid: { color: "#eef0f3" }
+                    }
+                }
+            }
+        });
     } catch (error) {
-        container.innerHTML =
-            `<p class="error">${escapeHtml(error.message)}</p>`;
+        container.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
     }
 }
 
+function formatCustomerRequest(value) {
+    const key = String(value || "").toLowerCase().replace(/[_-]+/g, " ").trim();
 
-document.getElementById(
-    "reloadProducts"
-).addEventListener(
-    "click",
-    loadProducts
-);
+    const labels = {
+        "product search": "Product searches",
+        product_search: "Product searches",
+        "price query": "Price questions",
+        price_query: "Price questions",
+        "size query": "Size questions",
+        size_query: "Size questions",
+        "color query": "Color questions",
+        color_query: "Color questions",
+        availability: "Availability questions",
+        delivery: "Delivery questions",
+        return: "Return questions",
+        returns: "Return questions",
+        exchange: "Exchange questions",
+        order: "Order questions",
+        greeting: "Greetings"
+    };
+
+    if (labels[key]) return labels[key];
+
+    return key
+        ? key.charAt(0).toUpperCase() + key.slice(1)
+        : "Other requests";
+}
+
+const reloadProductsButton = document.getElementById("reloadProducts");
+if (reloadProductsButton) {
+    reloadProductsButton.addEventListener("click", loadProducts);
+}
 
 
-document.getElementById(
-    "logoutButton"
-).addEventListener(
-    "click",
-    () => {
+const logoutButton = document.getElementById("logoutButton");
+if (logoutButton) logoutButton.addEventListener("click", () => {
         localStorage.removeItem(
             "meridin_client_token"
         );
@@ -453,29 +660,19 @@ document.getElementById(
 
 
 function showProducts() {
-    document.getElementById(
-        "products"
-    ).scrollIntoView({
-        behavior: "smooth"
-    });
+    window.location.href = "products.html";
 }
-
 
 function showCollections() {
-    document.getElementById(
-        "collections"
-    ).scrollIntoView({
-        behavior: "smooth"
-    });
+    window.location.href = "collections.html";
 }
 
-
 function showAnalytics() {
-    document.getElementById(
-        "analytics"
-    ).scrollIntoView({
-        behavior: "smooth"
-    });
+    window.location.href = "analytics.html";
+}
+
+function showSettings() {
+    window.location.href = "settings.html";
 }
 
 
@@ -516,7 +713,10 @@ async function loadSettings() {
 }
 
 
-document.getElementById("settingsForm").addEventListener("submit", async (event) => {
+const settingsForm = document.getElementById("settingsForm");
+
+if (settingsForm) {
+settingsForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const status = document.getElementById("settingsStatus");
@@ -561,15 +761,12 @@ document.getElementById("settingsForm").addEventListener("submit", async (event)
         });
         status.textContent = data.saved ? "Saved." : "Saved successfully.";
         localStorage.setItem("meridin_client_business", payload.business_profile.shop_name);
-        document.getElementById("businessName").textContent = payload.business_profile.shop_name;
+        const businessName = document.getElementById("businessName");
+        if (businessName) businessName.textContent = payload.business_profile.shop_name;
     } catch (error) {
         status.textContent = error.message || "Failed to save settings.";
     }
 });
-
-
-function showSettings() {
-    document.getElementById("settings").scrollIntoView({ behavior: "smooth" });
 }
 
 
@@ -603,12 +800,12 @@ function escapeAttribute(value) {
 }
 
 
-loadOverview();
-loadProducts();
-loadCollections();
-loadAnalytics();
-loadSettings();
-loadCatalogMetadata();
+if (document.getElementById("productsMetric")) loadOverview();
+if (document.getElementById("productsGrid")) loadProducts();
+if (document.getElementById("collectionsList")) loadCollections();
+if (document.getElementById("analyticsData")) loadAnalytics();
+if (document.getElementById("settingsForm")) loadSettings();
+if (document.getElementById("productModal")) loadCatalogMetadata();
 
 
 // ============ MODAL HANDLING ============
@@ -754,7 +951,8 @@ async function uploadProductImage(file) {
     return currentProductImageUrl;
 }
 
-document.getElementById("productImageFile").addEventListener("change", (event) => {
+const productImageFile = document.getElementById("productImageFile");
+if (productImageFile) productImageFile.addEventListener("change", (event) => {
     selectedProductImageFile = event.target.files?.[0] || null;
     if (!selectedProductImageFile) {
         setProductImagePreview(currentProductImageUrl);
@@ -778,11 +976,17 @@ function openModal(modal) {
 }
 
 function closeModal(modal) {
+    if (!modal) return;
     modal.classList.remove("open");
     document.body.style.overflow = "";
-    modal.querySelector("form").reset();
-    document.getElementById("productId").value = "";
-    document.getElementById("collectionId").value = "";
+    const form = modal.querySelector("form");
+    if (form) form.reset();
+
+    const productId = document.getElementById("productId");
+    const collectionId = document.getElementById("collectionId");
+
+    if (productId) productId.value = "";
+    if (collectionId) collectionId.value = "";
 }
 
 // Close on backdrop click
@@ -878,9 +1082,12 @@ function populateCategoryOptions(departmentId, selectedId = "") {
     });
 }
 
-document.getElementById("productDepartment").addEventListener("change", () => {
-    populateCategoryOptions(document.getElementById("productDepartment").value);
-});
+const productDepartment = document.getElementById("productDepartment");
+if (productDepartment) {
+    productDepartment.addEventListener("change", () => {
+        populateCategoryOptions(productDepartment.value);
+    });
+}
 
 function getOptionDefinitions() {
     const definitions = {};
@@ -969,10 +1176,13 @@ function renderProductOptionTags(name) {
     }));
 }
 
-document.getElementById("addProductOption").addEventListener("click", () => {
-    addProductOption(document.getElementById("newProductOption").value);
-    document.getElementById("newProductOption").value = "";
-});
+const addProductOptionButton = document.getElementById("addProductOption");
+if (addProductOptionButton) {
+    addProductOptionButton.addEventListener("click", () => {
+        addProductOption(document.getElementById("newProductOption").value);
+        document.getElementById("newProductOption").value = "";
+    });
+}
 
 function cartesian(arrays) {
     return arrays.reduce((acc, current) => acc.flatMap(a => current.map(b => [...a, b])), [[]]);
@@ -1025,7 +1235,8 @@ function collectProductVariants() {
     });
 }
 
-document.getElementById("createProductButton").addEventListener("click", async () => {
+const createProductButton = document.getElementById("createProductButton");
+if (createProductButton) createProductButton.addEventListener("click", async () => {
     document.getElementById("productModalTitle").textContent = "Add Product";
     productForm.reset();
     document.getElementById("productId").value = "";
@@ -1036,7 +1247,7 @@ document.getElementById("createProductButton").addEventListener("click", async (
     openModal(productModal);
 });
 
-productForm.addEventListener("submit", async (e) => {
+if (productForm) productForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const productId = document.getElementById("productId").value;
     const isEditing = !!productId;
@@ -1094,14 +1305,15 @@ productForm.addEventListener("submit", async (e) => {
 
 // ============ CREATE/EDIT COLLECTION ============
 
-document.getElementById("createCollectionButton").addEventListener("click", () => {
+const createCollectionButton = document.getElementById("createCollectionButton");
+if (createCollectionButton) createCollectionButton.addEventListener("click", () => {
     document.getElementById("collectionModalTitle").textContent = "New Collection";
     collectionForm.reset();
     document.getElementById("collectionId").value = "";
     openModal(collectionModal);
 });
 
-collectionForm.addEventListener("submit", async (e) => {
+if (collectionForm) collectionForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const collectionId = document.getElementById("collectionId").value;
