@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from pymongo.errors import DuplicateKeyError
@@ -212,6 +212,7 @@ class MessageService:
     async def mark_outbound_sent(
         self,
         outbound_message_id: str,
+        tenant_id: Optional[str] = None,
         whatsapp_message_id: str | None = None,
     ) -> None:
 
@@ -222,6 +223,7 @@ class MessageService:
 
         await conversation_manager.update_message_delivery(
             outbound_message_id,
+            tenant_id=tenant_id,
             status="sent",
             whatsapp_message_id=whatsapp_message_id,
         )
@@ -230,6 +232,7 @@ class MessageService:
         self,
         outbound_message_id: str,
         error: str,
+        tenant_id: Optional[str] = None,
     ) -> None:
 
         if not outbound_message_id:
@@ -241,6 +244,7 @@ class MessageService:
 
         await conversation_manager.update_message_delivery(
             outbound_message_id,
+            tenant_id=tenant_id,
             status="failed",
             error=error[:2000],
         )

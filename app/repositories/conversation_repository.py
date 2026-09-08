@@ -38,12 +38,15 @@ class ConversationRepository:
         )
         return Conversation(**normalize_mongo_doc(doc)) if doc else None
 
-    async def find_by_id(self, conversation_id: str) -> Optional[Conversation]:
+    async def find_by_id(self, conversation_id: str, tenant_id: Optional[str] = None) -> Optional[Conversation]:
         """Retrieve a conversation by ID."""
         if not mongodb.is_connected:
             return None
 
-        doc = await collections.conversations.find_one({"_id": conversation_id})
+        query = {"_id": conversation_id}
+        if tenant_id:
+            query["tenant_id"] = tenant_id
+        doc = await collections.conversations.find_one(query)
         return Conversation(**normalize_mongo_doc(doc)) if doc else None
 
     async def insert(self, conversation: Conversation) -> None:
@@ -56,13 +59,16 @@ class ConversationRepository:
             conversation.model_dump(by_alias=True, exclude_none=True)
         )
 
-    async def update(self, conversation_id: str, update: dict) -> None:
+    async def update(self, conversation_id: str, update: dict, tenant_id: Optional[str] = None) -> None:
         """Apply a partial update to a conversation document."""
         if not mongodb.is_connected:
             return
 
+        query = {"_id": conversation_id}
+        if tenant_id:
+            query["tenant_id"] = tenant_id
         await collections.conversations.update_one(
-            {"_id": conversation_id},
+            query,
             {"$set": update},
         )
 
@@ -79,6 +85,7 @@ class ConversationRepository:
         self,
         conversation_id: str,
         limit: int = 50,
+        tenant_id: Optional[str] = None,
     ) -> List[Message]:
         """Retrieve recent messages for a conversation."""
         if not mongodb.is_connected:
@@ -86,7 +93,7 @@ class ConversationRepository:
 
         cursor = (
             collections.messages
-            .find({"conversation_id": conversation_id})
+            .find({**{"conversation_id": conversation_id}, **({"tenant_id": tenant_id} if tenant_id else {})})
             .sort("created_at", -1)
             .limit(limit)
         )

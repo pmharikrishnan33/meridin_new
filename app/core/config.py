@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     DEBUG: bool = False
+    APP_ENV: str = "development"
     WHATSAPP_GRAPH_API_VERSION: str = "v23.0"
 
     @field_validator("DEBUG", mode="before")
@@ -47,12 +48,10 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # Shared application secret used as the global fallback for internal
-    # signing / HMAC verification when a tenant-specific or explicit
-    # webhook secret is not supplied.
+    # Application signing secret for dashboard access tokens.
     APP_SECRET: str
     TRUST_PROXY_HEADERS: bool = False
-    CORS_ORIGINS: str = "http://localhost:5500,http://127.0.0.1:5500,http://localhost:5501,http://127.0.0.1:5501,https://meridin-client.vercel.app,https://meridin-admin.vercel.app,https://app.meridin.in"
+    CORS_ORIGINS: str = "http://localhost:5500,http://127.0.0.1:5500,http://localhost:5501,http://127.0.0.1:5501"
 
     # ==========================================================
     # ADMIN DASHBOARD
@@ -103,6 +102,7 @@ class Settings(BaseSettings):
     # ==========================================================
 
     LOG_LEVEL: str = "INFO"
+    LOG_TO_FILE: bool = False
 
     # ==========================================================
     # AI / OPENROUTER
@@ -134,10 +134,8 @@ class Settings(BaseSettings):
 
     WHATSAPP_ACCESS_TOKEN: str = ""
 
-    # Optional shared secret used to verify the X-Hub-Signature-256 header on
-    # POST requests to the webhook. When per-tenant secrets are stored in
-    # MongoDB they take precedence over this setting, and ``APP_SECRET`` is
-    # used as the final fallback for a single-secret deployment.
+    # Meta App Secret used to verify X-Hub-Signature-256.
+    # Tenant-specific webhook secrets stored in MongoDB take precedence.
     WHATSAPP_WEBHOOK_SECRET: str = ""
 
     # ==========================================================
@@ -156,6 +154,32 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW_SECONDS: int = RATE_LIMIT_DEFAULT_WINDOW
 
     RATE_LIMIT_MAX_REQUESTS: int = RATE_LIMIT_DEFAULT_MAX_REQUESTS
+
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 900
+    LOGIN_RATE_LIMIT_MAX_REQUESTS: int = 5
+
+    OPENROUTER_TIMEOUT_SECONDS: float = 15.0
+    OPENROUTER_MAX_TOKENS: int = 300
+    OPENROUTER_MAX_MESSAGE_CHARS: int = 12000
+
+    R2_UPLOAD_URL_TTL_SECONDS: int = 900
+    R2_MAX_UPLOAD_BYTES: int = 5_000_000
+
+    @model_validator(mode="after")
+    def validate_production_settings(self):
+        env = self.APP_ENV.strip().lower()
+        if env in {"production", "prod"}:
+            if self.DEBUG:
+                raise ValueError("DEBUG must be false in production.")
+            if len(self.APP_SECRET.strip()) < 32:
+                raise ValueError("APP_SECRET must be at least 32 characters in production.")
+            if self.APP_SECRET.strip() in {"replace-with-a-random-secret", "change-me", "secret"}:
+                raise ValueError("A real APP_SECRET is required in production.")
+            if self.MONGODB_REQUIRED is not True:
+                raise ValueError("MONGODB_REQUIRED must be true in production.")
+            if not self.CORS_ORIGINS.strip():
+                raise ValueError("CORS_ORIGINS must be configured in production.")
+        return self
 
     # ==========================================================
     # PYDANTIC SETTINGS

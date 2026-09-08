@@ -34,13 +34,13 @@ class OpenRouterClient:
         model: Optional[str] = None,
         app_name: str = "Meridin",
         site_url: str = "https://meridin.ai",
-        timeout: float = 30.0,
+        timeout: Optional[float] = None,
     ):
         self._api_key = api_key or settings.OPENROUTER_API_KEY
         self._model = model or settings.OPENROUTER_MODEL
         self._app_name = app_name
         self._site_url = site_url
-        self._timeout = timeout
+        self._timeout = timeout or settings.OPENROUTER_TIMEOUT_SECONDS
         self._client: Optional[httpx.AsyncClient] = None
 
     @property
@@ -93,11 +93,21 @@ class OpenRouterClient:
                 "Set OPENROUTER_API_KEY and OPENROUTER_MODEL in your environment."
             )
 
+        safe_max_tokens = min(max(int(max_tokens), 1), settings.OPENROUTER_MAX_TOKENS)
+        safe_messages = []
+        for message in messages:
+            if not isinstance(message, dict):
+                continue
+            safe_messages.append({
+                "role": str(message.get("role", "user")),
+                "content": str(message.get("content", ""))[:settings.OPENROUTER_MAX_MESSAGE_CHARS],
+            })
+
         payload: Dict[str, Any] = {
             "model": self._model,
-            "messages": messages,
+            "messages": safe_messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": safe_max_tokens,
             **extra,
         }
 
@@ -111,10 +121,10 @@ class OpenRouterClient:
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"OpenRouter API error: {e.response.status_code} {e.response.text}")
+            logger.error("OpenRouter API error: HTTP %s", e.response.status_code)
             raise
         except httpx.RequestError as e:
-            logger.error(f"OpenRouter request failed: {e}")
+            logger.error("OpenRouter request failed: %s", type(e).__name__)
             raise
 
         choices = data.get("choices", [])

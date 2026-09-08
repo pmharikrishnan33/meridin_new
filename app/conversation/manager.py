@@ -200,6 +200,7 @@ class ConversationManager:
     async def _load_session(
         self,
         conversation_id: str,
+        tenant_id: Optional[str] = None,
     ) -> ConversationSession:
         """
         Load the conversation and its recent message history.
@@ -220,11 +221,10 @@ class ConversationManager:
                 f"Conversation not found: {conversation_id}"
             )
 
-        document = await collections.conversations.find_one(
-            {
-                "_id": conversation_id,
-            }
-        )
+        query = {"_id": conversation_id}
+        if tenant_id:
+            query["tenant_id"] = tenant_id
+        document = await collections.conversations.find_one(query)
 
         if not document:
             raise ValueError(
@@ -314,7 +314,8 @@ class ConversationManager:
 
         await collections.conversations.update_one(
             {
-                "_id": session.conversation_id
+                "_id": session.conversation_id,
+                "tenant_id": session.tenant_id,
             },
             {
                 "$set": update_data
@@ -376,6 +377,7 @@ class ConversationManager:
     async def update_message_delivery(
         self,
         message_id: str,
+        tenant_id: Optional[str] = None,
         *,
         status: str,
         whatsapp_message_id: Optional[str] = None,
@@ -409,10 +411,12 @@ class ConversationManager:
                 "failed_at"
             ] = datetime.now(timezone.utc)
 
+        query = {"_id": message_id}
+        if tenant_id:
+            query["tenant_id"] = tenant_id
+
         await collections.messages.update_one(
-            {
-                "_id": message_id
-            },
+            query,
             {
                 "$set": update
             },

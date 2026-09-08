@@ -221,11 +221,31 @@ async def get_current_client(
         )
 
     tenant_id = user.get("tenant_id")
+    subject = user.get("sub")
 
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Client tenant context is missing.",
+        )
+
+    # A signed token is not enough for a multi-tenant system: an admin may
+    # disable a client while an already-issued token is still unexpired.
+    # Re-check the tenant on every authenticated client request so disabling
+    # a tenant takes effect immediately.
+    from app.repositories.tenant_repository import tenant_repository
+
+    tenant = await tenant_repository.find_by_tenant_id(tenant_id)
+    if tenant is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Client access is inactive.",
+        )
+
+    if subject and str(tenant.id) != str(subject):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid client authentication context.",
         )
 
     return user

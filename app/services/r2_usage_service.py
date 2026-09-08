@@ -144,10 +144,7 @@ class R2UsageService:
         """
         Reserve one Class A operation for an image upload.
 
-        If Redis is unavailable, fail open.
-
-        The endpoint may therefore continue generating an upload URL,
-        while Cloudflare itself remains the final storage system.
+        In production, Redis is required for the global upload safety guard.
         """
 
         try:
@@ -167,6 +164,8 @@ class R2UsageService:
                 exc,
             )
 
+            if settings.APP_ENV.strip().lower() in {"production", "prod"}:
+                return False
             return True
 
     # ========================================================
@@ -178,7 +177,7 @@ class R2UsageService:
         """
         Reserve one Class B operation for an image view.
 
-        If Redis is unavailable, fail open.
+        In production, Redis is required for the global view safety guard.
         """
 
         try:
@@ -198,6 +197,8 @@ class R2UsageService:
                 exc,
             )
 
+            if settings.APP_ENV.strip().lower() in {"production", "prod"}:
+                return False
             return True
 
     # ========================================================

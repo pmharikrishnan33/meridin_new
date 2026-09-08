@@ -6,11 +6,13 @@ from typing import Any, Dict, List
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 from app.core.dashboard_security import get_current_admin, hash_password
 from app.database.collections import collections
 from app.database.mongodb import mongodb
 from app.services.r2_usage_service import r2_usage_service
+from app.utils.logger import logger
 
 router = APIRouter(prefix="/dashboard/admin", tags=["Admin Dashboard"])
 
@@ -129,7 +131,11 @@ async def create_client(payload: ClientCreateRequest, _: Dict[str, Any] = Depend
         "created_at": now,
         "updated_at": now,
     }
-    result = await collections.clients.insert_one(document)
+    try:
+        result = await collections.clients.insert_one(document)
+    except DuplicateKeyError as exc:
+        logger.warning("Client creation rejected by unique index: %s", exc)
+        raise HTTPException(status_code=409, detail="Tenant, dashboard email, or WhatsApp phone number already exists.") from exc
     document["_id"] = result.inserted_id
     return {"created": True, "client": _safe_client(document)}
 
@@ -144,10 +150,17 @@ async def update_client(client_id: str, payload: ClientUpdateRequest, _: Dict[st
         duplicate = await collections.clients.find_one({"dashboard_email": data["dashboard_email"], "_id": {"$ne": ObjectId(client_id)}})
         if duplicate:
             raise HTTPException(status_code=409, detail="Dashboard email already exists.")
+    if "phone_number_id" in data:
+        duplicate = await collections.clients.find_one({"phone_number_id": str(data["phone_number_id"]).strip(), "_id": {"$ne": ObjectId(client_id)}})
+        if duplicate:
+            raise HTTPException(status_code=409, detail="WhatsApp phone number ID already exists.")
     if "dashboard_password" in data:
         data["dashboard_password_hash"] = hash_password(data.pop("dashboard_password"))
     data["updated_at"] = datetime.now(timezone.utc)
-    result = await collections.clients.update_one({"_id": ObjectId(client_id)}, {"$set": data})
+    try:
+        result = await collections.clients.update_one({"_id": ObjectId(client_id)}, {"$set": data})
+    except DuplicateKeyError as exc:
+        raise HTTPException(status_code=409, detail="A unique client value already exists.") from exc
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Client not found.")
     document = await collections.clients.find_one({"_id": ObjectId(client_id)})

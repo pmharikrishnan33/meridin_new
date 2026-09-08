@@ -360,10 +360,7 @@ async def catalog_metadata(
 
 
 class ImageUploadRequest(BaseModel):
-    content_length: int = Field(
-        ge=1,
-        le=5_000_000,
-    )
+    content_length: int = Field(ge=1, le=5_000_000)
 
 
 @router.post("/products/image-upload-url")
@@ -402,10 +399,10 @@ async def product_image_upload_url(
     # 1. AUTHENTICATION
     # ========================================================
 
-    _client_id(user)
+    tenant_id = _client_id(user)
 
     # ========================================================
-    # 2. REDIS IS NOT A HARD DEPENDENCY HERE
+    # 2. REDIS SAFETY GUARD
     # ========================================================
     #
     # reserve_upload() already has its own fallback behaviour.
@@ -562,7 +559,7 @@ async def product_image_upload_url(
         # ----------------------------------------------------
 
         object_name = (
-            f"products/{uuid.uuid4()}.jpg"
+            f"products/{tenant_id}/{uuid.uuid4()}.jpg"
         )
 
         # ----------------------------------------------------
@@ -580,7 +577,7 @@ async def product_image_upload_url(
                         payload.content_length
                     ),
                 },
-                ExpiresIn=900,
+                ExpiresIn=settings.R2_UPLOAD_URL_TTL_SECONDS,
             )
         )
 
@@ -601,7 +598,7 @@ async def product_image_upload_url(
 
             "content_type": "image/jpeg",
 
-            "expires_in": 900,
+            "expires_in": settings.R2_UPLOAD_URL_TTL_SECONDS,
         }
 
     except HTTPException:

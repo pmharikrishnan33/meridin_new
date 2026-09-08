@@ -219,6 +219,12 @@ async def _ensure_message_indexes() -> None:
         name="tenant_message_lead_lookup",
     )
 
+    await _create_index(
+        collections.messages,
+        [("tenant_id", 1), ("metadata.provider_message_ids", 1)],
+        name="provider_message_ids_lookup",
+    )
+
 
 
 async def _ensure_client_indexes() -> None:

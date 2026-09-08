@@ -37,14 +37,13 @@ async def lifespan(app: FastAPI):
     # ---------------------------------------------------------
 
     try:
-        await asyncio.to_thread(
-            model_loader.load_all
-        )
-
+        await asyncio.to_thread(model_loader.load_all)
+        if not model_loader.is_loaded():
+            raise RuntimeError("ML models did not load.")
     except Exception:
-        logger.exception(
-            "ML model initialization failed."
-        )
+        logger.exception("ML model initialization failed.")
+        if settings.APP_ENV.strip().lower() in {"production", "prod"}:
+            raise
 
     # ---------------------------------------------------------
     # MONGODB
@@ -67,13 +66,9 @@ async def lifespan(app: FastAPI):
         )
 
     except Exception:
-
-        if settings.MONGODB_REQUIRED:
+        if settings.MONGODB_REQUIRED or settings.APP_ENV.strip().lower() in {"production", "prod"}:
             raise
-
-        logger.exception(
-            "MongoDB initialization failed."
-        )
+        logger.exception("MongoDB initialization failed.")
 
     # ---------------------------------------------------------
     # REDIS
@@ -85,9 +80,9 @@ async def lifespan(app: FastAPI):
         await redis_cache.connect(url=redis_url)
 
     except Exception:
-        logger.exception(
-            "Redis initialization failed."
-        )
+        logger.exception("Redis initialization failed.")
+        if settings.APP_ENV.strip().lower() in {"production", "prod"}:
+            raise
 
     logger.info(
         "%s started successfully.",
@@ -173,24 +168,41 @@ async def health_check():
     }
 
 
+@app.get("/health/live")
+async def health_live():
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    checks = {
+        "mongodb": mongodb.is_connected,
+        "redis": redis_cache.is_connected,
+        "ml": model_loader.is_loaded(),
+    }
+    ready = all(checks.values())
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ready" if ready else "not_ready",
+            "service": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "dependencies": checks,
+        },
+    )
+
+
 @app.get("/health")
 async def health():
-    mongodb_ok = mongodb.is_connected
-    redis_ok = redis_cache.is_connected
-
+    checks = {
+        "mongodb": mongodb.is_connected,
+        "redis": redis_cache.is_connected,
+        "ml": model_loader.is_loaded(),
+    }
     return {
-        "status": (
-            "healthy"
-            if mongodb_ok
-            else "degraded"
-        ),
+        "status": "healthy" if all(checks.values()) else "degraded",
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "dependencies": {
-            "mongodb": mongodb_ok,
-            "redis": redis_ok,
-        },
-        "ml": {
-            "loaded": model_loader.is_loaded(),
-        },
+        "dependencies": checks,
     }

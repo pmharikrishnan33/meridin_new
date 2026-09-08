@@ -34,19 +34,20 @@ class Logger:
         console_handler.setLevel(settings.LOG_LEVEL)
         console_handler.setFormatter(formatter)
 
-        # File Handler - rotating (5MB, keep 5 backups)
-        file_handler = RotatingFileHandler(
-            filename=log_dir / "meridin.log",
-            maxBytes=5 * 1024 * 1024,   # 5 MB
-            backupCount=5,
-            encoding="utf-8"
-        )
-
-        file_handler.setLevel(settings.LOG_LEVEL)
-        file_handler.setFormatter(formatter)
-
         self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
+
+        # Cloud deployments should use stdout/stderr. Enable file logging
+        # explicitly for local/VM deployments with LOG_TO_FILE=true.
+        if settings.LOG_TO_FILE:
+            file_handler = RotatingFileHandler(
+                filename=log_dir / "meridin.log",
+                maxBytes=5 * 1024 * 1024,
+                backupCount=5,
+                encoding="utf-8",
+            )
+            file_handler.setLevel(settings.LOG_LEVEL)
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
 
     def get_logger(self):
         return self.logger

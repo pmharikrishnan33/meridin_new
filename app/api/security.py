@@ -55,7 +55,6 @@ def _resolve_webhook_secret(tenant: Optional[Tenant] = None) -> str:
 
     1. Tenant-specific ``webhook_secret`` or ``settings.webhook_secret`` when present.
     2. Shared environment ``WHATSAPP_WEBHOOK_SECRET``.
-    3. Shared application ``APP_SECRET`` fallback.
     """
     if tenant:
         secret = getattr(tenant, "webhook_secret", None)
@@ -67,7 +66,7 @@ def _resolve_webhook_secret(tenant: Optional[Tenant] = None) -> str:
                 return nested_secret
     if settings.WHATSAPP_WEBHOOK_SECRET:
         return settings.WHATSAPP_WEBHOOK_SECRET
-    return settings.APP_SECRET
+    return ""
 
 
 def verify_signature(raw_body: bytes, signature_header: Optional[str]) -> None:
@@ -189,9 +188,10 @@ class RateLimiter:
         await limiter.check(request, tenant_id="tenant-1")
     """
 
-    def __init__(self) -> None:
-        self._window = settings.RATE_LIMIT_WINDOW_SECONDS or RATE_LIMIT_DEFAULT_WINDOW
-        self._max_requests = settings.RATE_LIMIT_MAX_REQUESTS or RATE_LIMIT_DEFAULT_MAX_REQUESTS
+    def __init__(self, *, window: Optional[int] = None, max_requests: Optional[int] = None, prefix: str = "ratelimit") -> None:
+        self._window = window or settings.RATE_LIMIT_WINDOW_SECONDS or RATE_LIMIT_DEFAULT_WINDOW
+        self._max_requests = max_requests or settings.RATE_LIMIT_MAX_REQUESTS or RATE_LIMIT_DEFAULT_MAX_REQUESTS
+        self._prefix = prefix
         self._local: dict[str, list[float]] = defaultdict(list)
         self._local_lock = Lock()
         self._enabled = settings.RATE_LIMIT_ENABLED
@@ -233,7 +233,7 @@ class RateLimiter:
         """Build a composite cache key scoped to IP + tenant."""
         ip = self._client_ip(request)
         scope = tenant_id or "default"
-        return f"ratelimit:{scope}:{ip}"
+        return f"{self._prefix}:{scope}:{ip}"
 
     async def check(self, request: Request, tenant_id: Optional[str] = None) -> None:
         """
@@ -310,6 +310,11 @@ async def _redis_delete(key: str) -> None:
 
 # Module-level singleton
 rate_limiter = RateLimiter()
+login_rate_limiter = RateLimiter(
+    window=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    max_requests=settings.LOGIN_RATE_LIMIT_MAX_REQUESTS,
+    prefix="login",
+)
 
 
 # ---------------------------------------------------------------------------

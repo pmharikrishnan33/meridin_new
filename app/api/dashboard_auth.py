@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.dashboard_security import (
     create_access_token,
     get_admin_credentials,
+    get_current_user,
     hash_password,
     verify_password,
 )
 from app.database.collections import collections
 from app.database.mongodb import mongodb
+from app.api.security import login_rate_limiter
 
 
 router = APIRouter(
@@ -45,7 +47,10 @@ class LoginResponse(BaseModel):
 )
 async def client_login(
     payload: ClientLoginRequest,
+    request: Request,
 ) -> LoginResponse:
+    await login_rate_limiter.check(request, tenant_id=f"client:{payload.email.lower().strip()}")
+
     if not mongodb.is_connected:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -117,7 +122,10 @@ async def client_login(
 )
 async def admin_login(
     payload: AdminLoginRequest,
+    request: Request,
 ) -> LoginResponse:
+    await login_rate_limiter.check(request, tenant_id=f"admin:{payload.email.lower().strip()}")
+
     admin_email, admin_password_hash = (
         get_admin_credentials()
     )
@@ -158,7 +166,9 @@ async def admin_login(
 
 
 @router.get("/me")
-async def current_session() -> Dict[str, Any]:
+async def current_session(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     return {
         "authenticated": True,
+        "role": user.get("role"),
+        "tenant_id": user.get("tenant_id"),
     }

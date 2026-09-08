@@ -45,8 +45,6 @@ class RedisCache:
         """Connect to Redis."""
         connect_url = url or self._get_url()
         try:
-            logger.info("Redis URL being used: %s", connect_url)
-
             self._client = redis.from_url(
                 connect_url,
                 decode_responses=True,

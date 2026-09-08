@@ -746,6 +746,7 @@ async def receive_whatsapp_webhook(
 
                 await conversation_manager.update_message_delivery(
                     outbound.id,
+                    tenant_id=tenant.tenant_id,
                     status=delivery_status,
                     whatsapp_message_id=str(provider_message_id),
                     error=error_text,

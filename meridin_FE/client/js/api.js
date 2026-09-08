@@ -2,6 +2,8 @@ const isLocal =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
+// Current production API remains on Vercel. When the API moves to Google
+// Cloud, change only this production URL to https://api.meridin.in/api.
 const API_BASE_URL =
     window.MERIDIN_API_BASE_URL ||
     (isLocal
@@ -32,6 +34,7 @@ async function apiRequest(endpoint, options = {}) {
 
     if (response.status === 401) {
         localStorage.removeItem("meridin_client_token");
+        localStorage.removeItem("meridin_client_business");
         window.location.href = "login.html";
         throw new Error("Authentication required.");
     }
