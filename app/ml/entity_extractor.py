@@ -134,15 +134,95 @@ class EntityExtractor:
 
     # Clothing category vocabulary mirrors inventory_metadata.category_aliases.
     CATEGORIES = [
-        "dresses", "dress", "gown", "frock", "tops", "top",
-        "shirts", "shirt", "button-down", "button down", "button-up", "button up",
-        "t-shirts", "t-shirt", "tshirts", "tshirt", "tee", "tees", "t shirt", "t shirts",
-        "kurtis", "kurti", "kurtas", "kurta", "ethnic-wear", "ethnic wear", "ethnic", "traditional wear",
-        "sarees", "saree", "skirts", "skirt", "jeans", "jean", "pants", "pant",
-        "shorts", "short", "co-ords", "co-ord", "coord", "coords", "co ord", "co ords", "matching set",
-        "jackets", "jacket", "polos", "polo", "polo shirt", "polo shirts", "chinos", "chino",
-        "cargo pants", "cargo pant", "cargo", "track pants", "track pant", "tracksuit pants",
-        "hoodies", "hoodie", "sweatshirts", "sweatshirt", "sets", "set", "co-ord set",
+        # Dresses
+        "dresses",
+        "dress",
+        "gown",
+        "frock",
+
+        # Tops / shirts
+        "tops",
+        "top",
+        "shirts",
+        "shirt",
+        "button-down",
+        "button down",
+        "button-up",
+        "button up",
+
+        # T-shirts
+        "t-shirts",
+        "t-shirt",
+        "tshirts",
+        "tshirt",
+        "tee",
+        "tees",
+        "t shirt",
+        "t shirts",
+
+        # Indian / ethnic
+        "kurtis",
+        "kurti",
+        "kurtas",
+        "kurta",
+        "ethnic-wear",
+        "ethnic wear",
+        "ethnic",
+        "traditional wear",
+        "sarees",
+        "saree",
+
+        # Bottomwear
+        "jeans",
+        "jean",
+        "pants",
+        "pant",
+        "trousers",
+        "trouser",
+        "shorts",
+        "short",
+        "chinos",
+        "chino",
+
+        # Sets
+        "co-ords",
+        "co-ord",
+        "coord",
+        "coords",
+        "co ord",
+        "co ords",
+        "matching set",
+
+        # Jackets / outerwear
+        "jackets",
+        "jacket",
+
+        # Polos
+        "polos",
+        "polo",
+        "polo shirt",
+        "polo shirts",
+
+        # Cargo / track bottomwear
+        "cargo pants",
+        "cargo pant",
+        "cargo trousers",
+        "cargo trouser",
+        "cargo",
+        "track pants",
+        "track pant",
+        "tracksuit pants",
+
+        # Hoodies / sweatshirts
+        "hoodies",
+        "hoodie",
+        "sweatshirts",
+        "sweatshirt",
+
+        # Sets
+        "sets",
+        "set",
+        "co-ord set",
     ]
 
     # Non-category product terms remain PRODUCT entities.

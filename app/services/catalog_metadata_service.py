@@ -183,7 +183,60 @@ class CatalogMetadataService:
     # =========================================================
     # CATEGORY RESOLUTION
     # =========================================================
-
+    # Common customer-facing clothing terms that should resolve
+    # to the same canonical catalogue category.
+    #
+    # These are aliases only. The metadata category key remains
+    # authoritative for category IDs and requirements.
+    BUILTIN_CATEGORY_ALIASES = {
+        "pants": [
+            "pant",
+            "pants",
+            "trouser",
+            "trousers",
+        ],
+        "jeans": [
+            "jean",
+            "jeans",
+        ],
+        "shirts": [
+            "shirt",
+            "shirts",
+        ],
+        "t-shirts": [
+            "t-shirt",
+            "t-shirts",
+            "tshirt",
+            "tshirts",
+            "tee",
+            "tees",
+            "t shirt",
+            "t shirts",
+        ],
+        "dresses": [
+            "dress",
+            "dresses",
+        ],
+        "jackets": [
+            "jacket",
+            "jackets",
+        ],
+        "polos": [
+            "polo",
+            "polos",
+            "polo shirt",
+            "polo shirts",
+        ],
+        "chinos": [
+            "chino",
+            "chinos",
+        ],
+        "shorts": [
+            "short",
+            "shorts",
+        ],
+    }
+    
     @staticmethod
     def _build_category_aliases(
         metadata: Dict[str, Any],
@@ -345,6 +398,43 @@ class CatalogMetadataService:
                         existing.append(
                             singular
                         )
+
+                # -----------------------------------------------------
+        # BUILT-IN CUSTOMER-FACING SYNONYMS
+        # -----------------------------------------------------
+        #
+        # Metadata remains the source of truth. These synonyms
+        # only help map common customer language to an existing
+        # canonical category.
+        #
+        # Example:
+        #
+        #   trousers
+        #       ↓
+        #   pants
+        #       ↓
+        #   category_id from metadata
+        #
+        # Existing tenant-defined aliases always remain intact.
+
+        for canonical, builtin_aliases in (
+            CatalogMetadataService.BUILTIN_CATEGORY_ALIASES.items()
+        ):
+            if canonical not in result:
+                continue
+
+            existing = result.setdefault(
+                canonical,
+                [],
+            )
+
+            existing.extend(
+                builtin_aliases
+            )
+
+        # -----------------------------------------------------
+        # FINAL DEDUPLICATION
+        # -----------------------------------------------------
 
         for canonical, aliases in list(
             result.items()
@@ -1492,8 +1582,6 @@ class CatalogMetadataService:
                 )
                 if option_id is not None:
                     filters.attributes[id_key] = option_id
-
-        return filters, None
 
         return filters, None
 
