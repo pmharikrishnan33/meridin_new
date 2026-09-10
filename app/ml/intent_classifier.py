@@ -219,6 +219,7 @@ class IntentClassifier:
             "hi",
             "hello",
             "hey",
+            "hei",
             "hii",
             "helo",
             "namaste",
@@ -233,6 +234,37 @@ class IntentClassifier:
                 all_scores={
                     IntentType.GREETING.value: 0.99,
                 },
+                margin=0.99,
+            )
+
+        # -----------------------------------------------------
+        # Deterministic product-category search boundary
+        # -----------------------------------------------------
+        # Clothing category phrases are strong evidence of a catalogue
+        # search when paired with an explicit search verb. This protects
+        # phrases such as "show some trousers" from a low-confidence ML
+        # classification. Availability phrases remain handled separately.
+        category_terms = (
+            "shirt", "shirts", "t shirt", "t-shirt",
+            "trouser", "trousers", "pant", "pants",
+            "jean", "jeans", "chino", "chinos",
+            "dress", "dresses", "jacket", "jackets",
+            "polo", "polos", "short", "shorts",
+            "kurta", "kurtas", "kurti", "kurtis",
+        )
+        search_prefixes = (
+            "show ", "show me ", "find ", "search ",
+            "looking for ", "i need ", "i want ",
+            "give me ", "get me ",
+        )
+        if (
+            any(text_clean.startswith(prefix) for prefix in search_prefixes)
+            and any(re.search(rf"\b{re.escape(term)}\b", text_clean) for term in category_terms)
+        ):
+            return IntentPrediction(
+                intent=IntentType.PRODUCT_SEARCH,
+                confidence=0.99,
+                all_scores={IntentType.PRODUCT_SEARCH.value: 0.99},
                 margin=0.99,
             )
 

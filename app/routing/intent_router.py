@@ -127,7 +127,42 @@ class IntentRouter:
             )
 
         # --------------------------------------------------------
-        # 2. PENDING ENTITY COLLECTION
+        # 2. HIGH-PRIORITY FLOW INTERRUPTS
+        # --------------------------------------------------------
+
+        # Greetings must never be interpreted as answers to a previous
+        # clarification (e.g. "Hello" while awaiting SIZE).
+        if (
+            session is not None
+            and context is not None
+            and understanding.intent == IntentType.GREETING
+        ):
+            session.clear_pending_state()
+            context.last_search_filters = {}
+            context.last_search_results = []
+            context.current_category = None
+            context.current_product = None
+            session.clear_active_search()
+
+        # A clearly new product search interrupts a pending requirement.
+        # Example: awaiting SIZE after "black shirt", then "show me trousers".
+        elif (
+            session is not None
+            and context is not None
+            and context.awaiting_entity is not None
+            and understanding.intent == IntentType.PRODUCT_SEARCH
+            and any(
+                entity.entity_type in {
+                    EntityType.CATEGORY,
+                    EntityType.PRODUCT,
+                }
+                for entity in understanding.entities
+            )
+        ):
+            session.clear_pending_state()
+
+        # --------------------------------------------------------
+        # 3. PENDING ENTITY COLLECTION
         # --------------------------------------------------------
 
         if (
@@ -135,6 +170,39 @@ class IntentRouter:
             and context is not None
             and context.awaiting_entity is not None
         ):
+            pending_intent = (
+                context.confirmation_context.get("intent")
+                if context.confirmation_context
+                else None
+            )
+            extracted_pending = self._find_entity(
+                understanding.entities,
+                context.awaiting_entity,
+            )
+
+            # An actual answer to the pending question must be allowed
+            # through even if the classifier calls it UNKNOWN. Otherwise a
+            # bare value such as "2XL" can never complete the search.
+            if extracted_pending is not None:
+                pass
+            elif understanding.intent in {
+                IntentType.GREETING,
+                IntentType.THANKS,
+                IntentType.COMPLAINT,
+                IntentType.ORDER_STATUS,
+                IntentType.CANCEL_ORDER,
+                IntentType.RETURN_REQUEST,
+            }:
+                session.clear_pending_state()
+            elif (
+                pending_intent
+                and pending_intent != understanding.intent.value
+                and understanding.intent != IntentType.UNKNOWN
+            ):
+                # The customer changed subject. Do not keep asking the old
+                # requirement question.
+                session.clear_pending_state()
+
             pending_response = (
                 await self._handle_pending_entity(
                     understanding=understanding,
@@ -327,10 +395,9 @@ class IntentRouter:
                 config.handler_class,
             )
 
-            return await self._ai_fallback_response(
-                tenant_settings,
-                conversation_id,
-                understanding.original_text,
+            return self._safe_handler_failure_response(
+                intent=intent,
+                tenant_settings=tenant_settings,
             )
 
         try:
@@ -376,10 +443,9 @@ class IntentRouter:
                 exc,
             )
 
-            return await self._ai_fallback_response(
-                tenant_settings,
-                conversation_id,
-                understanding.original_text,
+            return self._safe_handler_failure_response(
+                intent=intent,
+                tenant_settings=tenant_settings,
             )
 
     # ============================================================
@@ -1115,6 +1181,44 @@ class IntentRouter:
             metadata={
                 "fallback": True
             },
+        )
+
+    @staticmethod
+    def _safe_handler_failure_response(
+        *,
+        intent: IntentType,
+        tenant_settings: Dict[str, Any],
+    ) -> BotResponse:
+        """Return a non-invented response when a deterministic handler fails."""
+        if intent in {
+            IntentType.PRODUCT_SEARCH,
+            IntentType.PRODUCT_INQUIRY,
+            IntentType.AVAILABILITY,
+        }:
+            return BotResponse(
+                response_type="text",
+                text=(
+                    "I couldn't access the catalogue right now. "
+                    "Please try again in a moment."
+                ),
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "catalogue_grounded": True,
+                    "catalogue_error": True,
+                    "ai_fallback_blocked": True,
+                },
+            )
+
+        return BotResponse(
+            response_type="text",
+            text=tenant_settings.get(
+                "fallback_message",
+                "I didn't understand that. Could you please rephrase?",
+            ),
+            quick_replies=[],
+            products=[],
+            metadata={"fallback": True},
         )
 
     async def _ai_fallback_response(

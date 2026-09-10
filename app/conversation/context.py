@@ -43,22 +43,10 @@ class ConversationContextManager:
                 entity,
             )
 
-        if (
-            understanding.intent
-            == IntentType.PRODUCT_SEARCH
-        ):
-            new_filters = (
-                ConversationContextManager.entities_to_filters(
-                    understanding.entities
-                )
-            )
-
-            context.last_search_filters = (
-                ConversationContextManager.merge_filters(
-                    context.last_search_filters,
-                    new_filters,
-                )
-            )
+        # ProductSearchHandler is the sole owner of product-search state.
+        # Do not merge raw NER output here: doing so causes new searches to
+        # inherit stale filters before the handler can decide whether this is
+        # a refinement or a fresh search.
 
         return context
 

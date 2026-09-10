@@ -346,6 +346,9 @@ class ProductSearchFilters(BaseModel):
     category_ids: List[int] = Field(default_factory=list)
 
     category: Optional[str] = None
+    # All inventory-facing textual category keys that represent the canonical category.
+    # Used only as a legacy-document fallback; category_id/category_ids remain authoritative.
+    category_text_values: List[str] = Field(default_factory=list)
     type: Optional[str] = None
     brand: Optional[str] = None
     material: Optional[str] = None

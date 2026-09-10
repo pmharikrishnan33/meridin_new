@@ -452,6 +452,29 @@ class CatalogMetadataService:
         return result
 
     @staticmethod
+    def _category_metadata_keys(
+        metadata: Dict[str, Any],
+        category: Optional[str],
+    ) -> List[str]:
+        """Return metadata keys representing the same canonical category."""
+        if not category:
+            return []
+
+        normalized = str(category).strip().lower()
+        aliases = CatalogMetadataService._build_category_aliases(metadata)
+        accepted = {normalized}
+
+        for canonical, values in aliases.items():
+            canonical_value = str(canonical).strip().lower()
+            alias_values = values if isinstance(values, list) else [values]
+            alias_values = {str(v).strip().lower() for v in alias_values if v}
+            if normalized == canonical_value or normalized in alias_values:
+                accepted.add(canonical_value)
+                accepted.update(alias_values)
+
+        return sorted(accepted)
+
+    @staticmethod
     def _get_matching_category_ids(
         metadata: Dict[str, Any],
         category: Optional[str],
@@ -492,6 +515,13 @@ class CatalogMetadataService:
 
         result: List[int] = []
 
+        accepted_keys = set(
+            CatalogMetadataService._category_metadata_keys(
+                metadata,
+                normalized_category,
+            )
+        )
+
         for department_map in category_ids.values():
             if not isinstance(
                 department_map,
@@ -500,10 +530,7 @@ class CatalogMetadataService:
                 continue
 
             for key, value in department_map.items():
-                if (
-                    str(key).strip().lower()
-                    != normalized_category
-                ):
+                if str(key).strip().lower() not in accepted_keys:
                     continue
 
                 try:
@@ -1404,6 +1431,14 @@ class CatalogMetadataService:
         # A bare product keyword such as "shirt" is also a category alias.
         # Once metadata identifies it as a category, it must not remain as the
         # free-text query because the canonical category ID is authoritative.
+        if filters.category:
+            filters.category_text_values = (
+                self._category_metadata_keys(
+                    metadata,
+                    filters.category,
+                )
+            )
+
         if filters.query and filters.category:
             query_normalized = filters.query.strip().lower()
             category_candidates = {filters.category}
@@ -1492,7 +1527,12 @@ class CatalogMetadataService:
                     continue
                 if department_id == filters.department_id:
                     for key, value in mapping.items():
-                        if str(key).strip().lower() == filters.category:
+                        if str(key).strip().lower() in set(
+                            self._category_metadata_keys(
+                                metadata,
+                                filters.category,
+                            )
+                        ):
                             try:
                                 filters.category_id = int(value)
                                 filters.category_ids = [filters.category_id]
@@ -1504,6 +1544,15 @@ class CatalogMetadataService:
             filters.category_ids = matching_category_ids
             if len(matching_category_ids) == 1:
                 filters.category_id = matching_category_ids[0]
+
+        if filters.category_id is not None:
+            resolved_group = self.resolve_size_group_from_category_id(
+                metadata,
+                filters.department_id,
+                filters.category_id,
+            )
+            if resolved_group:
+                filters.size_group = resolved_group
 
         # Resolve metadata-defined category attributes such as dress_style.
         # The customer-facing canonical value and the inventory-facing numeric

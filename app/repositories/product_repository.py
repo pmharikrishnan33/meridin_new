@@ -470,14 +470,17 @@ class ProductRepository:
             )
         )
 
-        if department_id_condition:
-            conditions.append(
-                department_id_condition
-            )
+        if department_id_condition and department_text_condition:
+            conditions.append({
+                "$or": [
+                    department_id_condition,
+                    department_text_condition,
+                ]
+            })
+        elif department_id_condition:
+            conditions.append(department_id_condition)
         elif department_text_condition:
-            conditions.append(
-                department_text_condition
-            )
+            conditions.append(department_text_condition)
 
         # --------------------------------------------------
         # CANONICAL CATEGORY ID
@@ -500,21 +503,50 @@ class ProductRepository:
         else:
             category_id_condition = None
 
-        category_text_condition = (
-            self._build_exact_text_condition(
-                "category",
-                filters.category,
+        category_text_values = [
+            str(value).strip()
+            for value in (
+                getattr(filters, "category_text_values", []) or []
             )
-        )
+            if str(value).strip()
+        ]
+        if filters.category and not category_text_values:
+            category_text_values = [str(filters.category).strip()]
 
-        if category_id_condition:
-            conditions.append(
-                category_id_condition
-            )
+        category_text_conditions = [
+            self._build_exact_text_condition("category", value)
+            for value in category_text_values
+        ]
+        category_text_conditions = [
+            condition for condition in category_text_conditions if condition
+        ]
+        category_text_condition = None
+        if len(category_text_conditions) == 1:
+            category_text_condition = category_text_conditions[0]
+        elif category_text_conditions:
+            category_text_condition = {"$or": category_text_conditions}
+
+        if category_id_condition and category_text_condition:
+            # Canonical ID is preferred, but legacy documents with only a
+            # textual category must remain searchable during migration.
+            conditions.append({
+                "$or": [
+                    category_id_condition,
+                    {
+                        "$and": [
+                            {"$or": [
+                                {"category_id": {"$exists": False}},
+                                {"category_id": None},
+                            ]},
+                            category_text_condition,
+                        ]
+                    },
+                ]
+            })
+        elif category_id_condition:
+            conditions.append(category_id_condition)
         elif category_text_condition:
-            conditions.append(
-                category_text_condition
-            )
+            conditions.append(category_text_condition)
 
         # --------------------------------------------------
         # OTHER EXACT TEXT FILTERS
