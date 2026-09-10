@@ -164,17 +164,42 @@ class IntentClassifier:
     }
 
     @classmethod
-    def _clothing_terms(cls) -> list[str]:
-        """Small deterministic category vocabulary for intent routing."""
-        return [
-            "dress", "dresses", "shirt", "shirts", "t shirt", "t-shirts",
-            "top", "tops", "kurta", "kurtas", "kurti", "kurtis",
-            "saree", "sarees", "jean", "jeans", "pant", "pants",
-            "trouser", "trousers", "short", "shorts", "chino", "chinos",
-            "jacket", "jackets", "polo", "polos", "hoodie", "hoodies",
-            "sweatshirt", "sweatshirts", "cargo pants", "track pants",
-            "co-ord", "co-ords",
-        ]
+    def _explicit_clothing_intent(cls, text: str):
+        """Return a deterministic intent for explicit catalogue phrases."""
+        text = re.sub(r"\s+", " ", (text or "").strip().lower())
+        if not text:
+            return None
+
+        categories = (
+            "dresses", "dress", "shirts", "shirt", "t shirts", "t-shirt",
+            "tshirt", "tops", "top", "kurtas", "kurta", "kurtis", "kurti",
+            "sarees", "saree", "jeans", "jean", "trousers", "trouser",
+            "pants", "pant", "shorts", "short", "chinos", "chino",
+            "polos", "polo", "jackets", "jacket", "hoodies", "hoodie",
+            "sweatshirts", "sweatshirt", "cargo pants", "track pants",
+        )
+        has_category = any(
+            re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text)
+            for term in categories
+        )
+        if not has_category:
+            return None
+
+        availability_markers = (
+            "do you have", "is it available", "is this available",
+            "are they available", "available", "in stock", "stock",
+            "sold out",
+        )
+        search_markers = (
+            "show me", "show some", "show", "find me", "find",
+            "looking for", "i need", "i want", "search for",
+            "browse", "looking to buy", "buy",
+        )
+        if any(marker in text for marker in availability_markers):
+            return IntentType.AVAILABILITY
+        if any(marker in text for marker in search_markers):
+            return IntentType.PRODUCT_SEARCH
+        return None
 
     def __init__(self) -> None:
         self._confidence_threshold = (
@@ -247,37 +272,6 @@ class IntentClassifier:
                     IntentType.GREETING.value: 0.99,
                 },
                 margin=0.99,
-            )
-
-        # -----------------------------------------------------
-        # Deterministic commerce routing for explicit catalogue requests
-        # -----------------------------------------------------
-        # The ML model can be diffuse for short messages such as
-        # "show some trousers". Explicit commerce phrases are safer than
-        # allowing a low-confidence model prediction to choose another flow.
-        availability_phrases = (
-            "do you have", "is it available", "is this available",
-            "available", "in stock", "stock", "sold out",
-        )
-        search_phrases = (
-            "show me", "show some", "show", "find me", "find",
-            "looking for", "i need", "i want", "search for",
-            "browse", "looking to buy",
-        )
-        category_terms = tuple(self._clothing_terms())
-        has_category = any(
-            re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text_clean)
-            for term in category_terms
-        )
-        if has_category and any(phrase in text_clean for phrase in availability_phrases):
-            return IntentPrediction(
-                intent=IntentType.AVAILABILITY, confidence=0.96,
-                all_scores={IntentType.AVAILABILITY.value: 0.96}, margin=0.96,
-            )
-        if has_category and any(phrase in text_clean for phrase in search_phrases):
-            return IntentPrediction(
-                intent=IntentType.PRODUCT_SEARCH, confidence=0.96,
-                all_scores={IntentType.PRODUCT_SEARCH.value: 0.96}, margin=0.96,
             )
 
         # -----------------------------------------------------

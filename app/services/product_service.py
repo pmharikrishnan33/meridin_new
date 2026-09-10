@@ -1509,18 +1509,7 @@ class ProductService:
 
         filters = ProductSearchFilters()
 
-        # Entity extraction can produce ML + deterministic duplicates.
-        # Always use the highest-confidence value for each entity type.
-        best_entities: Dict[EntityType, ExtractedEntity] = {}
-        for entity in entities or []:
-            value = entity.normalized_value or entity.value
-            if not value or not str(value).strip():
-                continue
-            previous = best_entities.get(entity.entity_type)
-            if previous is None or entity.confidence > previous.confidence:
-                best_entities[entity.entity_type] = entity
-
-        for entity in best_entities.values():
+        for entity in entities:
             value = (
                 entity.normalized_value
                 or entity.value

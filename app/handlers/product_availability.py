@@ -22,8 +22,6 @@ from app.models.schemas import (
     MessageUnderstanding,
 )
 from app.services.product_service import product_service
-from app.services.catalog_metadata_service import catalog_metadata_service
-from app.conversation.context import ConversationContextManager
 
 
 class AvailabilityHandler(BaseHandler):
@@ -435,7 +433,12 @@ class AvailabilityHandler(BaseHandler):
             [],
         )
 
-        if isinstance(all_colors, (list, tuple)):
+        # IMPORTANT: available_colors is catalogue-derived information.
+        # It is never evidence that the customer requested a color. Only
+        # mention colors in the response when the customer actually supplied
+        # a color filter. This prevents responses such as "black trousers
+        # are available" after the customer only asked for trousers.
+        if color and isinstance(all_colors, (list, tuple)):
 
             normalized_colors = [
                 str(value).strip()
@@ -510,20 +513,6 @@ class AvailabilityHandler(BaseHandler):
             )
         )
 
-        # A variant follow-up such as "2XL" or "black" must inherit the
-        # complete previous search context. Availability and product search
-        # therefore share the same conversational filter merge semantics.
-        if conversation_context and conversation_context.last_search_filters:
-            has_new_search_anchor = bool(
-                filters.category or filters.query or filters.type
-            )
-            if not has_new_search_anchor:
-                merged = ConversationContextManager.merge_filters(
-                    conversation_context.last_search_filters,
-                    filters.model_dump(exclude_none=True),
-                )
-                filters = type(filters)(**merged)
-
         # -----------------------------------------------------
         # USE CONVERSATION CATEGORY
         # -----------------------------------------------------
@@ -537,12 +526,6 @@ class AvailabilityHandler(BaseHandler):
             filters.category = (
                 conversation_context.current_category
             )
-
-        filters, _ = await catalog_metadata_service.normalize_filters(
-            tenant_id=tenant_id,
-            filters=filters,
-            source_text=understanding.original_text,
-        )
 
         # -----------------------------------------------------
         # DETERMINE QUERY SCOPE

@@ -908,14 +908,11 @@ class ProductSearchHandler(BaseHandler):
         filters: ProductSearchFilters,
         understanding: MessageUnderstanding,
     ) -> bool:
-        """Return True only for a genuine follow-up/refinement message."""
+        """Only attribute-only follow-ups inherit previous search filters."""
         if any((filters.query, filters.category, filters.type)):
             return False
-        # A pending requirement answer (size/color/etc.) is a refinement.
-        # The router handles the pending state before this function, so a
-        # message with only an attribute should inherit the previous search.
         return any(
-            getattr(entity, "entity_type", None) in {
+            entity.entity_type in {
                 EntityType.COLOR, EntityType.SIZE, EntityType.FIT,
                 EntityType.PRICE, EntityType.BRAND, EntityType.MATERIAL,
                 EntityType.GENDER, EntityType.STYLE, EntityType.PATTERN,

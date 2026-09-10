@@ -129,11 +129,9 @@ class IntentRouter:
         # --------------------------------------------------------
         # INTERRUPT STALE PENDING STATE
         # --------------------------------------------------------
-        # Greetings always start a fresh conversational turn. A message that
-        # contains a new category/product search also replaces the old search
-        # instead of being consumed as an answer to the pending question.
-        session_for_interrupt = session
-        if session_for_interrupt is not None and context is not None:
+        # A greeting starts a new conversation turn. An explicit category/
+        # product search also replaces an older pending clarification.
+        if session is not None and context is not None:
             if understanding.intent == IntentType.GREETING:
                 context.awaiting_entity = None
                 context.awaiting_confirmation = False
@@ -141,25 +139,23 @@ class IntentRouter:
                 context.last_search_filters = {}
                 context.current_category = None
                 context.current_product = None
-                await conversation_manager.save_session(session_for_interrupt)
+                await conversation_manager.save_session(session)
             elif context.awaiting_entity is not None:
-                has_new_search_anchor = any(
-                    entity.entity_type in {
-                        EntityType.CATEGORY, EntityType.PRODUCT,
-                    }
+                has_search_anchor = any(
+                    entity.entity_type in {EntityType.CATEGORY, EntityType.PRODUCT}
                     for entity in (understanding.entities or [])
                 )
                 if understanding.intent in {
                     IntentType.PRODUCT_SEARCH,
                     IntentType.AVAILABILITY,
-                } and has_new_search_anchor:
+                } and has_search_anchor:
                     context.awaiting_entity = None
                     context.awaiting_confirmation = False
                     context.confirmation_context = {}
                     context.last_search_filters = {}
                     context.current_category = None
                     context.current_product = None
-                    await conversation_manager.save_session(session_for_interrupt)
+                    await conversation_manager.save_session(session)
 
         # --------------------------------------------------------
         # 2. PENDING ENTITY COLLECTION
@@ -361,23 +357,6 @@ class IntentRouter:
                 "Handler not found: %s",
                 config.handler_class,
             )
-
-            if intent in {
-                IntentType.PRODUCT_SEARCH,
-                IntentType.AVAILABILITY,
-            }:
-                return BotResponse(
-                    response_type="text",
-                    text=(
-                        "I couldn't complete that catalogue request right now. "
-                        "Please try again."
-                    ),
-                    quick_replies=[],
-                    metadata={
-                        "catalogue_error": True,
-                        "search_performed": False,
-                    },
-                )
 
             return await self._ai_fallback_response(
                 tenant_settings,
@@ -752,14 +731,10 @@ class IntentRouter:
                 exc,
             )
 
-            return BotResponse(
-                response_type="text",
-                text=(
-                    "I couldn't complete that catalogue search right now. "
-                    "Please try again."
-                ),
-                quick_replies=[],
-                metadata={"search_performed": False, "catalogue_error": True},
+            return await self._ai_fallback_response(
+                tenant_settings,
+                conversation_id,
+                understanding.original_text,
             )
 
     def _persist_product_search_clarification(
@@ -811,18 +786,12 @@ class IntentRouter:
             False
         )
 
-        collected = response.metadata.get("filters_collected") or {}
-        # Preserve every filter already collected while asking for the next
-        # attribute. This is the critical state snapshot for flows such as
-        # shirts -> black -> 2XL.
-        session.context.last_search_filters = dict(collected)
-        if collected.get("category"):
-            session.context.current_category = collected["category"]
         session.context.confirmation_context = {
             "intent": IntentType.PRODUCT_SEARCH.value,
             "requirement": requirement,
-            "missing_entities": [str(missing)],
-            "filters_collected": dict(collected),
+            "missing_entities": [
+                str(missing)
+            ],
         }
 
     # ============================================================

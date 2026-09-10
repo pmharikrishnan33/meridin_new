@@ -9,7 +9,6 @@ from app.models.schemas import (
     MessageUnderstanding,
     ConversationContext,
     BotResponse,
-    IntentType,
 )
 from app.ai.fallback import ai_fallback
 from app.utils.logger import logger
@@ -44,21 +43,22 @@ class FallbackHandler(BaseHandler):
         )
 
         feature_flags = tenant_settings.get("feature_flags", {})
-        commerce_entity_types = {
+        commerce_types = {
             "product", "category", "color", "size", "brand",
             "material", "gender", "price", "fit", "style",
         }
         has_catalogue_entity = any(
             getattr(entity.entity_type, "value", str(entity.entity_type))
-            in commerce_entity_types
+            in commerce_types
             for entity in (understanding.entities or [])
         )
-        # AI may handle conversational unknowns, but it must never invent
-        # catalogue facts when the message contains commerce constraints.
-        allow_ai_catalogue_fallback = not has_catalogue_entity and understanding.intent not in {
-            IntentType.PRODUCT_SEARCH,
-            IntentType.AVAILABILITY,
-        }
+        allow_ai_catalogue_fallback = (
+            not has_catalogue_entity
+            and understanding.intent not in {
+                IntentType.PRODUCT_SEARCH,
+                IntentType.AVAILABILITY,
+            }
+        )
         if (
             feature_flags.get("enable_ai_responses", False)
             and ai_fallback.is_available

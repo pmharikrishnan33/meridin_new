@@ -156,9 +156,19 @@ class ConversationSession:
             understanding,
         )
 
-        # ProductSearchHandler owns product-search filter state and decides
-        # whether a message is a new search or a follow-up. Updating it here
-        # would pre-merge stale filters before that decision is made.
+        if understanding.intent == IntentType.PRODUCT_SEARCH:
+            new_filters = (
+                ConversationContextManager.entities_to_filters(
+                    understanding.entities
+                )
+            )
+
+            self.context.last_search_filters = (
+                ConversationContextManager.merge_filters(
+                    self.context.last_search_filters,
+                    new_filters,
+                )
+            )
 
         self.last_updated = datetime.now(timezone.utc)
 
