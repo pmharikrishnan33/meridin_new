@@ -470,17 +470,24 @@ class ProductRepository:
             )
         )
 
-        if department_id_condition and department_text_condition:
-            conditions.append({
-                "$or": [
-                    department_id_condition,
-                    department_text_condition,
-                ]
-            })
-        elif department_id_condition:
-            conditions.append(department_id_condition)
-        elif department_text_condition:
-            conditions.append(department_text_condition)
+        department_terms = list(
+            getattr(filters, "department_terms", []) or []
+        )
+        if not department_terms and filters.gender:
+            department_terms = [filters.gender]
+        department_text_conditions = [
+            self._build_exact_text_condition("gender", term)
+            for term in department_terms
+        ]
+        department_text_conditions = [c for c in department_text_conditions if c]
+        if department_text_conditions:
+            department_text_condition = self._or_condition(*department_text_conditions)
+
+        department_combined = self._or_condition(
+            department_id_condition, department_text_condition
+        )
+        if department_combined:
+            conditions.append(department_combined)
 
         # --------------------------------------------------
         # CANONICAL CATEGORY ID
@@ -503,50 +510,23 @@ class ProductRepository:
         else:
             category_id_condition = None
 
-        category_text_values = [
-            str(value).strip()
-            for value in (
-                getattr(filters, "category_text_values", []) or []
-            )
-            if str(value).strip()
-        ]
-        if filters.category and not category_text_values:
-            category_text_values = [str(filters.category).strip()]
-
+        category_terms = list(
+            getattr(filters, "category_terms", []) or []
+        )
+        if not category_terms and filters.category:
+            category_terms = [filters.category]
         category_text_conditions = [
-            self._build_exact_text_condition("category", value)
-            for value in category_text_values
+            self._build_exact_text_condition("category", term)
+            for term in category_terms
         ]
-        category_text_conditions = [
-            condition for condition in category_text_conditions if condition
-        ]
-        category_text_condition = None
-        if len(category_text_conditions) == 1:
-            category_text_condition = category_text_conditions[0]
-        elif category_text_conditions:
-            category_text_condition = {"$or": category_text_conditions}
+        category_text_conditions = [c for c in category_text_conditions if c]
+        category_text_condition = self._or_condition(*category_text_conditions)
 
-        if category_id_condition and category_text_condition:
-            # Canonical ID is preferred, but legacy documents with only a
-            # textual category must remain searchable during migration.
-            conditions.append({
-                "$or": [
-                    category_id_condition,
-                    {
-                        "$and": [
-                            {"$or": [
-                                {"category_id": {"$exists": False}},
-                                {"category_id": None},
-                            ]},
-                            category_text_condition,
-                        ]
-                    },
-                ]
-            })
-        elif category_id_condition:
-            conditions.append(category_id_condition)
-        elif category_text_condition:
-            conditions.append(category_text_condition)
+        category_combined = self._or_condition(
+            category_id_condition, category_text_condition
+        )
+        if category_combined:
+            conditions.append(category_combined)
 
         # --------------------------------------------------
         # OTHER EXACT TEXT FILTERS
@@ -602,12 +582,14 @@ class ProductRepository:
             )
         )
 
-        color_text_condition = (
-            self._build_array_condition(
-                "color",
-                color_value,
-            )
-        )
+        color_terms = list(getattr(filters, "color_terms", []) or [])
+        if not color_terms and color_value:
+            color_terms = [color_value]
+        color_text_conditions = [
+            self._build_array_condition("color", term)
+            for term in color_terms
+        ]
+        color_text_condition = self._or_condition(*color_text_conditions)
 
         color_variant_condition = None
 
@@ -682,12 +664,14 @@ class ProductRepository:
             )
         )
 
-        size_text_condition = (
-            self._build_array_condition(
-                "size",
-                size_value,
-            )
-        )
+        size_terms = list(getattr(filters, "size_terms", []) or [])
+        if not size_terms and size_value:
+            size_terms = [size_value]
+        size_text_conditions = [
+            self._build_array_condition("size", term)
+            for term in size_terms
+        ]
+        size_text_condition = self._or_condition(*size_text_conditions)
 
         size_variant_condition = None
 

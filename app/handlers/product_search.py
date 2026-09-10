@@ -107,7 +107,7 @@ class ProductSearchHandler(BaseHandler):
             conversation_context
             and conversation_context.last_search_filters
             and self._should_refine_previous_search(
-                filters
+                filters, understanding
             )
         ):
             filters_dict = filters.model_dump(
@@ -906,19 +906,23 @@ class ProductSearchHandler(BaseHandler):
     @staticmethod
     def _should_refine_previous_search(
         filters: ProductSearchFilters,
+        understanding: MessageUnderstanding,
     ) -> bool:
-        """
-        A bare refinement such as "M" inherits the previous search.
-
-        A new product/category/type query starts a fresh search.
-        """
-
-        return not any(
-            (
-                filters.query,
-                filters.category,
-                filters.type,
-            )
+        """Return True only for a genuine follow-up/refinement message."""
+        if any((filters.query, filters.category, filters.type)):
+            return False
+        # A pending requirement answer (size/color/etc.) is a refinement.
+        # The router handles the pending state before this function, so a
+        # message with only an attribute should inherit the previous search.
+        return any(
+            getattr(entity, "entity_type", None) in {
+                EntityType.COLOR, EntityType.SIZE, EntityType.FIT,
+                EntityType.PRICE, EntityType.BRAND, EntityType.MATERIAL,
+                EntityType.GENDER, EntityType.STYLE, EntityType.PATTERN,
+                EntityType.OCCASION, EntityType.SEASON, EntityType.SLEEVE,
+                EntityType.NECK,
+            }
+            for entity in (understanding.entities or [])
         )
 
     # ============================================================

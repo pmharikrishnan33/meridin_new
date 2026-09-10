@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from app.conversation.context import ConversationContextManager
 from app.handlers.base_handler import BaseHandler
 from app.models.schemas import (
     BotResponse,
@@ -22,8 +21,9 @@ from app.models.schemas import (
     EntityType,
     MessageUnderstanding,
 )
-from app.services.catalog_metadata_service import catalog_metadata_service
 from app.services.product_service import product_service
+from app.services.catalog_metadata_service import catalog_metadata_service
+from app.conversation.context import ConversationContextManager
 
 
 class AvailabilityHandler(BaseHandler):
@@ -504,56 +504,45 @@ class AvailabilityHandler(BaseHandler):
         # BUILD FILTERS
         # -----------------------------------------------------
 
-        filters = product_service.entities_to_filters(
-            understanding.entities
+        filters = (
+            product_service.entities_to_filters(
+                understanding.entities
+            )
         )
 
-        # Attribute-only availability follow-ups (for example "2XL" after
-        # "Do you have black shirts?") refine the previous catalogue search.
-        # A message containing a category/product starts a fresh availability
-        # search instead of inheriting stale filters.
-        current_dict = filters.model_dump(exclude_none=True)
-        is_attribute_only = not any(
-            current_dict.get(key)
-            for key in ("query", "category", "type")
-        )
+        # A variant follow-up such as "2XL" or "black" must inherit the
+        # complete previous search context. Availability and product search
+        # therefore share the same conversational filter merge semantics.
+        if conversation_context and conversation_context.last_search_filters:
+            has_new_search_anchor = bool(
+                filters.category or filters.query or filters.type
+            )
+            if not has_new_search_anchor:
+                merged = ConversationContextManager.merge_filters(
+                    conversation_context.last_search_filters,
+                    filters.model_dump(exclude_none=True),
+                )
+                filters = type(filters)(**merged)
+
+        # -----------------------------------------------------
+        # USE CONVERSATION CATEGORY
+        # -----------------------------------------------------
 
         if (
-            is_attribute_only
-            and conversation_context
-            and conversation_context.last_search_filters
-        ):
-            merged = ConversationContextManager.merge_filters(
-                conversation_context.last_search_filters,
-                current_dict,
-            )
-            filters = type(filters)(**merged)
-        elif (
             not filters.category
             and conversation_context
             and conversation_context.current_category
         ):
-            filters.category = conversation_context.current_category
 
-        # Resolve canonical metadata IDs just like product search.
-        filters, clarification = await catalog_metadata_service.normalize_filters(
+            filters.category = (
+                conversation_context.current_category
+            )
+
+        filters, _ = await catalog_metadata_service.normalize_filters(
             tenant_id=tenant_id,
             filters=filters,
             source_text=understanding.original_text,
         )
-
-        if clarification:
-            return BotResponse(
-                response_type="text",
-                text=clarification,
-                quick_replies=[],
-                products=[],
-                metadata={
-                    "needs_clarification": True,
-                    "missing": "size",
-                    "availability_checked": False,
-                },
-            )
 
         # -----------------------------------------------------
         # DETERMINE QUERY SCOPE

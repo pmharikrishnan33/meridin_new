@@ -342,13 +342,12 @@ class ProductSearchFilters(BaseModel):
     query: Optional[str] = None
 
     department_id: Optional[int] = None
+    department_terms: List[str] = Field(default_factory=list)
     category_id: Optional[int] = None
     category_ids: List[int] = Field(default_factory=list)
 
     category: Optional[str] = None
-    # All inventory-facing textual category keys that represent the canonical category.
-    # Used only as a legacy-document fallback; category_id/category_ids remain authoritative.
-    category_text_values: List[str] = Field(default_factory=list)
+    category_terms: List[str] = Field(default_factory=list)
     type: Optional[str] = None
     brand: Optional[str] = None
     material: Optional[str] = None
@@ -357,10 +356,12 @@ class ProductSearchFilters(BaseModel):
 
     color_id: Optional[int] = None
     color: Optional[str] = None
+    color_terms: List[str] = Field(default_factory=list)
 
     size_group: Optional[str] = None
     size_id: Optional[int] = None
     size: Optional[str] = None
+    size_terms: List[str] = Field(default_factory=list)
 
     tags: List[str] = Field(
         default_factory=list

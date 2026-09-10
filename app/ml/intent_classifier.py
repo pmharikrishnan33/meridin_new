@@ -163,6 +163,19 @@ class IntentClassifier:
         ],
     }
 
+    @classmethod
+    def _clothing_terms(cls) -> list[str]:
+        """Small deterministic category vocabulary for intent routing."""
+        return [
+            "dress", "dresses", "shirt", "shirts", "t shirt", "t-shirts",
+            "top", "tops", "kurta", "kurtas", "kurti", "kurtis",
+            "saree", "sarees", "jean", "jeans", "pant", "pants",
+            "trouser", "trousers", "short", "shorts", "chino", "chinos",
+            "jacket", "jackets", "polo", "polos", "hoodie", "hoodies",
+            "sweatshirt", "sweatshirts", "cargo pants", "track pants",
+            "co-ord", "co-ords",
+        ]
+
     def __init__(self) -> None:
         self._confidence_threshold = (
             self.INTENT_CONFIDENCE_THRESHOLD
@@ -219,7 +232,6 @@ class IntentClassifier:
             "hi",
             "hello",
             "hey",
-            "hei",
             "hii",
             "helo",
             "namaste",
@@ -238,34 +250,34 @@ class IntentClassifier:
             )
 
         # -----------------------------------------------------
-        # Deterministic product-category search boundary
+        # Deterministic commerce routing for explicit catalogue requests
         # -----------------------------------------------------
-        # Clothing category phrases are strong evidence of a catalogue
-        # search when paired with an explicit search verb. This protects
-        # phrases such as "show some trousers" from a low-confidence ML
-        # classification. Availability phrases remain handled separately.
-        category_terms = (
-            "shirt", "shirts", "t shirt", "t-shirt",
-            "trouser", "trousers", "pant", "pants",
-            "jean", "jeans", "chino", "chinos",
-            "dress", "dresses", "jacket", "jackets",
-            "polo", "polos", "short", "shorts",
-            "kurta", "kurtas", "kurti", "kurtis",
+        # The ML model can be diffuse for short messages such as
+        # "show some trousers". Explicit commerce phrases are safer than
+        # allowing a low-confidence model prediction to choose another flow.
+        availability_phrases = (
+            "do you have", "is it available", "is this available",
+            "available", "in stock", "stock", "sold out",
         )
-        search_prefixes = (
-            "show ", "show me ", "find ", "search ",
-            "looking for ", "i need ", "i want ",
-            "give me ", "get me ",
+        search_phrases = (
+            "show me", "show some", "show", "find me", "find",
+            "looking for", "i need", "i want", "search for",
+            "browse", "looking to buy",
         )
-        if (
-            any(text_clean.startswith(prefix) for prefix in search_prefixes)
-            and any(re.search(rf"\b{re.escape(term)}\b", text_clean) for term in category_terms)
-        ):
+        category_terms = tuple(self._clothing_terms())
+        has_category = any(
+            re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text_clean)
+            for term in category_terms
+        )
+        if has_category and any(phrase in text_clean for phrase in availability_phrases):
             return IntentPrediction(
-                intent=IntentType.PRODUCT_SEARCH,
-                confidence=0.99,
-                all_scores={IntentType.PRODUCT_SEARCH.value: 0.99},
-                margin=0.99,
+                intent=IntentType.AVAILABILITY, confidence=0.96,
+                all_scores={IntentType.AVAILABILITY.value: 0.96}, margin=0.96,
+            )
+        if has_category and any(phrase in text_clean for phrase in search_phrases):
+            return IntentPrediction(
+                intent=IntentType.PRODUCT_SEARCH, confidence=0.96,
+                all_scores={IntentType.PRODUCT_SEARCH.value: 0.96}, margin=0.96,
             )
 
         # -----------------------------------------------------

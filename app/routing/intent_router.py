@@ -127,82 +127,49 @@ class IntentRouter:
             )
 
         # --------------------------------------------------------
-        # 2. HIGH-PRIORITY FLOW INTERRUPTS
+        # INTERRUPT STALE PENDING STATE
+        # --------------------------------------------------------
+        # Greetings always start a fresh conversational turn. A message that
+        # contains a new category/product search also replaces the old search
+        # instead of being consumed as an answer to the pending question.
+        session_for_interrupt = session
+        if session_for_interrupt is not None and context is not None:
+            if understanding.intent == IntentType.GREETING:
+                context.awaiting_entity = None
+                context.awaiting_confirmation = False
+                context.confirmation_context = {}
+                context.last_search_filters = {}
+                context.current_category = None
+                context.current_product = None
+                await conversation_manager.save_session(session_for_interrupt)
+            elif context.awaiting_entity is not None:
+                has_new_search_anchor = any(
+                    entity.entity_type in {
+                        EntityType.CATEGORY, EntityType.PRODUCT,
+                    }
+                    for entity in (understanding.entities or [])
+                )
+                if understanding.intent in {
+                    IntentType.PRODUCT_SEARCH,
+                    IntentType.AVAILABILITY,
+                } and has_new_search_anchor:
+                    context.awaiting_entity = None
+                    context.awaiting_confirmation = False
+                    context.confirmation_context = {}
+                    context.last_search_filters = {}
+                    context.current_category = None
+                    context.current_product = None
+                    await conversation_manager.save_session(session_for_interrupt)
+
+        # --------------------------------------------------------
+        # 2. PENDING ENTITY COLLECTION
         # --------------------------------------------------------
 
-        # Greetings must never be interpreted as answers to a previous
-        # clarification (e.g. "Hello" while awaiting SIZE).
         if (
             session is not None
             and context is not None
-            and understanding.intent == IntentType.GREETING
-        ):
-            session.clear_pending_state()
-            context.last_search_filters = {}
-            context.last_search_results = []
-            context.current_category = None
-            context.current_product = None
-            session.clear_active_search()
-
-        # A clearly new product search interrupts a pending requirement.
-        # Example: awaiting SIZE after "black shirt", then "show me trousers".
-        elif (
-            session is not None
-            and context is not None
-            and context.awaiting_entity is not None
-            and understanding.intent == IntentType.PRODUCT_SEARCH
-            and any(
-                entity.entity_type in {
-                    EntityType.CATEGORY,
-                    EntityType.PRODUCT,
-                }
-                for entity in understanding.entities
-            )
-        ):
-            session.clear_pending_state()
-
-        # --------------------------------------------------------
-        # 3. PENDING ENTITY COLLECTION
-        # --------------------------------------------------------
-
-        if (
-            session is not None
-            and context is not None
             and context.awaiting_entity is not None
         ):
-            pending_intent = (
-                context.confirmation_context.get("intent")
-                if context.confirmation_context
-                else None
-            )
-            extracted_pending = self._find_entity(
-                understanding.entities,
-                context.awaiting_entity,
-            )
-
-            # An actual answer to the pending question must be allowed
-            # through even if the classifier calls it UNKNOWN. Otherwise a
-            # bare value such as "2XL" can never complete the search.
-            if extracted_pending is not None:
-                pass
-            elif understanding.intent in {
-                IntentType.GREETING,
-                IntentType.THANKS,
-                IntentType.COMPLAINT,
-                IntentType.ORDER_STATUS,
-                IntentType.CANCEL_ORDER,
-                IntentType.RETURN_REQUEST,
-            }:
-                session.clear_pending_state()
-            elif (
-                pending_intent
-                and pending_intent != understanding.intent.value
-                and understanding.intent != IntentType.UNKNOWN
-            ):
-                # The customer changed subject. Do not keep asking the old
-                # requirement question.
-                session.clear_pending_state()
-
             pending_response = (
                 await self._handle_pending_entity(
                     understanding=understanding,
@@ -395,9 +362,27 @@ class IntentRouter:
                 config.handler_class,
             )
 
-            return self._safe_handler_failure_response(
-                intent=intent,
-                tenant_settings=tenant_settings,
+            if intent in {
+                IntentType.PRODUCT_SEARCH,
+                IntentType.AVAILABILITY,
+            }:
+                return BotResponse(
+                    response_type="text",
+                    text=(
+                        "I couldn't complete that catalogue request right now. "
+                        "Please try again."
+                    ),
+                    quick_replies=[],
+                    metadata={
+                        "catalogue_error": True,
+                        "search_performed": False,
+                    },
+                )
+
+            return await self._ai_fallback_response(
+                tenant_settings,
+                conversation_id,
+                understanding.original_text,
             )
 
         try:
@@ -443,9 +428,10 @@ class IntentRouter:
                 exc,
             )
 
-            return self._safe_handler_failure_response(
-                intent=intent,
-                tenant_settings=tenant_settings,
+            return await self._ai_fallback_response(
+                tenant_settings,
+                conversation_id,
+                understanding.original_text,
             )
 
     # ============================================================
@@ -766,10 +752,14 @@ class IntentRouter:
                 exc,
             )
 
-            return await self._ai_fallback_response(
-                tenant_settings,
-                conversation_id,
-                understanding.original_text,
+            return BotResponse(
+                response_type="text",
+                text=(
+                    "I couldn't complete that catalogue search right now. "
+                    "Please try again."
+                ),
+                quick_replies=[],
+                metadata={"search_performed": False, "catalogue_error": True},
             )
 
     def _persist_product_search_clarification(
@@ -821,12 +811,18 @@ class IntentRouter:
             False
         )
 
+        collected = response.metadata.get("filters_collected") or {}
+        # Preserve every filter already collected while asking for the next
+        # attribute. This is the critical state snapshot for flows such as
+        # shirts -> black -> 2XL.
+        session.context.last_search_filters = dict(collected)
+        if collected.get("category"):
+            session.context.current_category = collected["category"]
         session.context.confirmation_context = {
             "intent": IntentType.PRODUCT_SEARCH.value,
             "requirement": requirement,
-            "missing_entities": [
-                str(missing)
-            ],
+            "missing_entities": [str(missing)],
+            "filters_collected": dict(collected),
         }
 
     # ============================================================
@@ -1181,44 +1177,6 @@ class IntentRouter:
             metadata={
                 "fallback": True
             },
-        )
-
-    @staticmethod
-    def _safe_handler_failure_response(
-        *,
-        intent: IntentType,
-        tenant_settings: Dict[str, Any],
-    ) -> BotResponse:
-        """Return a non-invented response when a deterministic handler fails."""
-        if intent in {
-            IntentType.PRODUCT_SEARCH,
-            IntentType.PRODUCT_INQUIRY,
-            IntentType.AVAILABILITY,
-        }:
-            return BotResponse(
-                response_type="text",
-                text=(
-                    "I couldn't access the catalogue right now. "
-                    "Please try again in a moment."
-                ),
-                quick_replies=[],
-                products=[],
-                metadata={
-                    "catalogue_grounded": True,
-                    "catalogue_error": True,
-                    "ai_fallback_blocked": True,
-                },
-            )
-
-        return BotResponse(
-            response_type="text",
-            text=tenant_settings.get(
-                "fallback_message",
-                "I didn't understand that. Could you please rephrase?",
-            ),
-            quick_replies=[],
-            products=[],
-            metadata={"fallback": True},
         )
 
     async def _ai_fallback_response(
