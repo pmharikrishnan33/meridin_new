@@ -469,6 +469,7 @@ class CatalogMetadataService:
         return result
 
     def _get_matching_category_ids(
+        self,
         metadata: Dict[str, Any],
         category: Optional[str],
     ) -> List[int]:
