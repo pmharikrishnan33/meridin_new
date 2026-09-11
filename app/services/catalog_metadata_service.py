@@ -452,7 +452,6 @@ class CatalogMetadataService:
         return result
 
     @staticmethod
-    @staticmethod
     def _category_alias_set(
         metadata: Dict[str, Any],
         category: Optional[str],
