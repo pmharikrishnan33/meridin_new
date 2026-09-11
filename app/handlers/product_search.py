@@ -156,15 +156,17 @@ class ProductSearchHandler(BaseHandler):
         )
 
         if size_clarification:
+            if conversation_context:
+                conversation_context.last_search_filters = filters.model_dump(exclude_none=True)
             return BotResponse(
                 response_type="text",
                 text=size_clarification,
+                quick_replies=[],
                 metadata={
                     "needs_clarification": True,
                     "missing": "size",
-                    "filters": filters.model_dump(
-                        exclude_none=True
-                    ),
+                    "filters": filters.model_dump(exclude_none=True),
+                    "filters_collected": filters.model_dump(exclude_none=True),
                 },
             )
 

@@ -358,6 +358,8 @@ class IntentRouter:
                 config.handler_class,
             )
 
+            if intent in {IntentType.PRODUCT_SEARCH, IntentType.AVAILABILITY}:
+                return self._catalogue_error_response()
             return await self._ai_fallback_response(
                 tenant_settings,
                 conversation_id,
@@ -407,6 +409,8 @@ class IntentRouter:
                 exc,
             )
 
+            if intent in {IntentType.PRODUCT_SEARCH, IntentType.AVAILABILITY}:
+                return self._catalogue_error_response()
             return await self._ai_fallback_response(
                 tenant_settings,
                 conversation_id,
@@ -731,10 +735,18 @@ class IntentRouter:
                 exc,
             )
 
-            return await self._ai_fallback_response(
-                tenant_settings,
-                conversation_id,
-                understanding.original_text,
+            return BotResponse(
+                response_type="text",
+                text=(
+                    "I couldn't complete the catalogue search right now. "
+                    "Please try again."
+                ),
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "catalogue_error": True,
+                    "search_performed": False,
+                },
             )
 
     def _persist_product_search_clarification(
@@ -786,12 +798,20 @@ class IntentRouter:
             False
         )
 
+        collected = response.metadata.get("filters_collected") or {}
+
+        # Persist the COMPLETE normalized filter snapshot. The next turn may
+        # contain only one attribute (for example "2XL"). Without this
+        # snapshot, a flow such as "black shirt" -> "2XL" loses color/category.
+        session.context.last_search_filters = dict(collected)
+        if collected.get("category"):
+            session.context.current_category = collected["category"]
+
         session.context.confirmation_context = {
             "intent": IntentType.PRODUCT_SEARCH.value,
             "requirement": requirement,
-            "missing_entities": [
-                str(missing)
-            ],
+            "missing_entities": [str(missing)],
+            "filters_collected": dict(collected),
         }
 
     # ============================================================
@@ -1124,6 +1144,24 @@ class IntentRouter:
                 "handler": handler,
                 "confidence": confidence,
             }
+        )
+
+    @staticmethod
+    def _catalogue_error_response() -> BotResponse:
+        """Deterministic failure response for catalogue operations.
+
+        Catalogue facts must only come from verified MongoDB data; routing or
+        database failures must never be hidden by an LLM-generated response.
+        """
+        return BotResponse(
+            response_type="text",
+            text="I couldn't complete the catalogue search right now. Please try again.",
+            quick_replies=[],
+            products=[],
+            metadata={
+                "catalogue_error": True,
+                "search_performed": False,
+            },
         )
 
     def _fallback_response(

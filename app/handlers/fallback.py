@@ -9,6 +9,7 @@ from app.models.schemas import (
     MessageUnderstanding,
     ConversationContext,
     BotResponse,
+    IntentType,
 )
 from app.ai.fallback import ai_fallback
 from app.utils.logger import logger

@@ -452,6 +452,23 @@ class CatalogMetadataService:
         return result
 
     @staticmethod
+    @staticmethod
+    def _category_alias_set(
+        metadata: Dict[str, Any],
+        category: Optional[str],
+    ) -> set[str]:
+        if not category:
+            return set()
+        value = str(category).strip().lower()
+        aliases = CatalogMetadataService._build_category_aliases(metadata)
+        result = {value}
+        for canonical, values in aliases.items():
+            values_set = {str(v).strip().lower() for v in (values or []) if v}
+            if value == canonical or value in values_set:
+                result.add(canonical)
+                result.update(values_set)
+        return result
+
     def _get_matching_category_ids(
         metadata: Dict[str, Any],
         category: Optional[str],
@@ -500,9 +517,8 @@ class CatalogMetadataService:
                 continue
 
             for key, value in department_map.items():
-                if (
-                    str(key).strip().lower()
-                    != normalized_category
+                if str(key).strip().lower() not in CatalogMetadataService._category_alias_set(
+                    metadata, normalized_category
                 ):
                     continue
 
@@ -1406,11 +1422,7 @@ class CatalogMetadataService:
         # free-text query because the canonical category ID is authoritative.
         if filters.query and filters.category:
             query_normalized = filters.query.strip().lower()
-            category_candidates = {filters.category}
-            category_candidates.update(
-                str(v).strip().lower()
-                for v in category_aliases.get(filters.category, [])
-            )
+            category_candidates = self._category_alias_set(metadata, filters.category)
             if query_normalized in category_candidates:
                 filters.query = None
 
@@ -1491,14 +1503,18 @@ class CatalogMetadataService:
                 except (TypeError, ValueError):
                     continue
                 if department_id == filters.department_id:
+                    accepted_categories = self._category_alias_set(
+                        metadata, filters.category
+                    )
                     for key, value in mapping.items():
-                        if str(key).strip().lower() == filters.category:
-                            try:
-                                filters.category_id = int(value)
-                                filters.category_ids = [filters.category_id]
-                            except (TypeError, ValueError):
-                                pass
-                            break
+                        if str(key).strip().lower() not in accepted_categories:
+                            continue
+                        try:
+                            filters.category_id = int(value)
+                            filters.category_ids = [filters.category_id]
+                        except (TypeError, ValueError):
+                            pass
+                        break
                     break
         elif matching_category_ids:
             filters.category_ids = matching_category_ids

@@ -358,6 +358,41 @@ class ProductRepository:
             if product_id in products_by_id
         ]
 
+    @staticmethod
+    def _category_terms(category: Optional[str]) -> List[str]:
+        """Return canonical + common legacy textual names for a category."""
+        if not category:
+            return []
+        value = category.strip().lower()
+        aliases = {
+            "shirt": ["shirt", "shirts"],
+            "shirts": ["shirt", "shirts"],
+            "t-shirt": ["t-shirt", "t shirts", "tshirt", "t-shirt", "tshirts"],
+            "t shirts": ["t-shirt", "t shirts", "tshirt", "tshirts"],
+            "tshirt": ["t-shirt", "t shirts", "tshirt", "tshirts"],
+            "dress": ["dress", "dresses"],
+            "dresses": ["dress", "dresses"],
+            "pant": ["pant", "pants", "trouser", "trousers"],
+            "pants": ["pant", "pants", "trouser", "trousers"],
+            "trouser": ["pant", "pants", "trouser", "trousers"],
+            "trousers": ["pant", "pants", "trouser", "trousers"],
+            "jean": ["jean", "jeans"],
+            "jeans": ["jean", "jeans"],
+            "polo": ["polo", "polos"],
+            "polos": ["polo", "polos"],
+            "short": ["short", "shorts"],
+            "shorts": ["short", "shorts"],
+            "jacket": ["jacket", "jackets"],
+            "jackets": ["jacket", "jackets"],
+            "hoodie": ["hoodie", "hoodies"],
+            "hoodies": ["hoodie", "hoodies"],
+            "kurta": ["kurta", "kurtas"],
+            "kurtas": ["kurta", "kurtas"],
+            "kurti": ["kurti", "kurtis"],
+            "kurtis": ["kurti", "kurtis"],
+        }
+        return aliases.get(value, [value])
+
     async def search(
         self,
         tenant_id: str,
@@ -500,21 +535,25 @@ class ProductRepository:
         else:
             category_id_condition = None
 
-        category_text_condition = (
-            self._build_exact_text_condition(
-                "category",
-                filters.category,
-            )
+        # Numeric metadata is preferred, but it must NEVER exclude legacy
+        # products that only contain a textual category. Search both forms.
+        category_terms = self._category_terms(filters.category)
+        category_text_conditions = [
+            self._build_exact_text_condition("category", term)
+            for term in category_terms
+            if term
+        ]
+        category_text_condition = self._or_condition(
+            *category_text_conditions
         )
 
-        if category_id_condition:
-            conditions.append(
-                category_id_condition
-            )
-        elif category_text_condition:
-            conditions.append(
-                category_text_condition
-            )
+        category_condition = self._or_condition(
+            category_id_condition,
+            category_text_condition,
+        )
+
+        if category_condition:
+            conditions.append(category_condition)
 
         # --------------------------------------------------
         # OTHER EXACT TEXT FILTERS

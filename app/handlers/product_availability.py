@@ -22,6 +22,8 @@ from app.models.schemas import (
     MessageUnderstanding,
 )
 from app.services.product_service import product_service
+from app.services.catalog_metadata_service import catalog_metadata_service
+from app.conversation.context import ConversationContextManager
 
 
 class AvailabilityHandler(BaseHandler):
@@ -85,58 +87,86 @@ class AvailabilityHandler(BaseHandler):
                 color_entity = entity
 
         # -----------------------------------------------------
+        # BUILD + MERGE FILTERS
+        # -----------------------------------------------------
+
+        filters = product_service.entities_to_filters(
+            understanding.entities
+        )
+
+        # An attribute-only availability follow-up inherits the complete
+        # previous search, exactly like PRODUCT_SEARCH. New category/product
+        # anchors replace the old search instead of being merged into it.
+        current_filter_dict = filters.model_dump(exclude_none=True)
+        has_new_search_anchor = bool(
+            filters.category or filters.query or filters.type
+        )
+        if (
+            conversation_context
+            and conversation_context.last_search_filters
+            and not has_new_search_anchor
+        ):
+            merged = ConversationContextManager.merge_filters(
+                conversation_context.last_search_filters,
+                current_filter_dict,
+            )
+            filters = type(filters)(**merged)
+
+        if (
+            not filters.category
+            and conversation_context
+            and conversation_context.current_category
+        ):
+            filters.category = conversation_context.current_category
+
+        filters, clarification = await catalog_metadata_service.normalize_filters(
+            tenant_id=tenant_id,
+            filters=filters,
+            source_text=understanding.original_text,
+        )
+
+        if clarification:
+            return BotResponse(
+                response_type="text",
+                text=clarification,
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "needs_clarification": True,
+                    "availability_checked": False,
+                    "missing": "size",
+                    "filters_collected": filters.model_dump(exclude_none=True),
+                },
+            )
+
+        # -----------------------------------------------------
         # PRODUCT IDENTIFICATION
         # -----------------------------------------------------
 
         product_id: Optional[str] = None
 
-        if product_entity:
+        # If a category/query is present, this is a catalogue-level request.
+        # Do NOT interpret an extractor PRODUCT entity such as "black shirt"
+        # as a literal MongoDB product ID.
+        if not filters.category and not filters.query and conversation_context:
+            product_id = conversation_context.current_product
 
-            product_id = (
+        # A true product-specific entity is used only when no catalogue
+        # category/query was resolved.
+        if not filters.category and not filters.query and product_entity:
+            candidate = (
                 product_entity.normalized_value
                 or product_entity.value
             )
-
-        elif (
-            conversation_context
-            and conversation_context.current_product
-        ):
-
-            product_id = (
-                conversation_context.current_product
-            )
+            if candidate:
+                product_id = candidate.strip()
 
         # -----------------------------------------------------
-        # SIZE
+        # SIZE / COLOR FROM NORMALIZED FILTERS
         # -----------------------------------------------------
 
-        size: Optional[str] = None
-
-        if size_entity:
-
-            size = (
-                size_entity.normalized_value
-                or size_entity.value
-            )
-
-            if size:
-                size = size.strip()
-
-        # -----------------------------------------------------
-        # COLOR
-        # -----------------------------------------------------
-
-        color: Optional[str] = None
-
-        if color_entity:
-
-            color = (
-                color_entity.normalized_value
-                or color_entity.value
-            )
-
-            if color:
-                color = color.strip()
+        size: Optional[str] = filters.size
+        color: Optional[str] = filters.color
 
         # -----------------------------------------------------
         # CATALOGUE AVAILABILITY
@@ -507,24 +537,52 @@ class AvailabilityHandler(BaseHandler):
         # BUILD FILTERS
         # -----------------------------------------------------
 
-        filters = (
-            product_service.entities_to_filters(
-                understanding.entities
-            )
+        filters = product_service.entities_to_filters(
+            understanding.entities
         )
 
-        # -----------------------------------------------------
-        # USE CONVERSATION CATEGORY
-        # -----------------------------------------------------
+        # Merge an attribute-only follow-up into the complete previous search.
+        # This makes AVAILABILITY follow the same state rules as PRODUCT_SEARCH.
+        current_filter_dict = filters.model_dump(exclude_none=True)
+        has_new_search_anchor = bool(
+            filters.category or filters.query or filters.type
+        )
+        if (
+            conversation_context
+            and conversation_context.last_search_filters
+            and not has_new_search_anchor
+        ):
+            merged = ConversationContextManager.merge_filters(
+                conversation_context.last_search_filters,
+                current_filter_dict,
+            )
+            filters = type(filters)(**merged)
 
         if (
             not filters.category
             and conversation_context
             and conversation_context.current_category
         ):
+            filters.category = conversation_context.current_category
 
-            filters.category = (
-                conversation_context.current_category
+        filters, clarification = await catalog_metadata_service.normalize_filters(
+            tenant_id=tenant_id,
+            filters=filters,
+            source_text=understanding.original_text,
+        )
+
+        if clarification:
+            return BotResponse(
+                response_type="text",
+                text=clarification,
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "needs_clarification": True,
+                    "availability_checked": False,
+                    "missing": "size",
+                    "filters_collected": filters.model_dump(exclude_none=True),
+                },
             )
 
         # -----------------------------------------------------
@@ -576,20 +634,15 @@ class AvailabilityHandler(BaseHandler):
         # CATEGORY WITHOUT VARIANT CRITERIA
         # -----------------------------------------------------
 
-        if (
-            has_category
-            and not has_color
-            and not has_size
-            and not has_query
-        ):
-
+        if has_category and not has_color and not has_size and not has_query:
+            question = (
+                f"Which color or size are you looking for in {filters.category}?"
+            )
+            if conversation_context:
+                conversation_context.last_search_filters = filters.model_dump(exclude_none=True)
             return BotResponse(
                 response_type="text",
-                text=(
-                    f"Which color or size are you "
-                    f"looking for in "
-                    f"{filters.category}?"
-                ),
+                text=question,
                 quick_replies=[],
                 products=[],
                 metadata={
@@ -597,6 +650,46 @@ class AvailabilityHandler(BaseHandler):
                     "missing": "color_or_size",
                     "category": filters.category,
                     "availability_checked": False,
+                    "filters_collected": filters.model_dump(exclude_none=True),
+                },
+            )
+
+        # If one variant attribute is already supplied, ask only for the
+        # other one. This avoids repeating a color request after the customer
+        # already said "black".
+        if has_category and has_color and not has_size and not has_query:
+            if conversation_context:
+                conversation_context.last_search_filters = filters.model_dump(exclude_none=True)
+            return BotResponse(
+                response_type="text",
+                text=f"What size would you like for {filters.category} in {filters.color}?",
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "needs_clarification": True,
+                    "missing": "size",
+                    "category": filters.category,
+                    "color": filters.color,
+                    "availability_checked": False,
+                    "filters_collected": filters.model_dump(exclude_none=True),
+                },
+            )
+
+        if has_category and has_size and not has_color and not has_query:
+            if conversation_context:
+                conversation_context.last_search_filters = filters.model_dump(exclude_none=True)
+            return BotResponse(
+                response_type="text",
+                text=f"What color would you like for {filters.category} in size {filters.size}?",
+                quick_replies=[],
+                products=[],
+                metadata={
+                    "needs_clarification": True,
+                    "missing": "color",
+                    "category": filters.category,
+                    "size": filters.size,
+                    "availability_checked": False,
+                    "filters_collected": filters.model_dump(exclude_none=True),
                 },
             )
 
