@@ -58,148 +58,122 @@ class IntentClassifier:
     # Deterministic keyword fallback
     # ---------------------------------------------------------
 
+    # Keep this fallback intentionally small.
+    # General language is handled by the trained intent model.
+    # These rules are only a safety net for very explicit, high-signal
+    # non-catalogue intents. Catalogue intent is handled separately by
+    # _explicit_clothing_intent() using extracted product/category entities.
     INTENT_KEYWORDS = {
         IntentType.GREETING: [
-            "hi",
-            "hello",
-            "hey",
-            "good morning",
-            "good afternoon",
-            "good evening",
-            "namaste",
-            "howdy",
+            "hi", "hello", "hey", "good morning",
+            "good afternoon", "good evening", "namaste",
         ],
-
-        IntentType.PRODUCT_SEARCH: [
-            "need",
-            "want",
-            "looking for",
-            "search",
-            "find",
-            "show me",
-            "i want",
-            "i need",
-            "buy",
-            "purchase",
-            "looking",
-            "browse",
-            "looking to buy",
-        ],
-
-        IntentType.PRODUCT_INQUIRY: [
-            "tell me about",
-            "details",
-            "specs",
-            "material",
-            "fabric",
-            "how is",
-            "describe",
-            "features",
-            "care instruction",
-            "machine washable",
-            "pockets",
-            "fit like",
-        ],
-
-        IntentType.AVAILABILITY: [
-            "available",
-            "in stock",
-            "stock",
-            "have",
-            "do you have",
-            "is it available",
-            "is this available",
-            "sold out",
-        ],
-
         IntentType.ORDER_STATUS: [
-            "order",
-            "track",
-            "where is my order",
-            "where is order",
-            "delivered",
-            "shipped",
-            "status",
-            "tracking",
-            "order id",
+            "where is my order", "track my order",
+            "order status", "tracking number",
         ],
-
         IntentType.CANCEL_ORDER: [
-            "cancel",
-            "cancel order",
-            "change my mind",
-            "stop my order",
+            "cancel my order", "cancel order",
         ],
-
         IntentType.RETURN_REQUEST: [
-            "return",
-            "exchange",
-            "replace",
-            "wrong size",
-            "defective",
+            "return this", "return order", "exchange this",
             "return policy",
         ],
-
         IntentType.COMPLAINT: [
-            "complaint",
-            "issue",
-            "problem",
-            "wrong",
-            "bad",
-            "poor",
-            "disappointed",
-            "angry",
-            "terrible",
-            "unhappy",
+            "complaint", "i have a problem", "i have an issue",
         ],
-
         IntentType.THANKS: [
-            "thanks",
-            "thank you",
-            "thx",
-            "ty",
-            "appreciate",
-            "grateful",
+            "thanks", "thank you", "thankyou", "thx",
         ],
     }
 
     @classmethod
-    def _explicit_clothing_intent(cls, text: str):
-        """Return a deterministic intent for explicit catalogue phrases."""
-        text = re.sub(r"\s+", " ", (text or "").strip().lower())
-        if not text:
+    def _explicit_clothing_intent(
+        cls,
+        text: str,
+        entities: Dict[str, object] | None = None,
+    ) -> IntentType | None:
+        """
+        Resolve only high-confidence catalogue requests.
+
+        This intentionally does *not* maintain a growing list of phrases
+        such as ``show me``, ``give me`` or ``I need``. The important signal
+        is that the message contains a known catalogue entity. A very small
+        set of markers is then used only to distinguish search, availability
+        and product-detail questions.
+        """
+        cleaned = re.sub(r"\s+", " ", (text or "").strip().lower())
+        if not cleaned:
             return None
 
-        categories = (
-            "dresses", "dress", "shirts", "shirt", "t shirts", "t-shirt",
-            "tshirt", "tops", "top", "kurtas", "kurta", "kurtis", "kurti",
-            "sarees", "saree", "jeans", "jean", "trousers", "trouser",
-            "pants", "pant", "shorts", "short", "chinos", "chino",
-            "polos", "polo", "jackets", "jacket", "hoodies", "hoodie",
-            "sweatshirts", "sweatshirt", "cargo pants", "track pants",
+        entity_map = entities or {}
+        catalogue_keys = ("category", "product", "products")
+        has_catalogue_entity = any(
+            bool(entity_map.get(key))
+            for key in catalogue_keys
         )
-        has_category = any(
-            re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text)
-            for term in categories
-        )
-        if not has_category:
+
+        # Defensive fallback for direct callers that do not pass extracted
+        # entities. This uses the loaded vocabulary rather than a phrase list.
+        if not has_catalogue_entity:
+            try:
+                from app.ml.vocabulary_matcher import vocabulary_matcher
+
+                if not vocabulary_matcher.words:
+                    vocabulary_matcher.load()
+
+                vocab_entities = vocabulary_matcher.extract_entities_by_vocab(
+                    cleaned
+                )
+                has_catalogue_entity = bool(
+                    vocab_entities.get("products")
+                    or vocab_entities.get("categories")
+                    or vocab_entities.get("category")
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Catalogue vocabulary detection skipped: %s",
+                    exc,
+                )
+
+        if not has_catalogue_entity:
             return None
 
+        # Explicit availability beats search.
         availability_markers = (
-            "do you have", "is it available", "is this available",
-            "are they available", "available", "in stock", "stock",
+            "do you have",
+            "is it available",
+            "is this available",
+            "are they available",
+            "available",
+            "in stock",
+            "stock",
             "sold out",
         )
-        search_markers = (
-            "show me", "show some", "show", "find me", "find",
-            "looking for", "i need", "i want", "search for",
-            "browse", "looking to buy", "buy",
-        )
-        if any(marker in text for marker in availability_markers):
+        if any(marker in cleaned for marker in availability_markers):
             return IntentType.AVAILABILITY
-        if any(marker in text for marker in search_markers):
-            return IntentType.PRODUCT_SEARCH
-        return None
+
+        # Product-detail questions should not be treated as a catalogue
+        # browse request. Keep this deliberately small and semantic.
+        inquiry_markers = (
+            "details",
+            "detail",
+            "material",
+            "fabric",
+            "specs",
+            "specification",
+            "features",
+            "how is",
+            "what is the price",
+            "price of",
+            "care instruction",
+        )
+        if any(marker in cleaned for marker in inquiry_markers):
+            return IntentType.PRODUCT_INQUIRY
+
+        # A catalogue entity with no conflicting intent is a safe search
+        # signal. This covers natural variants without enumerating them.
+        return IntentType.PRODUCT_SEARCH
 
     def __init__(self) -> None:
         self._confidence_threshold = (
@@ -226,6 +200,7 @@ class IntentClassifier:
     def predict(
         self,
         text: str,
+        entities: Dict[str, object] | None = None,
     ) -> IntentPrediction:
         """
         Predict the user's intent.
@@ -293,6 +268,27 @@ class IntentClassifier:
                     IntentType.THANKS.value: 0.99,
                 },
                 margin=0.99,
+            )
+
+        # -----------------------------------------------------
+        # High-confidence catalogue layer
+        # -----------------------------------------------------
+
+        explicit_catalogue_intent = (
+            self._explicit_clothing_intent(
+                text_clean,
+                entities=entities,
+            )
+        )
+
+        if explicit_catalogue_intent is not None:
+            return IntentPrediction(
+                intent=explicit_catalogue_intent,
+                confidence=0.97,
+                all_scores={
+                    explicit_catalogue_intent.value: 0.97,
+                },
+                margin=0.97,
             )
 
         # -----------------------------------------------------

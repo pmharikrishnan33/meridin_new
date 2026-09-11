@@ -194,14 +194,52 @@ class VocabularyMatcher:
         """
         entities: Dict[str, List[str]] = {cat: [] for cat in self._categories}
 
-        words = text.lower().split()
+        text_lower = text.lower()
 
-        for word in words:
+        # First collect exact/multi-word vocabulary entries. This is important
+        # because exact matches must be entities too; previously an exact
+        # match was silently discarded because ``matched == word``.
+        matched_spans: list[tuple[int, int, str]] = []
+
+        for vocabulary_word in sorted(
+            self.words,
+            key=lambda value: len(value),
+            reverse=True,
+        ):
+            pattern = re.compile(
+                rf"(?<!\w){re.escape(vocabulary_word.lower())}(?!\w)"
+            )
+            match = pattern.search(text_lower)
+            if match:
+                matched_spans.append(
+                    (match.start(), match.end(), vocabulary_word)
+                )
+
+        for _, _, vocabulary_word in matched_spans:
+            category = self.get_category(vocabulary_word)
+            if category and vocabulary_word not in entities[category]:
+                entities[category].append(vocabulary_word)
+
+        # Then fuzzy-match individual tokens for typo recovery. Avoid adding
+        # a fuzzy result when it overlaps an already exact phrase.
+        for word_match in re.finditer(r"\b\w+\b", text_lower):
+            word = word_match.group(0)
             matched = self.match_word(word, score_cutoff=80)
-            if matched != word:
-                category = self.get_category(matched)
-                if category and matched not in entities[category]:
-                    entities[category].append(matched)
+            category = self.get_category(matched)
+
+            if not category:
+                continue
+
+            span = (word_match.start(), word_match.end())
+            overlaps_exact = any(
+                span[0] < end and span[1] > start
+                for start, end, _ in matched_spans
+            )
+            if overlaps_exact:
+                continue
+
+            if matched not in entities[category]:
+                entities[category].append(matched)
 
         return {k: v for k, v in entities.items() if v}
 

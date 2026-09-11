@@ -121,13 +121,25 @@ class MessageService:
             else preprocessed.normalized
         )
 
-        prediction = intent_classifier.predict(
-            ml_text
-        )
-
+        # Extract catalogue entities before intent classification so the
+        # deterministic catalogue layer can rely on actual entities rather
+        # than an ever-growing list of customer phrases.
         extraction = entity_extractor.extract(
             ml_text,
-            intent=prediction.intent.value,
+        )
+
+        entity_dict = {}
+        for entity in extraction.entities:
+            key = entity.entity_type.value
+            if key not in entity_dict:
+                entity_dict[key] = (
+                    entity.normalized_value
+                    or entity.value
+                )
+
+        prediction = intent_classifier.predict(
+            ml_text,
+            entities=entity_dict,
         )
 
         return MessageUnderstanding(
