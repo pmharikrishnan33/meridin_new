@@ -1058,6 +1058,7 @@ function mapEntries(map) {
 function populateDepartmentOptions(selectedId = "") {
     const select = document.getElementById("productDepartment");
     select.innerHTML = '<option value="">-- Select department --</option>';
+
     mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
         const option = document.createElement("option");
         option.value = id;
@@ -1065,21 +1066,64 @@ function populateDepartmentOptions(selectedId = "") {
         option.selected = String(id) === String(selectedId);
         select.appendChild(option);
     });
-    populateCategoryOptions(selectedId ? undefined : "");
+
+    // Keep the hierarchy intact: Category is always scoped to Department.
+    populateCategoryOptions(selectedId || "", "");
+}
+
+function getDepartmentCategoryEntries(departmentId) {
+    if (!departmentId) return [];
+
+    const raw = catalogMetadata.raw || {};
+    const categoryIds = raw.category_ids || {};
+    if (!categoryIds || typeof categoryIds !== "object") return [];
+
+    const departmentName = catalogMetadata.departments?.[departmentId];
+
+    // Metadata category_ids is keyed by department name. Match the selected
+    // department ID back to that name, with a case-insensitive fallback.
+    let departmentMap = departmentName
+        ? categoryIds[departmentName]
+        : null;
+
+    if (!departmentMap && departmentName) {
+        const target = String(departmentName).trim().toLowerCase();
+        const matchingKey = Object.keys(categoryIds).find(
+            key => String(key).trim().toLowerCase() === target
+        );
+        if (matchingKey) departmentMap = categoryIds[matchingKey];
+    }
+
+    if (!departmentMap || typeof departmentMap !== "object") return [];
+
+    return Object.entries(departmentMap)
+        .filter(([id, name]) => name !== "" && id !== "")
+        .map(([name, id]) => [id, name]);
 }
 
 function populateCategoryOptions(departmentId, selectedId = "") {
     const select = document.getElementById("productCategoryId");
     select.innerHTML = '<option value="">-- Select category --</option>';
-    // get_display_maps exposes category IDs without hierarchy. Use the selected
-    // department only as a UI hint; the backend remains authoritative.
-    mapEntries(catalogMetadata.categories).forEach(([id, name]) => {
+
+    if (!departmentId) {
+        select.innerHTML = '<option value="">Select department first</option>';
+        return;
+    }
+
+    const entries = getDepartmentCategoryEntries(departmentId);
+
+    // Only show categories that belong to the selected department.
+    entries.forEach(([id, name]) => {
         const option = document.createElement("option");
         option.value = id;
         option.textContent = name;
         option.selected = String(id) === String(selectedId);
         select.appendChild(option);
     });
+
+    if (!entries.length) {
+        select.innerHTML = '<option value="">No categories available</option>';
+    }
 }
 
 const productDepartment = document.getElementById("productDepartment");
