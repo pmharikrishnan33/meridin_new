@@ -391,6 +391,23 @@ class IntentRouter:
                 conversation_context=context,
             )
 
+            # Availability can also enter a multi-turn clarification flow.
+            # Persist the requested entity exactly like PRODUCT_SEARCH so the
+            # next short reply (for example "White") is treated as the
+            # answer to the clarification rather than being classified as a
+            # brand-new intent.
+            if (
+                session is not None
+                and response.metadata.get("needs_clarification")
+                and intent == IntentType.AVAILABILITY
+            ):
+                self._persist_product_search_clarification(
+                    session=session,
+                    understanding=understanding,
+                    response=response,
+                )
+                await conversation_manager.save_session(session)
+
             self._add_routing_metadata(
                 response=response,
                 intent=intent,
@@ -499,33 +516,69 @@ class IntentRouter:
 
         if pending_intent:
             try:
-                understanding.intent = (
-                    IntentType(
-                        pending_intent
-                    )
-                )
+                understanding.intent = IntentType(pending_intent)
             except ValueError:
-                understanding.intent = (
-                    IntentType.PRODUCT_SEARCH
-                )
+                understanding.intent = IntentType.PRODUCT_SEARCH
         else:
-            understanding.intent = (
-                IntentType.PRODUCT_SEARCH
-            )
+            understanding.intent = IntentType.PRODUCT_SEARCH
 
-        # ProductSearchHandler will merge the entity with previous filters.
-        # Do not clear the pending state before it has validated the complete
-        # metadata requirement chain.
-        if (
-            understanding.intent
-            == IntentType.PRODUCT_SEARCH
-        ):
+        # ProductSearchHandler owns PRODUCT_SEARCH continuation.
+        # Availability has its own handler, but it must receive the same
+        # pending-entity continuation treatment. In particular, a flow such
+        # as "Do you have shirts?" -> "White" must not be re-routed through
+        # the ML intent classifier, because a one-word attribute reply is
+        # expected to have very low intent confidence.
+        if understanding.intent == IntentType.PRODUCT_SEARCH:
             return await self._execute_product_search(
                 understanding=understanding,
                 tenant_id=tenant_id,
                 tenant_settings=tenant_settings,
                 conversation_id=conversation_id,
             )
+
+        if understanding.intent == IntentType.AVAILABILITY:
+            config = get_intent_config(IntentType.AVAILABILITY)
+            handler = await self._get_handler(config.handler_class)
+
+            if handler is None:
+                logger.error(
+                    "Availability handler not found: %s",
+                    config.handler_class,
+                )
+                return self._catalogue_error_response()
+
+            # Consume the current pending entity before invoking the handler.
+            # The handler may ask for the next entity (for example size after
+            # color), in which case the state is persisted again below.
+            context.awaiting_entity = None
+
+            response = await handler.handle(
+                understanding=understanding,
+                tenant_id=tenant_id,
+                tenant_settings=tenant_settings,
+                conversation_context=context,
+            )
+
+            if response.metadata.get("needs_clarification"):
+                self._persist_product_search_clarification(
+                    session=session,
+                    understanding=understanding,
+                    response=response,
+                )
+                await conversation_manager.save_session(session)
+            elif response.metadata.get("availability_checked"):
+                context.awaiting_entity = None
+                context.awaiting_confirmation = False
+                context.confirmation_context = {}
+                await conversation_manager.save_session(session)
+
+            self._add_routing_metadata(
+                response=response,
+                intent=IntentType.AVAILABILITY,
+                handler=config.handler_class,
+                confidence=understanding.intent_confidence,
+            )
+            return response
 
         return None
 
