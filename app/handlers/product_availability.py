@@ -135,6 +135,7 @@ class AvailabilityHandler(BaseHandler):
                     "needs_clarification": True,
                     "availability_checked": False,
                     "missing": "size",
+                    "intent": "availability",
                     "filters_collected": filters.model_dump(exclude_none=True),
                 },
             )
@@ -648,6 +649,11 @@ class AvailabilityHandler(BaseHandler):
                 metadata={
                     "needs_clarification": True,
                     "missing": "color_or_size",
+                    "intent": "availability",
+                    "awaiting_entities": [
+                        EntityType.COLOR.value,
+                        EntityType.SIZE.value,
+                    ],
                     "category": filters.category,
                     "availability_checked": False,
                     "filters_collected": filters.model_dump(exclude_none=True),
@@ -668,6 +674,7 @@ class AvailabilityHandler(BaseHandler):
                 metadata={
                     "needs_clarification": True,
                     "missing": "size",
+                    "intent": "availability",
                     "category": filters.category,
                     "color": filters.color,
                     "availability_checked": False,
@@ -686,6 +693,7 @@ class AvailabilityHandler(BaseHandler):
                 metadata={
                     "needs_clarification": True,
                     "missing": "color",
+                    "intent": "availability",
                     "category": filters.category,
                     "size": filters.size,
                     "availability_checked": False,

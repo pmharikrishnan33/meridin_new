@@ -465,10 +465,44 @@ class IntentRouter:
         if awaiting_entity is None:
             return None
 
-        extracted_entity = self._find_entity(
-            understanding.entities,
-            awaiting_entity,
+        # A clarification may accept more than one entity type. For example,
+        # Availability can ask "Which color or size...". Keep the legacy
+        # awaiting_entity field as the first/default entity, but consult the
+        # explicit awaiting_entities list when it is present.
+        awaiting_entities = [awaiting_entity]
+
+        confirmation_context = (
+            context.confirmation_context
+            if context.confirmation_context
+            else {}
         )
+        configured_awaiting_entities = confirmation_context.get(
+            "awaiting_entities"
+        )
+
+        if isinstance(configured_awaiting_entities, list):
+            parsed_entities = []
+            for raw_entity_type in configured_awaiting_entities:
+                try:
+                    parsed_entities.append(
+                        EntityType(str(raw_entity_type).strip().lower())
+                    )
+                except ValueError:
+                    continue
+
+            if parsed_entities:
+                awaiting_entities = parsed_entities
+
+        extracted_entity = None
+
+        for entity_type in awaiting_entities:
+            candidate = self._find_entity(
+                understanding.entities,
+                entity_type,
+            )
+            if candidate is not None:
+                extracted_entity = candidate
+                break
 
         if extracted_entity is None:
             requirement = (
@@ -503,6 +537,10 @@ class IntentRouter:
                     "awaiting_entity": (
                         awaiting_entity.value
                     ),
+                    "awaiting_entities": [
+                        entity_type.value
+                        for entity_type in awaiting_entities
+                    ],
                 },
             )
 
@@ -810,20 +848,20 @@ class IntentRouter:
         response: BotResponse,
     ) -> None:
         """
-        Persist the first missing product-search requirement.
+        Persist clarification state for the next customer turn.
+
+        A clarification can require one entity (for example ``size``) or
+        accept one of several entity types (for example ``color_or_size``).
+        The latter is important for Availability, where the customer may
+        answer the first question with either "white" or "2XL".
         """
 
-        missing = response.metadata.get(
-            "missing"
-        )
-
+        missing = response.metadata.get("missing")
         if not missing:
             return
 
         requirement = (
-            response.metadata.get(
-                "requirement"
-            )
+            response.metadata.get("requirement")
             or {
                 "key": str(missing),
                 "question": response.text or "",
@@ -831,39 +869,65 @@ class IntentRouter:
         )
 
         requirement_engine = ConversationRequirementEngine()
-        entity_type = requirement_engine.entity_type_for_requirement(
-            requirement
-        )
 
-        if entity_type is None:
+        # Most requirements map directly to one EntityType. The Availability
+        # handler deliberately uses a compound requirement for its first
+        # clarification, so explicitly preserve both valid answer types.
+        awaiting_entities = []
+
+        if str(missing).strip().lower() == "color_or_size":
+            awaiting_entities = [
+                EntityType.COLOR,
+                EntityType.SIZE,
+            ]
+        else:
+            entity_type = requirement_engine.entity_type_for_requirement(
+                requirement
+            )
+            if entity_type is not None:
+                awaiting_entities = [entity_type]
+
+        if not awaiting_entities:
             logger.warning(
-                "Product search returned a requirement that has no "
-                "conversation entity mapping: %s",
+                "Clarification returned without a valid conversation entity "
+                "mapping: %s",
                 missing,
             )
             return
 
-        session.context.awaiting_entity = (
-            entity_type
-        )
-
-        session.context.awaiting_confirmation = (
-            False
-        )
+        # Keep the legacy single-value field for backwards compatibility.
+        # _handle_pending_entity also reads awaiting_entities when multiple
+        # answer types are valid.
+        session.context.awaiting_entity = awaiting_entities[0]
+        session.context.awaiting_confirmation = False
 
         collected = response.metadata.get("filters_collected") or {}
-
-        # Persist the COMPLETE normalized filter snapshot. The next turn may
-        # contain only one attribute (for example "2XL"). Without this
-        # snapshot, a flow such as "black shirt" -> "2XL" loses color/category.
         session.context.last_search_filters = dict(collected)
+
         if collected.get("category"):
             session.context.current_category = collected["category"]
 
+        # Preserve the actual intent that created the clarification. The old
+        # implementation always stored PRODUCT_SEARCH, which broke
+        # Availability continuations such as "Do you have tshirts?" ->
+        # "white".
+        raw_intent = (
+            response.metadata.get("intent")
+            or understanding.intent.value
+        )
+        try:
+            pending_intent = IntentType(raw_intent).value
+        except (TypeError, ValueError):
+            pending_intent = understanding.intent.value
+
         session.context.confirmation_context = {
-            "intent": IntentType.PRODUCT_SEARCH.value,
+            "intent": pending_intent,
             "requirement": requirement,
             "missing_entities": [str(missing)],
+            "awaiting_entities": [
+                entity_type.value
+                for entity_type in awaiting_entities
+            ],
             "filters_collected": dict(collected),
         }
 
