@@ -2755,3 +2755,6 @@ body {
         min-height: 92px;
     }
 }
+
+.product-option-header .remove-btn { appearance:none; border:1px solid #fecaca; background:#fff1f2; color:#b91c1c; border-radius:8px; padding:6px 10px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.product-option-header .remove-btn:hover { background:#ffe4e6; border-color:#fda4af; }

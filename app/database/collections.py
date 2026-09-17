@@ -38,6 +38,10 @@ class Collections:
         ]
 
     @property
+    def product_matches(self) -> AsyncIOMotorCollection:
+        return mongodb.get_database()["product_matches"]
+
+    @property
     def customers(self) -> AsyncIOMotorCollection:
         return mongodb.get_database()["customers"]
 

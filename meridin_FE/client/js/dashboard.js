@@ -168,7 +168,7 @@ async function loadProducts() {
 
                             <div class="product-actions" style="display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
                                 <button class="table-button" onclick="editProduct('${product._id}')" style="flex: 1;">Edit</button>
-                                <button class="table-button" onclick="deleteProduct('${product._id}')" style="flex: 1; background: #fee2e2; border-color: #fecaca; color: #991b1b;">Delete</button>
+                                <button class="table-button" onclick="deleteProduct('${product._id}')" style="flex: 1; background: #fee2e2; border-color: #fecaca; color: #991b1b;">Delete</button><button class="table-button" onclick="manageProductMatches('${product._id}')" style="flex: 1;">Matches</button>
                             </div>
 
                         </div>
@@ -1043,7 +1043,6 @@ async function loadCatalogMetadata() {
     try {
         const data = await apiRequest("/dashboard/client/catalog-metadata");
         catalogMetadata = data.metadata || catalogMetadata;
-        populateDepartmentOptions();
         populateProductOptionChoices();
     } catch (error) {
         console.error("Failed to load catalog metadata:", error);
@@ -1053,22 +1052,6 @@ async function loadCatalogMetadata() {
 
 function mapEntries(map) {
     return Object.entries(map || {}).filter(([id, name]) => name !== "");
-}
-
-function populateDepartmentOptions(selectedId = "") {
-    const select = document.getElementById("productDepartment");
-    select.innerHTML = '<option value="">-- Select department --</option>';
-
-    mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
-        const option = document.createElement("option");
-        option.value = id;
-        option.textContent = name;
-        option.selected = String(id) === String(selectedId);
-        select.appendChild(option);
-    });
-
-    // Keep the hierarchy intact: Category is always scoped to Department.
-    populateCategoryOptions(selectedId || "", "");
 }
 
 function getDepartmentCategoryEntries(departmentId) {
@@ -1124,13 +1107,6 @@ function populateCategoryOptions(departmentId, selectedId = "") {
     if (!entries.length) {
         select.innerHTML = '<option value="">No categories available</option>';
     }
-}
-
-const productDepartment = document.getElementById("productDepartment");
-if (productDepartment) {
-    productDepartment.addEventListener("change", () => {
-        populateCategoryOptions(productDepartment.value);
-    });
 }
 
 function getOptionDefinitions() {
@@ -1308,8 +1284,6 @@ if (productForm) productForm.addEventListener("submit", async (e) => {
         description: document.getElementById("productDescription").value.trim() || null,
         price: firstVariantPrice,
         stock: firstVariantStock,
-        department_id: document.getElementById("productDepartment").value ? Number(document.getElementById("productDepartment").value) : null,
-        category_id: document.getElementById("productCategoryId").value ? Number(document.getElementById("productCategoryId").value) : null,
         brand: document.getElementById("productBrand").value.trim() || null,
         type: document.getElementById("productType").value.trim() || null,
         color_ids: colorIds,
@@ -1318,7 +1292,6 @@ if (productForm) productForm.addEventListener("submit", async (e) => {
         size: sizes,
         material: document.getElementById("productMaterial").value.trim() || null,
         fit: document.getElementById("productFit").value || null,
-        gender: document.getElementById("productGender").value || null,
         age_group: document.getElementById("productAgeGroup").value || null,
         tags: document.getElementById("productTags").value.split(",").map(v => v.trim()).filter(Boolean),
         media: currentProductImageUrl ? [currentProductImageUrl] : [],
@@ -1409,7 +1382,6 @@ window.editProduct = async function(productId) {
         document.getElementById("productType").value = product.type || "";
         document.getElementById("productMaterial").value = product.material || "";
         document.getElementById("productFit").value = product.fit || "";
-        document.getElementById("productGender").value = product.gender || "";
         document.getElementById("productAgeGroup").value = product.age_group || "";
         document.getElementById("productTags").value = (product.tags || []).join(", ");
         resetProductImageState();
@@ -1423,8 +1395,6 @@ window.editProduct = async function(productId) {
 
         resetProductEditor();
         await loadCatalogMetadata();
-        populateDepartmentOptions(product.department_id || "");
-        populateCategoryOptions(product.department_id, product.category_id || "");
         await loadCollectionsForDropdown();
         if (attrs.collection_id) document.getElementById("productCollection").value = attrs.collection_id;
 
@@ -1481,5 +1451,25 @@ window.deleteCollection = async function(collectionId) {
         await loadOverview();
     } catch (error) {
         alert(error.message || "Failed to delete collection");
+    }
+};
+
+window.manageProductMatches = async function(productId) {
+    try {
+        const all = await apiRequest("/dashboard/client/products?limit=100");
+        const current = await apiRequest(`/dashboard/client/products/${productId}/matches`);
+        const others = (all.items || []).filter(p => String(p._id || p.id) !== String(productId));
+        const currentIds = new Set((current.matching_product_ids || []).map(String));
+        const list = others.map((p, i) => `${i + 1}. ${p.title} [${p._id}]`).join("\n");
+        const answer = prompt("Select matching product IDs separated by commas.\n\n" + (list || "No other products available.") + "\n\nEnter IDs:", [...currentIds].join(","));
+        if (answer === null) return;
+        const ids = answer.split(",").map(v => v.trim()).filter(Boolean);
+        await apiRequest(`/dashboard/client/products/${productId}/matches`, {
+            method: "PUT",
+            body: JSON.stringify({ matching_product_ids: ids })
+        });
+        alert("Matching products saved.");
+    } catch (error) {
+        alert(error.message || "Failed to save matching products");
     }
 };
