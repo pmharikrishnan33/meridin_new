@@ -1455,21 +1455,49 @@ window.deleteCollection = async function(collectionId) {
 };
 
 window.manageProductMatches = async function(productId) {
+    const modal = document.getElementById("matchesModal");
+    const listElement = document.getElementById("matchesProductList");
+    const searchElement = document.getElementById("matchesSearch");
+    const countElement = document.getElementById("matchesCount");
+    const saveButton = document.getElementById("saveMatchesButton");
+    if (!modal || !listElement) return;
+
     try {
-        const all = await apiRequest("/dashboard/client/products?limit=100");
-        const current = await apiRequest(`/dashboard/client/products/${productId}/matches`);
+        const [all, current] = await Promise.all([
+            apiRequest("/dashboard/client/products?limit=100"),
+            apiRequest(`/dashboard/client/products/${productId}/matches`)
+        ]);
         const others = (all.items || []).filter(p => String(p._id || p.id) !== String(productId));
-        const currentIds = new Set((current.matching_product_ids || []).map(String));
-        const list = others.map((p, i) => `${i + 1}. ${p.title} [${p._id}]`).join("\n");
-        const answer = prompt("Select matching product IDs separated by commas.\n\n" + (list || "No other products available.") + "\n\nEnter IDs:", [...currentIds].join(","));
-        if (answer === null) return;
-        const ids = answer.split(",").map(v => v.trim()).filter(Boolean);
-        await apiRequest(`/dashboard/client/products/${productId}/matches`, {
-            method: "PUT",
-            body: JSON.stringify({ matching_product_ids: ids })
-        });
-        alert("Matching products saved.");
-    } catch (error) {
-        alert(error.message || "Failed to save matching products");
-    }
+        const selected = new Set((current.matching_product_ids || []).map(String));
+        const source = (all.items || []).find(p => String(p._id || p.id) === String(productId));
+        document.getElementById("matchesModalTitle").textContent = `Matches for ${source?.title || "Product"}`;
+        document.getElementById("matchesModalSubtitle").textContent = "Select other products that should be shown as matching items.";
+
+        const render = () => {
+            const query = (searchElement.value || "").trim().toLowerCase();
+            const filtered = others.filter(p => `${p.title || ""} ${p.category || ""}`.toLowerCase().includes(query));
+            countElement.textContent = `${selected.size} selected · ${filtered.length} products`;
+            listElement.innerHTML = filtered.length ? filtered.map(p => {
+                const id = String(p._id || p.id);
+                const title = p.title || p.name || "Untitled product";
+                const image = p.image_url || p.image || p.media?.[0]?.url;
+                return `<label class="match-product-option"><input type="checkbox" value="${id}" ${selected.has(id) ? "checked" : ""}/>${image ? `<img src="${image}" alt=""/>` : `<span class="match-product-placeholder">${title.charAt(0).toUpperCase()}</span>`}<span class="match-product-info"><strong>${title}</strong><small>${p.category || p.price ? `${p.category || "Product"}${p.price ? ` · ₹${p.price}` : ""}` : ""}</small></span></label>`;
+            }).join("") : '<p class="muted matches-empty">No other products found.</p>';
+            listElement.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.addEventListener("change", () => input.checked ? selected.add(input.value) : selected.delete(input.value));
+            });
+        };
+        searchElement.value = "";
+        searchElement.oninput = render;
+        render();
+        saveButton.onclick = async () => {
+            saveButton.disabled = true;
+            try {
+                await apiRequest(`/dashboard/client/products/${productId}/matches`, { method: "PUT", body: JSON.stringify({ matching_product_ids: [...selected] }) });
+                closeModal(modal);
+                await loadProducts();
+            } finally { saveButton.disabled = false; }
+        };
+        openModal(modal);
+    } catch (error) { alert(error.message || "Failed to load matching products"); }
 };

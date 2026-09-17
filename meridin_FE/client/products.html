@@ -361,6 +361,14 @@
 </form>
 </div>
 </div>
+<div aria-labelledby="matchesModalTitle" aria-modal="true" class="modal" id="matchesModal" role="dialog">
+<div class="modal-backdrop"></div>
+<div class="modal-content matches-modal">
+<div class="modal-header"><div><span class="eyebrow">Product matching</span><h3 id="matchesModalTitle">Select matching products</h3><p class="muted" id="matchesModalSubtitle">Choose products that match this item.</p></div><button aria-label="Close" class="modal-close" type="button">&times;</button></div>
+<div class="matches-toolbar"><input id="matchesSearch" type="search" placeholder="Search products..."/><span class="muted" id="matchesCount"></span></div>
+<div id="matchesProductList" class="matches-product-list"></div>
+<div class="modal-actions"><button class="modal-cancel" type="button">Cancel</button><button class="primary-button" id="saveMatchesButton" type="button">Save Matches</button></div>
+</div></div>
 </main>
 </div>
 <script src="js/api.js"></script>
