@@ -739,6 +739,91 @@ async def create_product(
     }
 
 
+
+class ProductMatchesUpdateRequest(BaseModel):
+    matching_product_ids: List[str] = Field(default_factory=list)
+
+
+def _product_id_candidates(product_id: str) -> List[Any]:
+    candidates: List[Any] = [product_id]
+    if ObjectId.is_valid(product_id):
+        candidates.append(ObjectId(product_id))
+    return candidates
+
+
+@router.get("/products/{product_id}/matches")
+async def get_product_matches(
+    product_id: str,
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    tenant_id = _client_id(user)
+    if not mongodb.is_connected:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is unavailable.")
+
+    product = await collections.products(tenant_id).find_one({
+        "tenant_id": tenant_id,
+        "_id": {"$in": _product_id_candidates(product_id)},
+    })
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    source_id = str(product["_id"])
+    relation = await collections.product_matches.find_one({
+        "tenant_id": tenant_id,
+        "source_product_id": source_id,
+    })
+    return {
+        "product_id": source_id,
+        "matching_product_ids": [str(value) for value in (relation or {}).get("matching_product_ids", [])],
+    }
+
+
+@router.put("/products/{product_id}/matches")
+async def update_product_matches(
+    product_id: str,
+    payload: ProductMatchesUpdateRequest,
+    user: Dict[str, Any] = Depends(get_current_client),
+) -> Dict[str, Any]:
+    tenant_id = _client_id(user)
+    if not mongodb.is_connected:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database is unavailable.")
+
+    products_collection = collections.products(tenant_id)
+    source = await products_collection.find_one({
+        "tenant_id": tenant_id,
+        "_id": {"$in": _product_id_candidates(product_id)},
+    })
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+
+    source_id = str(source["_id"])
+    requested_ids = list(dict.fromkeys(str(value).strip() for value in payload.matching_product_ids if str(value).strip()))
+    if source_id in requested_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A product cannot match itself.")
+
+    valid_ids: List[str] = []
+    for matching_id in requested_ids:
+        match = await products_collection.find_one({
+            "tenant_id": tenant_id,
+            "_id": {"$in": _product_id_candidates(matching_id)},
+        })
+        if not match:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Matching product not found: {matching_id}")
+        valid_ids.append(str(match["_id"]))
+
+    await collections.product_matches.update_one(
+        {"tenant_id": tenant_id, "source_product_id": source_id},
+        {"$set": {
+            "tenant_id": tenant_id,
+            "source_product_id": source_id,
+            "matching_product_ids": valid_ids,
+            "updated_at": datetime.now(timezone.utc),
+        }, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"saved": True, "product_id": source_id, "matching_product_ids": valid_ids}
+
+
 @router.get("/products/{product_id}")
 async def product_detail(
     product_id: str,
