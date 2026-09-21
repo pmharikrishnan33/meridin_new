@@ -1058,19 +1058,38 @@ function mapEntries(map) {
     return Object.entries(map || {}).filter(([id, name]) => name !== "");
 }
 
+function getDepartmentEntries() {
+    const displayDepartments = catalogMetadata.departments || {};
+    const rawDepartments = catalogMetadata.raw?.department_ids || {};
+
+    // Preferred format: ID -> name (from get_display_maps).
+    let entries = mapEntries(displayDepartments);
+    if (entries.length) return entries;
+
+    // Fallback format: name -> ID (from raw metadata).
+    return Object.entries(rawDepartments)
+        .filter(([name, id]) => String(name).trim() !== "" && String(id).trim() !== "")
+        .map(([name, id]) => [String(id), String(name)]);
+}
+
 function populateDepartmentOptions(selectedId = "") {
     const select = document.getElementById("productDepartmentId");
     if (!select) return;
 
     select.innerHTML = '<option value="">-- Select department --</option>';
 
-    mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
+    getDepartmentEntries().forEach(([id, name]) => {
         const option = document.createElement("option");
         option.value = id;
         option.textContent = name;
         option.selected = String(id) === String(selectedId);
         select.appendChild(option);
     });
+
+    if (!getDepartmentEntries().length) {
+        select.innerHTML = '<option value="">No departments available</option>';
+        console.warn("No department metadata found", catalogMetadata);
+    }
 }
 
 function getDepartmentCategoryEntries(departmentId) {
@@ -1080,7 +1099,10 @@ function getDepartmentCategoryEntries(departmentId) {
     const categoryIds = raw.category_ids || {};
     if (!categoryIds || typeof categoryIds !== "object") return [];
 
-    const departmentName = catalogMetadata.departments?.[departmentId];
+    const departmentName = catalogMetadata.departments?.[departmentId]
+        || Object.entries(catalogMetadata.raw?.department_ids || {})
+            .find(([name, id]) => String(id) === String(departmentId))?.[0]
+        || null;
 
     // Metadata category_ids is keyed by department name. Match the selected
     // department ID back to that name, with a case-insensitive fallback.
