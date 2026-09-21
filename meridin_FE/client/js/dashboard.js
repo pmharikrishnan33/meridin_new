@@ -1043,6 +1043,10 @@ async function loadCatalogMetadata() {
     try {
         const data = await apiRequest("/dashboard/client/catalog-metadata");
         catalogMetadata = data.metadata || catalogMetadata;
+        populateDepartmentOptions();
+        populateCategoryOptions(
+            document.getElementById("productDepartmentId")?.value || ""
+        );
         populateProductOptionChoices();
     } catch (error) {
         console.error("Failed to load catalog metadata:", error);
@@ -1052,6 +1056,21 @@ async function loadCatalogMetadata() {
 
 function mapEntries(map) {
     return Object.entries(map || {}).filter(([id, name]) => name !== "");
+}
+
+function populateDepartmentOptions(selectedId = "") {
+    const select = document.getElementById("productDepartmentId");
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- Select department --</option>';
+
+    mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = name;
+        option.selected = String(id) === String(selectedId);
+        select.appendChild(option);
+    });
 }
 
 function getDepartmentCategoryEntries(departmentId) {
@@ -1084,26 +1103,6 @@ function getDepartmentCategoryEntries(departmentId) {
         .map(([name, id]) => [id, name]);
 }
 
-function populateDepartmentOptions(selectedId = "") {
-    const select = document.getElementById("productDepartment");
-    if (!select) return;
-    select.innerHTML = '<option value="">-- Select department --</option>';
-    mapEntries(catalogMetadata.departments).forEach(([id, name]) => {
-        const option = document.createElement("option");
-        option.value = id;
-        option.textContent = name;
-        option.selected = String(id) === String(selectedId);
-        select.appendChild(option);
-    });
-}
-
-function initializeCategorySelectors() {
-    const department = document.getElementById("productDepartment");
-    if (!department || department.dataset.bound === "true") return;
-    department.dataset.bound = "true";
-    department.addEventListener("change", () => populateCategoryOptions(department.value));
-}
-
 function populateCategoryOptions(departmentId, selectedId = "") {
     const select = document.getElementById("productCategoryId");
     if (!select) return;
@@ -1128,6 +1127,13 @@ function populateCategoryOptions(departmentId, selectedId = "") {
     if (!entries.length) {
         select.innerHTML = '<option value="">No categories available</option>';
     }
+}
+
+const productDepartmentSelect = document.getElementById("productDepartmentId");
+if (productDepartmentSelect) {
+    productDepartmentSelect.addEventListener("change", () => {
+        populateCategoryOptions(productDepartmentSelect.value);
+    });
 }
 
 function getOptionDefinitions() {
@@ -1305,12 +1311,11 @@ if (productForm) productForm.addEventListener("submit", async (e) => {
         description: document.getElementById("productDescription").value.trim() || null,
         price: firstVariantPrice,
         stock: firstVariantStock,
-        department_id: document.getElementById("productDepartment").value ? Number(document.getElementById("productDepartment").value) : null,
-        category_id: document.getElementById("productCategoryId").value ? Number(document.getElementById("productCategoryId").value) : null,
-        category: document.getElementById("productCategoryId").selectedOptions[0]?.textContent || null,
-        gender: document.getElementById("productGender").value || null,
         brand: document.getElementById("productBrand").value.trim() || null,
         type: document.getElementById("productType").value.trim() || null,
+        gender: document.getElementById("productGender").value || null,
+        department_id: document.getElementById("productDepartmentId").value || null,
+        category_id: document.getElementById("productCategoryId").value || null,
         color_ids: colorIds,
         color: colors,
         size_ids: sizeIds,
@@ -1403,12 +1408,9 @@ window.editProduct = async function(productId) {
         document.getElementById("productDescription").value = product.description || "";
         document.getElementById("productPrice").value = product.price ?? 0;
         document.getElementById("productStock").value = product.stock ?? 0;
-        await loadCatalogMetadata();
-        document.getElementById("productDepartment").value = product.department_id ?? "";
-        populateCategoryOptions(product.department_id, product.category_id);
-        document.getElementById("productGender").value = product.gender || "";
         document.getElementById("productBrand").value = product.brand || "";
         document.getElementById("productType").value = product.type || "";
+        document.getElementById("productGender").value = product.gender || "";
         document.getElementById("productMaterial").value = product.material || "";
         document.getElementById("productFit").value = product.fit || "";
         document.getElementById("productAgeGroup").value = product.age_group || "";
@@ -1423,6 +1425,13 @@ window.editProduct = async function(productId) {
         document.getElementById("productLength").value = attrs.top_length || "";
 
         resetProductEditor();
+        await loadCatalogMetadata();
+        const selectedDepartmentId = product.department_id || "";
+        populateDepartmentOptions(selectedDepartmentId);
+        populateCategoryOptions(
+            selectedDepartmentId,
+            product.category_id || ""
+        );
         await loadCollectionsForDropdown();
         if (attrs.collection_id) document.getElementById("productCollection").value = attrs.collection_id;
 
