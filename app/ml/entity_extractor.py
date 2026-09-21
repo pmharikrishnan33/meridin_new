@@ -172,6 +172,14 @@ class EntityExtractor:
         "sarees",
         "saree",
 
+        # Kaftans
+        "kaftans",
+        "kaftan",
+        "kaftan dress",
+        "kaftan dresses",
+        "kaftan pant",
+        "kaftan pants",
+
         # Bottomwear
         "jeans",
         "jean",

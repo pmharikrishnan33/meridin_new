@@ -235,6 +235,12 @@ class CatalogMetadataService:
             "short",
             "shorts",
         ],
+        "kaftan": [
+            "kaftan",
+            "kaftans",
+            "kaftan dress",
+            "kaftan dresses",
+        ],
     }
     
     @staticmethod
